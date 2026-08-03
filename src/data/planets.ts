@@ -10,10 +10,18 @@ import type { PlanetPreset } from './schema';
  * Atmosphere density is the sea-level air density on a 0..1 scale, which is the
  * value atmospheric/ion thruster effectiveness curves are evaluated against.
  *
- * NOTE (Phase 1): these figures are seeded from community references and MUST
- * be verified against the current game version and cited in the data-audit
- * task (roadmap Phase 1 / M1) before the numbers are presented to users as
- * authoritative. Values below use g = 9.81 m/s^2 for Earthlike = 1.0 g.
+ * VERIFIED against the current game version (v1.210) via the official wiki
+ * (spaceengineers.wiki.gg) cross-referenced with the legacy fandom wiki.
+ * Earthlike = 1.0 g and SE's internal gravity constant is 9.81 m/s^2.
+ * Correction applied vs. the original seed: Pertam is 1.20 g (11.77 m/s^2),
+ * not 1.0 g. All other bodies confirmed.
+ *
+ * One open caveat — Europa's atmosphere density. The wiki prints a flat
+ * "1 atm" surface label for every atmospheric body, but the game's
+ * PlanetGeneratorDefinitions.sbc <Density> field for Europa is 0.5, matching
+ * its "thin/weak atmosphere" description. Because thruster effectiveness keys
+ * off that density multiplier, we use 0.5 here; confirm against the local
+ * game's PlanetGeneratorDefinitions.sbc if exactness matters.
  */
 export const PLANET_PRESETS: readonly PlanetPreset[] = [
   {
@@ -68,7 +76,7 @@ export const PLANET_PRESETS: readonly PlanetPreset[] = [
   {
     id: 'pertam',
     displayName: 'Pertam',
-    surfaceGravity: 9.81, // 1.00 g
+    surfaceGravity: 11.77, // 1.20 g — high-g desert world
     atmosphereDensity: 1.0,
     hasAtmosphere: true,
   },

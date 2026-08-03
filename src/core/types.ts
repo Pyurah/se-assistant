@@ -10,6 +10,13 @@
 
 import type { BlockDefinition, GridSize, Direction } from '../data/schema';
 
+/** An integer grid-cell coordinate (the blueprint's `<Min>` x/y/z). */
+export interface Vec3 {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+}
+
 /**
  * A block placed in a design, resolved to its definition plus a count and the
  * six-axis orientation info the TWR engine needs. For non-thruster blocks the
@@ -26,6 +33,13 @@ export interface DesignBlock {
    * parser is responsible for resolving orientation to a thrust direction.
    */
   readonly thrustDirection?: Direction;
+  /**
+   * Grid-cell positions of each instance (length === quantity when known).
+   * Preserved by the blueprint parser from each block's `<Min>` so the engine
+   * can compute center-of-mass and thrust-center alignment. Absent for designs
+   * built without geometry (the estimator), where those analyses are skipped.
+   */
+  readonly positions?: readonly Vec3[];
 }
 
 /**

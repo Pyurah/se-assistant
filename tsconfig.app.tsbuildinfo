@@ -1,1 +1,0 @@
-{"root":["./src/main.tsx","./src/vite-env.d.ts","./src/app/app.tsx","./src/core/index.ts","./src/core/types.ts","./src/core/audit/audit.ts","./src/core/audit/index.ts","./src/core/logger/index.ts","./src/core/logger/logger.ts","./src/data/blocks.ts","./src/data/index.ts","./src/data/planets.ts","./src/data/schema.ts"],"version":"5.9.3"}

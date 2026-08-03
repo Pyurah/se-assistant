@@ -11,6 +11,15 @@ build/
 coverage/
 .vitest/
 
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Claude Code local agent state (not for the repo) — but keep intentional
+# project docs like .claude/test-conventions.md that were committed on purpose.
+.claude/agent-memory/
+.claude/worktrees/
+.claude/scheduled_tasks.json
+
 # Logs
 *.log
 npm-debug.log*

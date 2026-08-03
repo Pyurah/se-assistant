@@ -4,6 +4,312 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.0] - 2026-08-03
+
+### Added
+
+- **Small Battery** (`SmallBlockSmallBatteryBlock`) — the compact 1×1×1 small-
+  grid battery (50 kWh capacity, 200 kW I/O, 146.4 kg), which was missing. It's
+  the right choice for light small-grid ships where the 1 MWh Battery is
+  oversized. Both existing batteries were re-verified against the wiki (correct).
+- **Warfare Battery** variants (Warfare 2 DLC) for both grids — stat-identical
+  reskins of the base Battery, tagged `warfare-2` so DLC filtering can hide them.
+
+### Changed
+
+- **Estimator essentials builder**: palette blocks that have been added now show
+  an inline −/count/+ stepper in place of the plain add button, so a mis-added
+  block can be decremented or removed right where you clicked, without scrolling
+  to the "Your essentials" list. (The per-item remove/stepper in that list is
+  unchanged.)
+
+## [0.8.0] - 2026-08-03
+
+### Added
+
+- **Motion & Stability (M6)** — a motion/stability engine and the Motion panel
+  that consumes it in Analyze mode, alongside the TWR / Mass / Power / Fuel
+  panels and recomputing live with the current planet + cargo loadout.
+  - **Motion engine** (`src/core/engine/motion.ts`): dampener stopping distance
+    (distance/time/deceleration from a given speed using the braking thrust
+    opposing travel, Infinity when there's no opposing thrust); mass-weighted
+    center of mass; thrust-center vs. center-of-mass alignment per direction
+    (offset vector + magnitude in meters); and a gyro turn-rate estimate (total
+    torque, approximate solid-cube moment of inertia, angular acceleration, and
+    time to a 90° turn, with a mass-based fallback when geometry is absent).
+    Exposed as `stoppingDistance`, `centerOfMass`, `thrustCenterAlignment`,
+    `turnRateEstimate`, and `hasGeometry`.
+  - **Block-position support in the blueprint parser** (`src/core/blueprint`):
+    each block's grid-cell positions are now preserved from its `<Min>` element,
+    so imported blueprints carry the per-instance geometry the center-of-mass and
+    thrust-alignment analyses require. Designs built without geometry (the
+    estimator) skip those analyses gracefully.
+  - **Motion panel** (`src/ui/panels/MotionPanel.tsx`): a speed control (SE's
+    default 100 m/s and a 50 m/s preset chip plus a labeled free numeric entry)
+    driving per-direction stopping distance + time (forward / up / down), with a
+    "no braking thrust — won't stop" state for directions that can't brake and a
+    footnote that it ignores per-axis gravity (accurate in space / level flight).
+    Turn rate shows time-to-90°, total gyro torque, and angular acceleration,
+    clearly badged an estimate (with a "no gyroscopes" case). Center-of-mass /
+    thrust alignment surfaces the worst off-center thrust as an actionable
+    warning ("UP thrust is offset 3.2 m … expect rotation"), a per-direction
+    offset list with well-aligned / off-center badges, and a tidy "needs block
+    positions — import a blueprint" note for geometry-less designs.
+  - **`useMotion` hook** (`src/app/hooks/use-motion.ts`): derives the turn-rate
+    estimate, alignment, center of mass, and geometry flag from the store
+    (memoized on design/planet like `useAnalysis`) and exposes a
+    `stopping(direction, speed)` helper for the panel's speed control.
+  - **`formatMeters`** added to the formatter library (meters → "4.91 m" /
+    "42.6 m" / "640 m" / "1.24 km" / "∞"), for stopping distances and offsets.
+- Motion panel render tests (stopping distance shown vs. "won't stop", turn-rate
+  estimate + "no gyroscopes", off-center thrust warning, and the "needs block
+  positions" no-geometry note) and `formatMeters` unit tests.
+
+## [0.7.0] - 2026-08-03
+
+### Added
+
+- **Fuel & Flight Time (M5)** — a new fuel/flight-time engine and the Fuel panel
+  that consumes it in Analyze mode, sitting alongside the TWR / Mass / Power
+  panels and recomputing live with the current planet + cargo loadout.
+  - **Fuel engine** (`src/core/engine/fuel.ts`): total hydrogen capacity across
+    all tanks; per-thruster and total H2 burn rate; hover-time and full-throttle
+    flight-time estimates on a full tank at a given loaded mass and planet
+    (Infinity in zero-g, and a "can't hold a hover" verdict when up-thrust can't
+    match weight); reactor uranium consumption (kg/s and kg/h) from electrical
+    load and the 1 MWh-per-kg constant; O2/H2 generator output vs. hover burn;
+    and solar day/night panel-sizing guidance. Exposed as `fuelSummary`,
+    `flightTime`, `hydrogenCapacity`, `maxHydrogenBurn`, `hydrogenGeneration`,
+    `uraniumUsage`, and `solarGuidance`.
+  - **Fuel dataset fields** (`src/data`): hydrogen-tank `gasCapacity` (L) and
+    O2/H2-generator `hydrogenOutput` (L/s) on gas blocks, thruster/engine
+    `maxHydrogenConsumption` (L/s), and the `URANIUM_WH_PER_KG` constant
+    (`src/data/fuel-constants.ts`).
+  - **Fuel panel** (`src/ui/panels/FuelPanel.tsx`): adapts to the ship's
+    propulsion/power type. Hydrogen ships lead with HOVER TIME on a full tank
+    (with a hover-vs-full-throttle burn meter carrying an O2/H2-generation
+    threshold line), H2 capacity, full-throttle time, a prominent can't-hover
+    alert, a zero-g "unlimited" case, and generator-sustains / net-deficit
+    notes. Reactor ships get uranium burn at peak draw with a "1 kg lasts X"
+    readout. Ships with neither show a tidy "no consumable fuel — electric/solar"
+    empty state. Battery runtime is cross-referenced lightly.
+  - **`useFuel` hook** (`src/app/hooks/use-fuel.ts`): derives `fuelSummary` +
+    generator output from the store, memoized on design/planet like `useAnalysis`.
+  - **`formatDuration`** added to the formatter library (seconds → "1h 42m" /
+    "3.4 min" / "42 s" / "unlimited"), a seconds-based sibling to `formatRuntime`.
+- Fuel panel render tests (hover time, can't-hover warning, zero-g unlimited,
+  reactor uranium section, electric-only empty state) and `formatDuration` unit
+  tests — 26 new tests (162 total).
+
+## [0.6.0] - 2026-08-03
+
+### Added
+
+- **Design From Scratch — Requirement Estimator (new app mode)** — the inverse
+  of blueprint import. You can't export a blueprint until *after* a ship is
+  built, so this mode lets you declare your essential gear and goals up front and
+  have the app estimate the rest. A top-level segmented control in the app header
+  switches between "Analyze blueprint" (existing) and "Estimate build" (new); the
+  two modes have fully independent stores and the active mode persists to
+  localStorage.
+  - **Functional-block dataset expansion** (`src/data/functional-blocks.ts`):
+    gyroscopes, drills, welders, grinders, connectors/collectors, lights,
+    beacons, antennas, sensors/cameras/ore-detectors, logic blocks
+    (programmable/timer/event-controller), and life-support/utility blocks
+    (O2/H2 generators, hydrogen/oxygen tanks, survival kit, remote control,
+    landing gear) across both grid sizes — all cited in `docs/data-audit.md`,
+    with community-sourced/uncertain power values explicitly flagged. Plus the
+    new `BlockCategory` values and the `GyroscopeBlock` / `UtilityBlock` schema
+    shapes that back them.
+  - **`estimateRequirements` engine** (`src/core/engine/estimate.ts`): sizes a
+    ship from its essentials by iterating to a fixed point — thrusters per
+    direction (to hit a target up-TWR plus a lateral-thrust fraction), power
+    blocks (battery discharge + runtime target, or a producer's output) to cover
+    peak draw, and a torque-per-mass gyro heuristic. Returns achieved TWR, dry/
+    loaded mass, peak draw vs. supply, and warnings for infeasible choices.
+  - **Estimator store** (`src/app/store/estimator-store.ts`, `useEstimatorStore`)
+    holding the grid size, essentials list (add/remove/set-quantity, by block
+    id), planet, cargo, and the estimator config (target TWR, lateral thrust,
+    thruster/power/gyro choices, runtime target, responsiveness) — all inputs;
+    the `Estimate` is derived on demand via a `useEstimate` hook that resolves
+    ids to definitions and calls the engine.
+  - **Essentials builder** with a grid-size gate and a searchable, category-
+    grouped block palette (propulsion/power/gyros excluded — the app sizes those)
+    plus per-block quantity steppers and a running block-count/mass tally.
+  - **Build-goals panel**: planet selector, target-TWR and lateral-thrust
+    sliders, a thruster picker grouped by type with atmospheric/ion feasibility
+    hints, a battery-or-generator power source with a runtime-target control, a
+    maneuverability segmented control, and the cargo loadout controls.
+  - **Recommendations panel** (the payoff): per-direction thruster counts (UP
+    emphasized), total thrusters, power-block count with a supply-vs-peak-draw
+    meter, a gyro count clearly badged as an *estimate*, resulting dry/loaded
+    mass and achieved loaded up-TWR (with a zero-g "n/a" case), prominent engine
+    warnings, and a note to import the real blueprint afterward to verify. Ships
+    empty, live, and infeasible/warning states.
+
+### Changed
+
+- App shell (`src/app/App.tsx`) now carries an app-wide header with the
+  Analyze/Estimate mode switch; the analysis dashboard's header is no longer
+  sticky so it sits below the shared top bar.
+
+## [0.5.0] - 2026-08-03
+
+### Added
+
+- **Analysis UI (M4)** — the interactive front end over the calc engine, built
+  to a Linear/Vercel/Raycast bar (dark, calm, high-contrast) with every state
+  shipped: loading, empty, hover, error, and the unrecognized/modded-block case.
+  - **Zustand design store** (`src/app/store/design-store.ts`): holds the
+    imported `ShipDesign`, selected planet, cargo loadout, and last
+    `BlueprintReport`; actions for `importBlueprint` (catches
+    `BlueprintParseError` → friendly error state), `setPlanet`, `setCargoFill`,
+    `setCargoDensity`, and `reset`. Engine output is derived on demand via a
+    `useAnalysis` hook so planet/cargo changes recompute everything live.
+  - **Import screen**: drag-and-drop or file-picker upload of a `.sbc`, a
+    bundled "load example" ship (run through the real `parseBlueprint` path),
+    and inline loading/error states. The drop zone is a focusable, aria-labeled
+    button — keyboard and screen-reader operable.
+  - **TWR panel**: empty-vs-loaded verdict cards, six-axis directional gauges
+    with UP emphasized and a fixed 1.0 lift-off line, the signature "lifts empty
+    but can't take off loaded" story, zero-g "no gravity" handling, and a
+    thruster recommender (count needed to hover current loaded mass, with the
+    "won't work here" case for atmospheric thrusters in vacuum).
+  - **Mass panel**: dry/payload/loaded stats and a category-colored stacked bar
+    with legend. **Power panel**: draw-vs-generation meter with a sustained-
+    generation threshold marker, a prominent brownout alert, and humane battery
+    runtime ("sustained" / minutes / seconds).
+  - **Block list panel**: blocks grouped by category with per-source badges
+    (vanilla/modded/custom), modded rows highlighted, plus blueprint diagnostics
+    (recognition rate, unrecognized subtypes, unoriented thrusters, merged/mixed
+    grids).
+  - **Environment + cargo controls**: planet selector driving live recompute,
+    fill-fraction slider and density presets (ice/components/ingots/ore/uranium)
+    plus a custom density input.
+  - Reusable UI kit (`Panel`, `Badge`, `Stat`, `Meter`, `TwrBar`, `StackedBar`,
+    `SegmentedControl`, `Button`, icon set) and a unit-formatting library
+    (N→kN/MN/GN, W→kW/MW, kg→t, L→kL/ML, runtime, TWR).
+  - Blueprint imports recorded to the append-only audit trail as
+    `blueprint.import` with source and match-rate metadata; import + parse
+    errors logged through the structured logger with AI triage metadata.
+- 30 new UI tests (103 total): the number formatter, store actions (import
+  success/error, planet/cargo updates, audit recording, reset), and TWR
+  pass/fail + brownout rendering logic.
+
+### Changed
+
+- Extended the design-token set in `src/ui/styles/index.css` with semantic
+  status colors (success/warning/danger/info), a second surface layer, stronger
+  borders, theme-matched scrollbars, focus-ring and reduced-motion handling, and
+  centralized `.badge` / `.panel` component classes.
+- `App.tsx` is now a thin shell that routes between the import screen and the
+  analysis dashboard based on store state.
+- Added bare-specifier path aliases (`@core`, `@data`) to `tsconfig.app.json`
+  so the UI can import the package barrels the same way Vite resolves them.
+
+## [0.4.0] - 2026-08-03
+
+### Added
+
+- **Calculation engine (M3)** — pure, heavily-tested math in `src/core/engine`:
+  - **Thruster effectiveness**: air-density scaling per type (ion 1.0→0.3,
+    atmospheric 0→1.0 across the 0.3–1.0 band, hydrogen flat), via clamp + lerp
+    on each block's planetary-influence envelope.
+  - **Mass & cargo**: dry mass, mass breakdown by category, cargo capacity (L),
+    cargo payload mass (fill × density), loaded mass.
+  - **Directional TWR**: thrust summed per grid axis with effectiveness applied,
+    divided by weight; per-planet gravity; Infinity in zero-g.
+  - **Empty-vs-loaded lift analysis**: the killer insight — reports whether a
+    ship lifts off empty vs. fully loaded on a chosen planet.
+  - **Power budget**: generation vs. peak draw, surplus, brownout detection,
+    battery runtime under deficit.
+  - **Thruster recommender**: whole thrusters needed to hover a mass on a
+    planet, with an infeasible verdict when a thruster type produces no thrust
+    there (e.g. atmospheric in vacuum).
+- 22 worked-example engine tests with hand-verified reference values (73 total),
+  including the "lifts empty at TWR 28 but only 0.845 loaded — can't take off"
+  scenario and the same ship as a rocket on the Moon.
+
+### Fixed
+
+- Thruster recommender now flags a zero-thrust thruster (atmospheric in space)
+  as infeasible before the no-gravity shortcut, instead of reporting "0 needed."
+
+## [0.3.1] - 2026-08-03
+
+### Changed
+
+- Verified the blueprint parser against primary sources (real grid dump,
+  SEToolbox serialization classes, Whiplash141 physics code). Confirmed the
+  structure, the `(xsi:type, SubtypeName)` identity with empty-subtype fallback,
+  the count-occurrences model, and the `flip(BlockOrientation.Forward)`
+  thrust-direction rule. Recorded in `docs/data-audit.md`.
+
+### Fixed
+
+- Documented a known approximation: subgrid thrust is bucketed in each grid's
+  local axes without rotating rotated rotor/hinge subgrids into the main frame
+  (accurate for main-grid thrusters; a future enhancement otherwise). Made
+  explicit in `parse.ts` rather than left silent.
+
+## [0.3.0] - 2026-08-03
+
+### Added
+
+- **Blueprint import (M2):** parse an exported Space Engineers `bp.sbc` into a
+  typed `ShipDesign`. `parseBlueprint(xml)` returns the design plus a
+  `BlueprintReport` (grid count, total/matched blocks, unrecognized subtypes,
+  unoriented thrusters, mixed-grid-size flag).
+- Lenient Zod schema validating the parsed blueprint XML tree at the boundary
+  (`fast-xml-parser` → validated tree), tolerant of the single-vs-array child
+  collapse and the many fields we ignore.
+- Orientation resolver mapping a thruster's `BlockOrientation.Forward` (exhaust
+  direction) to the grid-local thrust direction — thrust pushes opposite to
+  exhaust (exhaust down ⇒ lifts up). Powers directional TWR.
+- Block resolver mapping blueprint `SubtypeName` to the curated dataset;
+  unrecognized (modded) subtypes become `source: 'blueprint'` placeholders in
+  the `'other'` category (never fabricating stat-bearing thrusters) so nothing
+  is silently dropped.
+- Multi-grid (subgrid) blueprints supported: blocks merged across grids, the
+  primary grid labels the design, mixed grid sizes reported.
+- 16 parser tests (orientation, resolver, full-fixture parse, multi-grid,
+  malformed input, unoriented thrusters) + a realistic `bp.sbc` fixture;
+  51 tests total.
+
+## [0.2.0] - 2026-08-03
+
+### Added
+
+- Full verified vanilla block dataset for SE v1.210.012 b0: all 12 thrusters
+  (atmospheric/ion/hydrogen × small/large grid × small/large variant), 5 cargo
+  containers, 4 reactors, 2 batteries, 2 solar panels, 2 hydrogen engines, the
+  wind turbine, and 2 cockpits — every value cited to the current wiki.
+- DLC content-pack catalogue (`src/data/dlc.ts`) with the verified 21-entry
+  pack list (base game through Prosperity) and `addsFunctionalBlocks` flags,
+  backing the "restrict blocks to owned DLC" filter.
+- `dlc` field on every block (schema `Dlc` type + `DlcInfo`) so the catalogue
+  can be filtered by owned content packs.
+- `maxHydrogenConsumption` field on hydrogen thrusters (L/s at full thrust) to
+  enable Phase 2 fuel-burn / flight-time math.
+- `docs/data-audit.md` — citation log, corrections applied, and the values
+  still flagged as unverified (cockpit inventory volume, hydrogen-engine /
+  wind-turbine SubtypeIds, Europa atmosphere density).
+- Extended data-integrity tests: type-correct thruster envelopes, full-coverage
+  counts per category, battery I/O consistency, DLC-tag validity, and a
+  regression guard on the Pertam gravity correction (35 tests total).
+
+### Changed
+
+- Planet presets verified against SE v1.210 and cited.
+
+### Fixed
+
+- **Pertam surface gravity** corrected from 1.0 g (9.81 m/s²) to the true
+  1.20 g (11.77 m/s²).
+- Large-grid **Large Ion Thruster** mass corrected (3,625 → 43,200 kg) and
+  large-grid **Large Reactor** mass corrected (12,600 → 73,795 kg); several
+  other seed placeholders replaced with cited current-version values.
+
 ## [0.1.0] - 2026-08-03
 
 ### Added
@@ -31,4 +337,11 @@ All notable changes to this project are documented here. The format follows
   `docs/adr/0001-project-structure.md`, `.claude/test-conventions.md`,
   `.env.example`.
 
+[0.7.0]: https://semver.org/
+[0.6.0]: https://semver.org/
+[0.5.0]: https://semver.org/
+[0.4.0]: https://semver.org/
+[0.3.1]: https://semver.org/
+[0.3.0]: https://semver.org/
+[0.2.0]: https://semver.org/
 [0.1.0]: https://semver.org/

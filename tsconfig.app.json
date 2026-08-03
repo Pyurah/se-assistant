@@ -27,7 +27,9 @@
     /* Path aliases */
     "baseUrl": ".",
     "paths": {
+      "@core": ["src/core/index.ts"],
       "@core/*": ["src/core/*"],
+      "@data": ["src/data/index.ts"],
       "@data/*": ["src/data/*"],
       "@ui/*": ["src/ui/*"],
       "@app/*": ["src/app/*"]

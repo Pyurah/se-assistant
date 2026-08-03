@@ -1,0 +1,53 @@
+<?xml version="1.0"?>
+<Definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <ShipBlueprints>
+    <ShipBlueprint xsi:type="MyObjectBuilder_ShipBlueprintDefinition">
+      <Id Type="MyObjectBuilder_ShipBlueprintDefinition" Subtype="Test Hauler" />
+      <DisplayName>Test Hauler</DisplayName>
+      <CubeGrids>
+        <CubeGrid>
+          <SubtypeName />
+          <DisplayName>Test Hauler</DisplayName>
+          <GridSizeEnum>Large</GridSizeEnum>
+          <CubeBlocks>
+            <!-- Two hydrogen thrusters with exhaust pointing Down => push Up (lift) -->
+            <MyObjectBuilder_CubeBlock xsi:type="MyObjectBuilder_Thrust">
+              <SubtypeName>LargeBlockLargeHydrogenThrust</SubtypeName>
+              <Min x="0" y="0" z="0" />
+              <BlockOrientation Forward="Down" Up="Forward" />
+            </MyObjectBuilder_CubeBlock>
+            <MyObjectBuilder_CubeBlock xsi:type="MyObjectBuilder_Thrust">
+              <SubtypeName>LargeBlockLargeHydrogenThrust</SubtypeName>
+              <Min x="2" y="0" z="0" />
+              <BlockOrientation Forward="Down" Up="Forward" />
+            </MyObjectBuilder_CubeBlock>
+            <!-- One hydrogen thruster with exhaust pointing Backward => push Forward -->
+            <MyObjectBuilder_CubeBlock xsi:type="MyObjectBuilder_Thrust">
+              <SubtypeName>LargeBlockSmallHydrogenThrust</SubtypeName>
+              <Min x="0" y="2" z="0" />
+              <BlockOrientation Forward="Backward" Up="Up" />
+            </MyObjectBuilder_CubeBlock>
+            <!-- A large cargo container -->
+            <MyObjectBuilder_CubeBlock xsi:type="MyObjectBuilder_CargoContainer">
+              <SubtypeName>LargeBlockLargeContainer</SubtypeName>
+              <Min x="0" y="4" z="0" />
+              <BlockOrientation Forward="Forward" Up="Up" />
+            </MyObjectBuilder_CubeBlock>
+            <!-- A large reactor with EMPTY SubtypeName (identified by xsi:type) -->
+            <MyObjectBuilder_CubeBlock xsi:type="MyObjectBuilder_Reactor">
+              <SubtypeName>LargeBlockLargeGenerator</SubtypeName>
+              <Min x="0" y="6" z="0" />
+              <BlockOrientation Forward="Forward" Up="Up" />
+            </MyObjectBuilder_CubeBlock>
+            <!-- A modded block we don't have in the dataset -->
+            <MyObjectBuilder_CubeBlock xsi:type="MyObjectBuilder_Thrust">
+              <SubtypeName>ModdedGiantThruster9000</SubtypeName>
+              <Min x="0" y="8" z="0" />
+              <BlockOrientation Forward="Down" Up="Forward" />
+            </MyObjectBuilder_CubeBlock>
+          </CubeBlocks>
+        </CubeGrid>
+      </CubeGrids>
+    </ShipBlueprint>
+  </ShipBlueprints>
+</Definitions>
