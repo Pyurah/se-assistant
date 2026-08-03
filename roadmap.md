@@ -8,25 +8,55 @@ loaded, on any vanilla planet.
 
 ---
 
+## 👉 Next session starts here
+
+**Everything through Phase 2 is DONE, committed, and pushed to GitHub**
+(`https://github.com/Pyurah/se-assistant`, branch `master`, at v0.9.0). Working
+tree is clean and all four gates pass (`typecheck` / `lint` / `test` (186) /
+`build`). Nothing is half-finished.
+
+**The next unit of work is Phase 3 — Production & Logistics (M7 + M8).** See the
+Phase 3 section below. Before building it, note the data lift: M7/M8 need NEW
+game data that isn't in the dataset yet — **component recipes, refinery/assembler
+conversion ratios + processing times, and block build-costs** (ore → ingot →
+component → block). That's a bigger research pass than Phase 2 needed. Follow the
+established rhythm: research the numbers with a subagent (cite in
+`docs/data-audit.md`, flag anything unconfirmed) → extend the schema/dataset →
+build the pure engine in `src/core/engine` with worked-example tests → build the
+UI panel via the web-ui-builder agent → bump version + CHANGELOG + roadmap.
+
+If instead the user wants polish over new features: candidate small wins are a
+GitHub Actions CI workflow (run the four gates on push), README screenshots, or
+resolving the flagged-uncertain data values in `docs/data-audit.md` (some DLC
+SubtypeIds, drill/sensor wattages) against a live game install.
+
+---
+
 ## Current State
 
-- **Version**: 0.8.0
+- **Version**: 0.9.0
+- **Repo**: pushed to `https://github.com/Pyurah/se-assistant` (`master`);
+  commits use the GitHub no-reply email (real email scrubbed from history).
 - **Build**: passing (`pnpm build`)
 - **Tests**: passing — 186 tests across logger, audit, data-integrity, engine
   (incl. `estimateRequirements`, the fuel/flight-time engine, and the
   motion/stability engine), blueprint parser, number formatter, stores, and
   UI-rendering suites
-- **Phase**: Phase 1 (MVP) complete — M1 dataset, M2 blueprint parser, M3 calc
-  engine, and M4 analysis UI all delivered. Phase 1.5 (M4.5, Requirement
-  Estimator) complete — the design-from-scratch inverse of blueprint import.
-  Phase 2 complete — M5 (Fuel & Flight Time) and M6 (Motion & Stability).
-  React 19 + Vite + TypeScript SPA, `src/core` + `src/data` purity boundary
-  (ESLint enforced), structured logging, append-only audit model, Vitest with
-  enforced engine coverage thresholds, Tailwind v4, Zod, Zustand.
+- **Phase**: Phases 1, 1.5, and 2 all COMPLETE. M1 dataset, M2 blueprint parser,
+  M3 calc engine, M4 analysis UI, M4.5 requirement estimator, M5 fuel/flight
+  time, M6 motion/stability — all delivered. React 19 + Vite + TypeScript SPA,
+  `src/core` + `src/data` purity boundary (ESLint enforced), structured logging,
+  append-only audit model, Vitest with enforced engine coverage thresholds,
+  Tailwind v4, Zod, Zustand.
+- **v0.9.0 note**: added the small-grid **Small Battery** (`SmallBlockSmallBatteryBlock`,
+  50 kWh) that was missing, plus Warfare 2 battery reskins, and gave the
+  estimator's block palette an inline −/+ stepper so added essentials can be
+  removed at the point of add.
 
 The app runs in two modes. **Analyze**: import an exported `.sbc` blueprint
 (drag-drop, file picker, or bundled example) and render live thrust-to-weight,
-mass, cargo, and power analysis — empty vs. fully loaded, on any vanilla planet.
+mass, cargo, power, fuel/flight-time, and motion/stability analysis — empty vs.
+fully loaded, on any vanilla planet.
 **Estimate**: declare your essential gear and goals for a ship you can't export
 yet, and get the recommended thruster/power/gyro counts to build it. Both over a
 dark, calm UI.
