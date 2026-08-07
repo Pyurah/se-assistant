@@ -88,15 +88,28 @@ compute mass from `Components.sbc`, add it with a citation in
 seen so far are in the set; heavy armor, large-grid armor, and other shape
 variants are added on demand the same way.
 
-**The next unit of work is Phase 3 — Production & Logistics (M7 + M8).** See the
-Phase 3 section below. Before building it, note the data lift: M7/M8 need NEW
-game data that isn't in the dataset yet — **component recipes, refinery/assembler
-conversion ratios + processing times, and block build-costs** (ore → ingot →
-component → block). That's a bigger research pass than Phase 2 needed. Follow the
-established rhythm: research the numbers with a subagent (cite in
-`docs/data-audit.md`, flag anything unconfirmed) → extend the schema/dataset →
-build the pure engine in `src/core/engine` with worked-example tests → build the
-UI panel via the web-ui-builder agent → bump version + CHANGELOG + roadmap.
+**The next unit of work is Phase 2.5 — Editable Design Model & Estimator
+Depth (M6.5).** See the new Phase 2.5 section below. This was prioritized ahead
+of Phase 3 (Production & Logistics) because it closes the biggest gap in the
+product: Estimate mode is thin next to Analyze, and the two modes don't share a
+design representation. The unifying move is a **mutable in-memory `ShipDesign`
+the Analyze engine can run on regardless of origin** (parsed `.sbc` *or*
+estimator output *or* hand-edited). Once that exists, three user-requested
+features fall out of it: per-direction thruster mixing, the directional TWR
+graph inside Estimate, ranked thruster-type suggestions per direction, and
+editing an imported blueprint's loadout with live re-analysis. Follow the
+established rhythm: extend the engine in `src/core/engine` with worked-example
+tests → build the UI via the web-ui-builder agent → bump version + CHANGELOG +
+roadmap. No new game *data* is required (unlike Phase 3), so it's a lighter lift.
+
+**Phase 3 — Production & Logistics (M7 + M8) is still queued** after 2.5. Note
+its data lift when the time comes: M7/M8 need NEW game data that isn't in the
+dataset yet — **component recipes, refinery/assembler conversion ratios +
+processing times, and block build-costs** (ore → ingot → component → block).
+That's a bigger research pass than Phase 2 needed: research the numbers with a
+subagent (cite in `docs/data-audit.md`, flag anything unconfirmed) → extend the
+schema/dataset → build the pure engine with worked-example tests → build the UI
+panel → bump version.
 
 If instead the user wants polish over new features: candidate small wins are a
 GitHub Actions CI workflow (run the four gates on push), README screenshots, or
@@ -338,6 +351,86 @@ to a "needs block positions" note for geometry-less designs.
 
 Both M5 (Fuel & Flight Time) and M6 (Motion & Stability) are complete — **Phase 2
 is complete** as of v0.8.0.
+
+---
+
+## Phase 2.5 — Editable Design Model & Estimator Depth
+
+The two app modes grew up separately: **Analyze** runs the full engine
+(directional TWR, mass, power, fuel, motion) but only on a `ShipDesign` parsed
+from a `.sbc`; **Estimate** sizes hardware from goals but emits a recommendation
+list, not an inspectable design. Three user-requested features all want the same
+missing piece — **a mutable in-memory `ShipDesign` the Analyze engine can run on
+regardless of where it came from** (parsed blueprint, estimator output, or
+hand-edited). Build that once and the rest hang off it.
+
+### M6.5 — Editable Design Model + Per-Direction Thruster Mix
+
+**Status**: Not started — **next up**
+
+The foundational plumbing plus the highest-value feature it unlocks. Deliver as
+one milestone because the model is only worth building alongside its first real
+consumer.
+
+**Deliverables:**
+
+- [ ] **Editable design model** — a store-backed, mutable `ShipDesign` that the
+      existing Analyze engine (`twr`, `mass`, `power`, `fuel`, `motion`) runs on
+      unchanged, decoupled from the parse step. Parsed blueprints and estimator
+      output both produce one. Pure-engine boundary preserved (the model is data;
+      mutation lives in the store).
+- [ ] **Per-direction thruster type** — the estimator's `config.thruster`
+      generalizes to `Partial<Record<Direction, ThrusterType>>` (default: one
+      type fills all six, so the simple path is unchanged). The mass↔power↔count
+      convergence loop sizes each direction's group with its own type's
+      thrust / draw / atmosphere curve. Serves the "flat atmospheric on
+      vertical/fore/aft, something else on the sides" case directly.
+- [ ] **Directional TWR readout in Estimate** — feed the estimated build into the
+      *same* TWR engine + panel used in Analyze, so Estimate answers "can I stay
+      airborne if I tilt fully to one side?" with the directional-TWR-under-gravity
+      readout the user already trusts. One component, both modes.
+- [ ] **Calm mixed-feasibility UI** — when one direction is feasible and another
+      isn't (extends the v0.10.2 divergence guard per-direction), the panel stays
+      legible: per-direction status, no runaway numbers, clear per-axis warnings.
+- [ ] Worked-example tests for per-direction sizing (mixed types, one-infeasible-
+      direction, default-single-type unchanged) + editable-model round-trip tests
+
+### M6.6 — Ranked Thruster-Type Suggestions
+
+**Status**: Not started
+
+The honest form of "recommend a thruster type for these sliders": not a black-box
+auto-pick, but a **ranked list of viable types per direction** so the user stays
+the decider and the app removes the arithmetic.
+
+**Deliverables:**
+
+- [ ] For each direction, given planet + required thrust, size *every* candidate
+      thruster type and rank them (e.g. _"UP needs 1.2 MN — Atmospheric: 3 ✓ /
+      Hydrogen: 2 (needs fuel) / Ion: 9 (weak here)"_), with feasibility and
+      trade-off tags (fuel dependency, atmosphere fit, mass cost)
+- [ ] UI surfaces the ranking inline on the per-direction control; picking one
+      feeds M6.5's per-direction config
+- [ ] Tests: ranking correctness at representative planets (Earthlike / Moon /
+      space), infeasible-type exclusion
+
+### M6.7 — Edit an Imported Blueprint
+
+**Status**: Not started
+
+Load a `.sbc`, change its loadout, and re-analyze live — the "platform I load out
+with different utilities" case.
+
+**Deliverables:**
+
+- [ ] Add / remove / change block counts on an imported design (built on M6.5's
+      editable model) with live recomputation across all analysis panels
+- [ ] Scope note: **counts/loadout, not geometry.** Center-of-mass and
+      thrust-alignment (Motion) depend on block *placement*, which a 2D web editor
+      can't meaningfully change; geometry-dependent readouts are flagged as
+      "reflects the original layout" when only counts were edited
+- [ ] A clear "edited — no longer matches the source file" indicator + reset
+- [ ] Tests: loadout-edit recompute, geometry-flag behavior
 
 ---
 
