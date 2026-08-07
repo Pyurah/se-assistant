@@ -11,9 +11,23 @@ loaded, on any vanilla planet.
 ## 👉 Next session starts here
 
 **Everything through Phase 2 is DONE, committed, and pushed to GitHub**
-(`https://github.com/Pyurah/se-assistant`, branch `master`, at v0.9.1). Working
-tree is clean and all four gates pass (`typecheck` / `lint` / `test` (189) /
+(`https://github.com/Pyurah/se-assistant`, branch `master`, at v0.9.2). Working
+tree is clean and all four gates pass (`typecheck` / `lint` / `test` (196) /
 `build`). Nothing is half-finished.
+
+**v0.9.2 (2026-08-07) — cockpit-relative directional thrust.** The same real DLC
+ship ("Rapier") reported **zero forward thrust** despite having two
+forward-facing thrusters. Root cause: SE defines forward/up/left by the ship's
+**main cockpit**, but the parser bucketed thrust by raw grid axes, so on a ship
+whose cockpit is rotated relative to the grid the forces landed on the wrong
+axes. Fixed: the parser derives the pilot basis from the main cockpit's
+orientation (`<IsMainCockpit>` cockpit, or the sole cockpit) and rotates every
+thruster's thrust direction into it before aggregating; ships with no cockpit
+fall back to grid axes, and a `cockpitRelative` report flag drives a block-list
+note. Verified against the game's own thrust overlay: up 920 / fwd 460 / back
+460 / left 288 / right 288 kN, nothing down — an exact match. See the
+`buildGridToPilot` transform in `src/core/blueprint/orientation.ts` and the
+"Cockpit-relative directional thrust" note in `docs/data-audit.md`.
 
 **v0.9.1 (2026-08-07) — DLC block-coverage fix.** A real DLC-built ship
 ("Rapier") imported with 40 of 48 blocks unrecognized — all genuine DLC/base
@@ -52,11 +66,11 @@ SubtypeIds, drill/sensor wattages) against a live game install.
 
 ## Current State
 
-- **Version**: 0.9.1
+- **Version**: 0.9.2
 - **Repo**: pushed to `https://github.com/Pyurah/se-assistant` (`master`);
   commits use the GitHub no-reply email (real email scrubbed from history).
 - **Build**: passing (`pnpm build`)
-- **Tests**: passing — 189 tests across logger, audit, data-integrity, engine
+- **Tests**: passing — 196 tests across logger, audit, data-integrity, engine
   (incl. `estimateRequirements`, the fuel/flight-time engine, and the
   motion/stability engine), blueprint parser, number formatter, stores, and
   UI-rendering suites

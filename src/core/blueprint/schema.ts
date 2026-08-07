@@ -38,6 +38,9 @@ const cubeBlockSchema = z
     // accept string, number (rare), or empty object → coerced later.
     SubtypeName: z.union([z.string(), z.number(), z.object({}).passthrough()]).optional(),
     BlockOrientation: orientationSchema.optional(),
+    // Present (`true`) on the cockpit the player flagged as the main cockpit;
+    // its orientation defines the ship's forward/up for pilot-relative thrust.
+    IsMainCockpit: z.union([z.boolean(), z.string()]).optional(),
     Min: z
       .object({ '@_x': z.coerce.number(), '@_y': z.coerce.number(), '@_z': z.coerce.number() })
       .partial()

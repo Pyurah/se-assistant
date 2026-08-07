@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.2] - 2026-08-07
+
+### Fixed
+
+- **Directional thrust is now reported relative to the ship's main cockpit**, so
+  forward / up / left / right match what the pilot sees on the in-game HUD.
+  Previously thrust was bucketed by raw grid axes, so a ship whose cockpit is
+  rotated relative to the grid showed thrust on the wrong axes — a real imported
+  ship (the "Rapier") reported **zero forward thrust** despite having two
+  forward-facing thrusters, because that force landed on the grid's "right" axis.
+  The parser now derives the pilot frame from the main cockpit's orientation
+  (the `<IsMainCockpit>` cockpit, or the sole cockpit if only one exists) and
+  rotates every thruster's thrust direction into it. Verified against the game's
+  own thrust overlay for the Rapier: up 920 kN, forward/back 460 kN, left/right
+  288 kN, and nothing pushing "down" (that ship hovers on lift vs. gravity).
+  Ships with no cockpit (e.g. drones) fall back to grid axes, and the block-list
+  diagnostics say which frame is in use.
+
 ## [0.9.1] - 2026-08-07
 
 ### Added

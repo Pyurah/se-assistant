@@ -152,6 +152,12 @@ function BlueprintDiagnostics({ report }: { report: BlueprintReport }): React.JS
           {report.mixedGridSizes && <Badge variant="warning">Mixed grid sizes</Badge>}
         </div>
       )}
+
+      <div className="border-t border-border pt-2 text-[11px] text-muted">
+        {report.cockpitRelative
+          ? 'Directional thrust is shown relative to the main cockpit — forward / up / left match the in-game HUD.'
+          : 'No main cockpit found — directional thrust is shown in raw grid axes, which may not match the in-game HUD.'}
+      </div>
     </div>
   );
 }

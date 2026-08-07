@@ -265,3 +265,30 @@ and were being silently excluded. Fixed: a missing orientation now defaults to
 orientation that is *present but has an unparseable axis* is still counted as
 unoriented. Result: the Rapier now resolves **48/48 blocks, 0 unrecognized, 0
 unoriented**.
+
+### Cockpit-relative directional thrust (v0.9.2)
+
+The Rapier further exposed a *frame-of-reference* bug. Space Engineers defines a
+ship's forward / up / left by its **main cockpit's** facing, not the raw grid
+axes stored in the blueprint. The parser had been bucketing thrust by grid axes,
+so the Rapier — whose main cockpit faces `Forward="Right"`, `Up="Backward"` —
+reported **zero forward thrust** even though two thrusters plainly provide it;
+that force was landing on the grid's "right" axis.
+
+Fix: the parser now finds the main cockpit (the `<IsMainCockpit>true` cockpit,
+or the sole cockpit when only one exists), builds the pilot basis
+`{forward = cockpit.Forward, up = cockpit.Up, right = forward × up}` (SE's
+left-handed convention, `Base6Directions`), and rotates every thruster's
+grid-frame thrust direction into it before aggregating. A ship with no cockpit
+(e.g. a drone) falls back to raw grid axes, and the report carries a
+`cockpitRelative` flag the block-list panel surfaces so the user knows which
+frame is in play.
+
+Verified against the game's own thrust overlay for the Rapier (screenshot,
+relative to "Cockpit Rapier"): **up 920 kN, forward 460 kN, back 460 kN,
+left 288 kN, right 288 kN**, and **nothing pushing down** — the four large
+D-Shape thrusters provide lift (up), which the ship balances against gravity to
+hover; SE's HUD labels that group by the direction the thrusters *face* (down),
+whereas this tool labels by the direction the ship is *pushed* (up), matching how
+the TWR/takeoff verdict reads the up-thrust bucket. All five nonzero axes match
+the game exactly.

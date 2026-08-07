@@ -42,9 +42,41 @@ import {
   type ParsedCubeBlock,
 } from './schema';
 import { resolveBlock } from './resolve-block';
-import { thrustDirectionFromForward } from './orientation';
+import { thrustDirectionFromForward, buildGridToPilot, type GridToPilot } from './orientation';
 
 const log = logger.child({ module: 'blueprint-parser' });
+
+/** True when an `<IsMainCockpit>` value (boolean or "true"/"false" text) is set. */
+function isMainCockpitFlag(v: unknown): boolean {
+  return v === true || (typeof v === 'string' && v.trim().toLowerCase() === 'true');
+}
+
+/**
+ * Find the grid→pilot direction transform from the ship's main cockpit.
+ *
+ * SE defines forward/up/left by the MAIN COCKPIT's facing, not the raw grid
+ * axes a blueprint stores — so directional thrust must be reported relative to
+ * it to match the in-game HUD. We pick, in order: the cockpit flagged
+ * `<IsMainCockpit>true`; failing that, the sole cockpit if there is exactly
+ * one. With no cockpit (e.g. a drone) or several unflagged cockpits (ambiguous
+ * frame), we return `undefined` and the caller reports in raw grid axes.
+ */
+function findPilotTransform(grids: readonly ParsedCubeGrid[]): GridToPilot | undefined {
+  const cockpits: ParsedCubeBlock[] = [];
+  let mainCockpit: ParsedCubeBlock | undefined;
+  for (const grid of grids) {
+    for (const cb of toArray<ParsedCubeBlock>(grid.CubeBlocks?.MyObjectBuilder_CubeBlock)) {
+      // A cockpit is identified by its xsi:type (robust to unrecognized/DLC
+      // cockpit subtypes we don't yet have in the dataset).
+      if (!/Cockpit/i.test(cb['@_xsi:type'] ?? '')) continue;
+      cockpits.push(cb);
+      if (mainCockpit === undefined && isMainCockpitFlag(cb.IsMainCockpit)) mainCockpit = cb;
+    }
+  }
+  const chosen = mainCockpit ?? (cockpits.length === 1 ? cockpits[0] : undefined);
+  if (chosen === undefined) return undefined;
+  return buildGridToPilot(chosen.BlockOrientation?.['@_Forward'], chosen.BlockOrientation?.['@_Up']);
+}
 
 /** Diagnostics surfaced alongside a parsed design. */
 export interface BlueprintReport {
@@ -60,6 +92,12 @@ export interface BlueprintReport {
   readonly unorientedThrusters: number;
   /** True when grids of different sizes were merged. */
   readonly mixedGridSizes: boolean;
+  /**
+   * True when directional thrust is reported relative to the ship's main
+   * cockpit (matching the in-game HUD). False when no usable cockpit was found
+   * and thrust falls back to raw grid axes.
+   */
+  readonly cockpitRelative: boolean;
 }
 
 export interface ParseResult {
@@ -145,6 +183,12 @@ export function parseBlueprint(
   const primaryGridSize = gridSizeFromEnum(grids[0]!.GridSizeEnum);
   const designName = displayNameToString(grids[0]!.DisplayName, 'Imported Blueprint');
 
+  // Resolve the pilot frame from the main cockpit once, up front. Thrust
+  // directions are reported relative to it so they match the in-game HUD; with
+  // no usable cockpit we leave them in raw grid axes (identity transform).
+  const gridToPilot = findPilotTransform(grids);
+  const toPilot: GridToPilot = gridToPilot ?? ((d) => d);
+
   // Aggregate identical (definition + thrust direction) blocks into quantities,
   // collecting each instance's grid-cell position for center-of-mass math.
   // Key must distinguish thrust directions so up/down thrusters don't merge.
@@ -176,7 +220,10 @@ export function parseBlueprint(
         // dropping the thruster from directional TWR. Only an orientation that
         // is present but has an unparseable axis is counted as unoriented.
         const forwardAxis = cb.BlockOrientation?.['@_Forward'] ?? 'Forward';
-        thrustDirection = thrustDirectionFromForward(forwardAxis);
+        const gridDirection = thrustDirectionFromForward(forwardAxis);
+        // Rotate the grid-frame thrust into the pilot frame (identity when no
+        // cockpit) so up/forward/left match what the in-game HUD shows.
+        thrustDirection = gridDirection === undefined ? undefined : toPilot(gridDirection);
         if (thrustDirection === undefined) unorientedThrusters += 1;
       }
 
@@ -226,6 +273,7 @@ export function parseBlueprint(
     unrecognizedSubtypes: [...unrecognized],
     unorientedThrusters,
     mixedGridSizes,
+    cockpitRelative: gridToPilot !== undefined,
   };
 
   log.info('blueprint parsed', {
