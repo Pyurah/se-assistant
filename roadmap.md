@@ -1,6 +1,6 @@
 # SE Assistant — Product Roadmap
 
-> **Last Updated**: 2026-08-07
+> **Last Updated**: 2026-08-07 (v0.11.0)
 
 A Space Engineers ship & base planner: import a blueprint (`.sbc`) and get
 instant thrust-to-weight, mass, cargo, and power analysis — empty vs fully
@@ -11,9 +11,31 @@ loaded, on any vanilla planet.
 ## 👉 Next session starts here
 
 **Everything through Phase 2 is DONE, committed, and pushed to GitHub**
-(`https://github.com/Pyurah/se-assistant`, branch `master`, at v0.10.2). Working
-tree is clean and all four gates pass (`typecheck` / `lint` / `test` (216) /
+(`https://github.com/Pyurah/se-assistant`, branch `master`, at v0.11.0). Working
+tree is clean and all four gates pass (`typecheck` / `lint` / `test` (238) /
 `build`). Nothing is half-finished.
+
+**v0.11.0 (2026-08-07) — per-direction thruster mix + directional TWR in
+Estimate.** Estimate mode was thin next to Analyze; this closes the two biggest
+gaps the user called out. (1) **Per-direction thruster mixing** — the recommended
+build can use a different thruster type per axis (e.g. flat atmospheric on
+vertical/fore/aft, ion on the sides). `EstimatorConfig.thruster` generalized to
+`thrusters: Record<Direction, ThrusterBlock>` (with a `uniformThrusters(block)`
+helper for the unchanged single-type default); the convergence loop sizes each
+direction against its own type's thrust/draw/atmosphere curve, and peak power
+draw is now measured per-axis from the actual per-direction draw. A dead lateral
+axis is flagged with a soft per-axis warning instead of blocking the whole
+estimate; a dead UP axis still hard-stops. A "Customize by direction" disclosure
+under the thruster picker exposes six selects (each "Same as default" until
+pinned). (2) **Directional TWR readout in Estimate** — a new panel runs the
+recommended build through the *same* trusted TWR engine Analyze uses, via a new
+pure `estimateToDesign` bridge that synthesizes a geometry-less `ShipDesign` from
+the estimate. Six-axis bars, Empty/Loaded toggle, UP emphasized, per-direction
+thruster captions when the build mixes types — answering "can I hold altitude
+tilted fully onto one axis?" A round-trip test proves the synthesized design
+reproduces the estimator's own `achievedUpTwr` through the real engine. The
+`estimateToDesign` bridge is also the reusable seed for M6.7 (editing an imported
+blueprint's loadout). No dataset values changed.
 
 **v0.10.2 (2026-08-07) — estimator power-sizing realism.** Two power bugs on a
 real small-grid mining ship (cockpit, 3 drills, connector, ore detector) that
@@ -88,19 +110,18 @@ compute mass from `Components.sbc`, add it with a citation in
 seen so far are in the set; heavy armor, large-grid armor, and other shape
 variants are added on demand the same way.
 
-**The next unit of work is Phase 2.5 — Editable Design Model & Estimator
-Depth (M6.5).** See the new Phase 2.5 section below. This was prioritized ahead
-of Phase 3 (Production & Logistics) because it closes the biggest gap in the
-product: Estimate mode is thin next to Analyze, and the two modes don't share a
-design representation. The unifying move is a **mutable in-memory `ShipDesign`
-the Analyze engine can run on regardless of origin** (parsed `.sbc` *or*
-estimator output *or* hand-edited). Once that exists, three user-requested
-features fall out of it: per-direction thruster mixing, the directional TWR
-graph inside Estimate, ranked thruster-type suggestions per direction, and
-editing an imported blueprint's loadout with live re-analysis. Follow the
-established rhythm: extend the engine in `src/core/engine` with worked-example
-tests → build the UI via the web-ui-builder agent → bump version + CHANGELOG +
-roadmap. No new game *data* is required (unlike Phase 3), so it's a lighter lift.
+**The next unit of work is Phase 2.5 — M6.6 (Ranked Thruster-Type
+Suggestions), then M6.7 (Edit an Imported Blueprint).** M6.5 shipped its two
+highest-value features in v0.11.0 — per-direction thruster mixing and the
+directional TWR readout in Estimate — built on the pure `estimateToDesign`
+bridge (a geometry-less `ShipDesign` the Analyze engine runs on unchanged). The
+one M6.5 deliverable deliberately deferred is the fully store-backed *editable*
+design model; it's folded into M6.7, where editing an imported blueprint's
+loadout is the real consumer that needs it. `estimateToDesign` is the reusable
+seed for that. Follow the established rhythm: extend the engine in
+`src/core/engine` with worked-example tests → build the UI via the web-ui-builder
+agent → bump version + CHANGELOG + roadmap. No new game *data* is required
+(unlike Phase 3), so it's a lighter lift.
 
 **Phase 3 — Production & Logistics (M7 + M8) is still queued** after 2.5. Note
 its data lift when the time comes: M7/M8 need NEW game data that isn't in the
@@ -120,14 +141,14 @@ SubtypeIds, drill/sensor wattages) against a live game install.
 
 ## Current State
 
-- **Version**: 0.10.2
+- **Version**: 0.11.0
 - **Repo**: pushed to `https://github.com/Pyurah/se-assistant` (`master`);
   commits use the GitHub no-reply email (real email scrubbed from history).
 - **Build**: passing (`pnpm build`)
-- **Tests**: passing — 216 tests across logger, audit, data-integrity, engine
-  (incl. `estimateRequirements`, the fuel/flight-time engine, and the
-  motion/stability engine), blueprint parser, number formatter, stores, and
-  UI-rendering suites
+- **Tests**: passing — 238 tests across logger, audit, data-integrity, engine
+  (incl. `estimateRequirements`, the `estimateToDesign` bridge, the fuel/flight-time
+  engine, and the motion/stability engine), blueprint parser, number formatter,
+  stores, and UI-rendering suites
 - **Phase**: Phases 1, 1.5, and 2 all COMPLETE. M1 dataset, M2 blueprint parser,
   M3 calc engine, M4 analysis UI, M4.5 requirement estimator, M5 fuel/flight
   time, M6 motion/stability — all delivered. React 19 + Vite + TypeScript SPA,
@@ -366,34 +387,43 @@ hand-edited). Build that once and the rest hang off it.
 
 ### M6.5 — Editable Design Model + Per-Direction Thruster Mix
 
-**Status**: Not started — **next up**
+**Status**: ✅ Mostly complete (v0.11.0) — per-direction mix + directional TWR
+readout shipped; the store-backed editable model is deferred into M6.7 (its real
+consumer).
 
-The foundational plumbing plus the highest-value feature it unlocks. Deliver as
-one milestone because the model is only worth building alongside its first real
-consumer.
+The foundational plumbing plus the highest-value features it unlocks. The pure
+`estimateToDesign` bridge (a geometry-less `ShipDesign` the Analyze engine runs
+on unchanged) is the foundational piece; the fully mutable, store-backed editable
+model is only worth building alongside blueprint editing, so it moved to M6.7.
 
 **Deliverables:**
 
-- [ ] **Editable design model** — a store-backed, mutable `ShipDesign` that the
-      existing Analyze engine (`twr`, `mass`, `power`, `fuel`, `motion`) runs on
-      unchanged, decoupled from the parse step. Parsed blueprints and estimator
-      output both produce one. Pure-engine boundary preserved (the model is data;
-      mutation lives in the store).
-- [ ] **Per-direction thruster type** — the estimator's `config.thruster`
-      generalizes to `Partial<Record<Direction, ThrusterType>>` (default: one
-      type fills all six, so the simple path is unchanged). The mass↔power↔count
-      convergence loop sizes each direction's group with its own type's
-      thrust / draw / atmosphere curve. Serves the "flat atmospheric on
-      vertical/fore/aft, something else on the sides" case directly.
-- [ ] **Directional TWR readout in Estimate** — feed the estimated build into the
-      *same* TWR engine + panel used in Analyze, so Estimate answers "can I stay
-      airborne if I tilt fully to one side?" with the directional-TWR-under-gravity
-      readout the user already trusts. One component, both modes.
-- [ ] **Calm mixed-feasibility UI** — when one direction is feasible and another
-      isn't (extends the v0.10.2 divergence guard per-direction), the panel stays
-      legible: per-direction status, no runaway numbers, clear per-axis warnings.
-- [ ] Worked-example tests for per-direction sizing (mixed types, one-infeasible-
-      direction, default-single-type unchanged) + editable-model round-trip tests
+- [~] **Editable design model** — the pure half shipped: `estimateToDesign`
+      synthesizes a `ShipDesign` the existing Analyze engine (`twr`, `mass`,
+      `power`, …) runs on unchanged, decoupled from the parse step. The
+      *store-backed mutable* half (hand-editing) is deferred to M6.7, where
+      editing an imported blueprint is the consumer that needs it.
+- [x] **Per-direction thruster type** — `config.thruster` generalized to
+      `thrusters: Record<Direction, ThrusterBlock>` (`uniformThrusters(block)`
+      keeps the single-type default unchanged). The convergence loop sizes each
+      direction's group with its own type's thrust / draw / atmosphere curve, and
+      peak power draw is measured per-axis from the actual per-direction draw.
+      Serves the "flat atmospheric on vertical/fore/aft, something else on the
+      sides" case directly. UI: a "Customize by direction" disclosure with six
+      per-axis selects (each "Same as default" until pinned).
+- [x] **Directional TWR readout in Estimate** — the estimated build feeds the
+      *same* TWR engine used in Analyze (via `estimateToDesign`) into a new panel:
+      six-axis bars, Empty/Loaded toggle, UP emphasized, per-direction thruster
+      captions when the build mixes types. Answers "can I stay airborne if I tilt
+      fully to one side?" A round-trip test proves it reproduces the estimator's
+      own `achievedUpTwr` through the real engine.
+- [x] **Calm mixed-feasibility UI** — a dead lateral axis gets a soft per-axis
+      warning (that axis sized to 0) while the rest of the build still sizes; a
+      dead UP axis hard-stops with a clear "can't lift" message. Extends the
+      v0.10.2 divergence guard per-direction; no runaway numbers.
+- [x] Worked-example tests for per-direction sizing (mixed types,
+      one-infeasible-direction, default-single-type unchanged) + the
+      `estimateToDesign` round-trip test.
 
 ### M6.6 — Ranked Thruster-Type Suggestions
 
@@ -419,12 +449,17 @@ the decider and the app removes the arithmetic.
 **Status**: Not started
 
 Load a `.sbc`, change its loadout, and re-analyze live — the "platform I load out
-with different utilities" case.
+with different utilities" case. **Now also owns the store-backed mutable editable
+design model** (the pure `estimateToDesign` seed shipped in M6.5/v0.11.0; the
+mutation surface lands here alongside its real consumer).
 
 **Deliverables:**
 
-- [ ] Add / remove / change block counts on an imported design (built on M6.5's
-      editable model) with live recomputation across all analysis panels
+- [ ] **Store-backed mutable `ShipDesign`** — hand-editable design state the
+      Analyze engine runs on unchanged (parsed blueprints and estimator output
+      both produce one; mutation lives in the store, the model stays pure data).
+- [ ] Add / remove / change block counts on an imported design (built on the
+      mutable model above) with live recomputation across all analysis panels
 - [ ] Scope note: **counts/loadout, not geometry.** Center-of-mass and
       thrust-alignment (Motion) depend on block *placement*, which a 2D web editor
       can't meaningfully change; geometry-dependent readouts are flagged as

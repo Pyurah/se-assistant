@@ -10,6 +10,7 @@
 import { EssentialsBuilder } from '../ui/panels/EssentialsBuilder';
 import { EstimatorConfigPanel } from '../ui/panels/EstimatorConfigPanel';
 import { RecommendationsPanel } from '../ui/panels/RecommendationsPanel';
+import { EstimatorTwrPanel } from '../ui/panels/EstimatorTwrPanel';
 
 export function EstimatorDashboard(): React.JSX.Element {
   return (
@@ -21,9 +22,10 @@ export function EstimatorDashboard(): React.JSX.Element {
       <div className="flex flex-col gap-4">
         <EstimatorConfigPanel />
       </div>
-      {/* Right column: the recommendation payoff. */}
+      {/* Right column: the recommendation payoff + directional TWR readout. */}
       <div className="flex flex-col gap-4">
         <RecommendationsPanel />
+        <EstimatorTwrPanel />
       </div>
     </main>
   );

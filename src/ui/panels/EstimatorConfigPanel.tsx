@@ -16,6 +16,7 @@ import {
   PLANET_PRESETS,
   VANILLA_BLOCKS,
   type BatteryBlock,
+  type Direction,
   type PowerProducerBlock,
   type ThrusterBlock,
   type ThrusterType,
@@ -37,6 +38,16 @@ const THRUSTER_TYPE_LABELS: Record<ThrusterType, string> = {
 };
 
 const THRUSTER_TYPE_ORDER: readonly ThrusterType[] = ['hydrogen', 'ion', 'atmospheric'];
+
+/** Per-direction rows for the "customize by direction" disclosure (UP first). */
+const DIRECTION_ROWS: readonly { dir: Direction; label: string }[] = [
+  { dir: 'up', label: 'Up (lift)' },
+  { dir: 'down', label: 'Down' },
+  { dir: 'forward', label: 'Forward' },
+  { dir: 'backward', label: 'Backward' },
+  { dir: 'left', label: 'Left' },
+  { dir: 'right', label: 'Right' },
+];
 
 const RESPONSIVENESS_OPTIONS = [
   { value: 'sluggish' as const, label: 'Sluggish' },
@@ -62,6 +73,7 @@ export function EstimatorConfigPanel(): React.JSX.Element {
   const targetTwr = useEstimatorStore((s) => s.targetTwr);
   const lateralThrustFraction = useEstimatorStore((s) => s.lateralThrustFraction);
   const thrusterId = useEstimatorStore((s) => s.thrusterId);
+  const thrusterOverrides = useEstimatorStore((s) => s.thrusterOverrides);
   const powerKind = useEstimatorStore((s) => s.powerKind);
   const powerBlockId = useEstimatorStore((s) => s.powerBlockId);
   const runtimeTargetHours = useEstimatorStore((s) => s.runtimeTargetHours);
@@ -72,6 +84,7 @@ export function EstimatorConfigPanel(): React.JSX.Element {
   const setTargetTwr = useEstimatorStore((s) => s.setTargetTwr);
   const setLateralThrustFraction = useEstimatorStore((s) => s.setLateralThrustFraction);
   const setThruster = useEstimatorStore((s) => s.setThruster);
+  const setDirectionalThruster = useEstimatorStore((s) => s.setDirectionalThruster);
   const setPower = useEstimatorStore((s) => s.setPower);
   const setRuntimeTargetHours = useEstimatorStore((s) => s.setRuntimeTargetHours);
   const setResponsiveness = useEstimatorStore((s) => s.setResponsiveness);
@@ -115,6 +128,12 @@ export function EstimatorConfigPanel(): React.JSX.Element {
   const selectedThruster = VANILLA_BLOCKS.find((b) => b.id === thrusterId);
   const selectedType =
     selectedThruster?.category === 'thruster' ? selectedThruster.thrusterType : undefined;
+
+  // How many directions are pinned to a non-default thruster (drives the summary).
+  const overrideCount = DIRECTION_ROWS.reduce(
+    (n, { dir }) => n + (thrusterOverrides[dir] !== undefined ? 1 : 0),
+    0,
+  );
 
   const fillPct = Math.round(cargo.fillFraction * 100);
 
@@ -243,6 +262,62 @@ export function EstimatorConfigPanel(): React.JSX.Element {
           {selectedType === 'ion' && planet.hasAtmosphere && planet.atmosphereDensity >= 1 && (
             <Badge variant="warning">Ion thrusters are weak in dense atmosphere</Badge>
           )}
+
+          {/* Per-direction override disclosure — mix thruster types by axis. */}
+          <details className="group mt-1 rounded-md border border-border bg-bg/50">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-xs font-medium text-muted transition-colors hover:text-fg">
+              <span className="inline-flex items-center gap-1.5">
+                Customize by direction
+                {overrideCount > 0 && (
+                  <Badge variant="info">
+                    {overrideCount} custom
+                  </Badge>
+                )}
+              </span>
+              <span className="text-subtle transition-transform group-open:rotate-90" aria-hidden>
+                ›
+              </span>
+            </summary>
+            <div className="flex flex-col gap-2.5 border-t border-border px-3 py-3">
+              <p className="text-xs text-subtle">
+                Each direction uses the default above unless you pin a type here — e.g. atmospheric
+                lift with ion sides.
+              </p>
+              {DIRECTION_ROWS.map(({ dir, label }) => {
+                const overrideId = thrusterOverrides[dir];
+                const selectId = `est-thruster-${dir}`;
+                return (
+                  <div key={dir} className="flex items-center gap-2">
+                    <label
+                      htmlFor={selectId}
+                      className="w-20 shrink-0 text-xs font-medium text-muted"
+                    >
+                      {label}
+                    </label>
+                    <select
+                      id={selectId}
+                      value={overrideId ?? ''}
+                      onChange={(e) =>
+                        setDirectionalThruster(dir, e.target.value === '' ? null : e.target.value)
+                      }
+                      className={cn(selectClass, 'h-8 flex-1 text-xs')}
+                    >
+                      <option value="">Same as default</option>
+                      {thrusterGroups.map(({ type, blocks }) => (
+                        <optgroup key={type} label={THRUSTER_TYPE_LABELS[type]}>
+                          {blocks.map((b) => (
+                            <option key={b.id} value={b.id}>
+                              {b.displayName} · {formatForce(b.maxThrust)}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })}
+            </div>
+          </details>
         </section>
 
         {/* Power source */}

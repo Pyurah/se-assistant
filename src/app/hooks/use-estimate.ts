@@ -13,18 +13,24 @@
 import { useMemo } from 'react';
 import {
   estimateRequirements,
+  estimateToDesign,
+  directionalTwr,
+  uniformThrusters,
   logger,
+  DIRECTIONS,
   type Estimate,
   type EstimatorConfig,
   type EstimatorInput,
   type FixedBlockSpec,
   type PowerChoice,
+  type DirectionalThrust,
 } from '@core';
 import {
   VANILLA_BLOCKS_BY_ID,
   PLANET_PRESETS_BY_ID,
   type BatteryBlock,
   type BlockDefinition,
+  type Direction,
   type GyroscopeBlock,
   type PlanetPreset,
   type PowerProducerBlock,
@@ -49,9 +55,22 @@ export interface ResolvedFixedBlock {
 export interface EstimateResult {
   readonly estimate: Estimate;
   readonly planet: PlanetPreset;
+  /**
+   * The resolved thruster type per direction. When no per-direction overrides
+   * are set these are all the same (base) thruster; overrides pin individual
+   * directions to a different type (e.g. atmospheric vertical, ion sides).
+   */
+  readonly thrusters: Record<Direction, ThrusterBlock>;
+  /** The base (default) thruster — the type used for any un-overridden direction. */
   readonly thruster: ThrusterBlock;
   readonly gyro: GyroscopeBlock;
   readonly powerBlock: BatteryBlock | PowerProducerBlock;
+  /**
+   * Directional TWR of the recommended build, empty (dry) vs fully loaded,
+   * computed by running the trusted TWR engine on a synthesized design. This is
+   * the "can I stay airborne tilted fully to one side?" readout.
+   */
+  readonly directional: { readonly empty: DirectionalThrust; readonly loaded: DirectionalThrust };
   /** The resolved essentials (skipping any unknown ids), for the tally. */
   readonly resolvedFixed: readonly ResolvedFixedBlock[];
   /** Total mass of the essentials alone, kg. */
@@ -114,6 +133,7 @@ export function useEstimate(): EstimateResult | null {
   const targetTwr = useEstimatorStore((s) => s.targetTwr);
   const lateralThrustFraction = useEstimatorStore((s) => s.lateralThrustFraction);
   const thrusterId = useEstimatorStore((s) => s.thrusterId);
+  const thrusterOverrides = useEstimatorStore((s) => s.thrusterOverrides);
   const powerKind = useEstimatorStore((s) => s.powerKind);
   const powerBlockId = useEstimatorStore((s) => s.powerBlockId);
   const runtimeTargetHours = useEstimatorStore((s) => s.runtimeTargetHours);
@@ -130,7 +150,6 @@ export function useEstimate(): EstimateResult | null {
     const gyro =
       asGyro(VANILLA_BLOCKS_BY_ID[defaults.gyroId]) ??
       asGyro(VANILLA_BLOCKS_BY_ID['large-gyroscope']);
-
     let power: PowerChoice | null = null;
     let powerBlock: BatteryBlock | PowerProducerBlock | null = null;
     if (powerKind === 'battery') {
@@ -182,10 +201,21 @@ export function useEstimate(): EstimateResult | null {
       quantity: b.quantity,
     }));
 
+    // Per-direction thruster types: each direction falls back to the base
+    // thruster unless the user pinned an override (which must still resolve to a
+    // real thruster of the current grid — otherwise the base is used).
+    const thrusters: Record<Direction, ThrusterBlock> = uniformThrusters(thruster);
+    for (const dir of DIRECTIONS) {
+      const overrideId = thrusterOverrides[dir];
+      if (overrideId === undefined) continue;
+      const override = asThruster(VANILLA_BLOCKS_BY_ID[overrideId]);
+      if (override) thrusters[dir] = override;
+    }
+
     const config: EstimatorConfig = {
       targetTwr,
       lateralThrustFraction,
-      thruster,
+      thrusters,
       power,
       runtimeTargetHours,
       gyro,
@@ -196,12 +226,22 @@ export function useEstimate(): EstimateResult | null {
     const input: EstimatorInput = { fixedBlocks: fixedSpecs, planet, cargo, config };
     const estimate = estimateRequirements(input);
 
+    // Run the trusted TWR engine on a synthesized design so the Estimate view
+    // shows the same directional TWR bars as Analyze — empty and fully loaded.
+    const design = estimateToDesign(input, estimate, planetId);
+    const directional = {
+      empty: directionalTwr(design, planet, estimate.dryMass),
+      loaded: directionalTwr(design, planet, estimate.loadedMass),
+    };
+
     return {
       estimate,
       planet,
+      thrusters,
       thruster,
       gyro,
       powerBlock,
+      directional,
       resolvedFixed,
       essentialsMass,
       essentialsCount,
@@ -215,6 +255,7 @@ export function useEstimate(): EstimateResult | null {
     targetTwr,
     lateralThrustFraction,
     thrusterId,
+    thrusterOverrides,
     powerKind,
     powerBlockId,
     runtimeTargetHours,

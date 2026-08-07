@@ -3,6 +3,8 @@ import { render, screen, within } from '@testing-library/react';
 import { useEstimatorStore } from '../../app/store/estimator-store';
 import { RecommendationsPanel } from './RecommendationsPanel';
 import { EssentialsBuilder } from './EssentialsBuilder';
+import { EstimatorConfigPanel } from './EstimatorConfigPanel';
+import { EstimatorTwrPanel } from './EstimatorTwrPanel';
 
 const state = () => useEstimatorStore.getState();
 
@@ -70,5 +72,56 @@ describe('EssentialsBuilder rendering', () => {
     render(<EssentialsBuilder />);
     const qtyInput = screen.getByLabelText('Drill (Large Grid) quantity');
     expect(qtyInput).toHaveValue(4);
+  });
+});
+
+describe('EstimatorConfigPanel per-direction pickers', () => {
+  beforeEach(() => {
+    state().reset();
+  });
+
+  it('offers a "Same as default" option on each of the six direction selects', () => {
+    render(<EstimatorConfigPanel />);
+    // Six per-direction selects, each defaulting to "same as default" (empty value).
+    for (const dir of ['up', 'down', 'forward', 'backward', 'left', 'right']) {
+      const select = document.getElementById(`est-thruster-${dir}`) as HTMLSelectElement | null;
+      expect(select).not.toBeNull();
+      expect(select!.value).toBe('');
+      expect(within(select!).getByRole('option', { name: /same as default/i })).toBeInTheDocument();
+    }
+  });
+
+  it('reflects a pinned override as the selected value', () => {
+    state().setDirectionalThruster('left', 'large-large-ion-thruster');
+    render(<EstimatorConfigPanel />);
+    const select = document.getElementById('est-thruster-left') as HTMLSelectElement;
+    expect(select.value).toBe('large-large-ion-thruster');
+  });
+});
+
+describe('EstimatorTwrPanel rendering', () => {
+  beforeEach(() => {
+    state().reset();
+  });
+
+  it('renders nothing before any essentials are added', () => {
+    const { container } = render(<EstimatorTwrPanel />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('renders six directional TWR meters once a build exists', () => {
+    state().addBlock('large-large-cargo-container');
+    state().setPlanet('earthlike');
+    render(<EstimatorTwrPanel />);
+    const meters = screen.getAllByRole('meter');
+    expect(meters).toHaveLength(6);
+    expect(screen.getByText(/thrust-to-weight/i)).toBeInTheDocument();
+  });
+
+  it('shows a no-gravity note in space instead of runaway bars', () => {
+    state().addBlock('large-large-cargo-container');
+    state().setPlanet('space');
+    render(<EstimatorTwrPanel />);
+    expect(screen.getByText(/no gravity here/i)).toBeInTheDocument();
   });
 });

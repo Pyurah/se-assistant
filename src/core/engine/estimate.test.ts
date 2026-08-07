@@ -8,7 +8,12 @@ import type {
   PowerProducerBlock,
   BlockDefinition,
 } from '../../data/schema';
-import { estimateRequirements, type EstimatorInput, type FixedBlockSpec } from './estimate';
+import {
+  estimateRequirements,
+  uniformThrusters,
+  type EstimatorInput,
+  type FixedBlockSpec,
+} from './estimate';
 
 const earthlike = PLANET_PRESETS_BY_ID['earthlike']!;
 const moon = PLANET_PRESETS_BY_ID['moon']!;
@@ -66,7 +71,7 @@ function baseInput(overrides?: Partial<EstimatorInput>): EstimatorInput {
     config: {
       targetTwr: 2.0,
       lateralThrustFraction: 0.5,
-      thruster: hydroLarge,
+      thrusters: uniformThrusters(hydroLarge),
       power: { kind: 'battery', block: largeBattery },
       runtimeTargetHours: 0.25,
       gyro: largeGyro,
@@ -116,7 +121,7 @@ describe('estimateRequirements', () => {
   });
 
   it('warns and recommends no thrusters when the type is infeasible (atmo in space)', () => {
-    const est = estimateRequirements(baseInput({ planet: space, config: { ...baseInput().config, thruster: atmoLarge } }));
+    const est = estimateRequirements(baseInput({ planet: space, config: { ...baseInput().config, thrusters: uniformThrusters(atmoLarge) } }));
     expect(est.warnings.length).toBeGreaterThan(0);
     expect(est.totalThrusters).toBe(0);
   });
@@ -138,7 +143,7 @@ describe('estimateRequirements', () => {
       config: {
         targetTwr: 2.0,
         lateralThrustFraction: 0.5,
-        thruster: atmoLarge,
+        thrusters: uniformThrusters(atmoLarge),
         power: { kind: 'battery', block: largeBattery },
         runtimeTargetHours: 0.25,
         gyro: largeGyro,
@@ -186,7 +191,7 @@ describe('estimateRequirements', () => {
       fixedBlocks: [{ definition: largeCockpit!, quantity: 1 }],
       planet: earthlike,
       cargo: { fillFraction: 0, densityKgPerL: 2.0 },
-      config: { ...baseInput().config, thruster: ionLarge },
+      config: { ...baseInput().config, thrusters: uniformThrusters(ionLarge) },
     };
     const onEarth = estimateRequirements(light);
     const onMoon = estimateRequirements({ ...light, planet: moon });
@@ -228,7 +233,7 @@ describe('estimateRequirements — small-grid gyro sizing', () => {
       config: {
         targetTwr: 2.0,
         lateralThrustFraction: 0.5,
-        thruster: smallHydro,
+        thrusters: uniformThrusters(smallHydro),
         power: { kind: 'battery', block: smallBattery },
         runtimeTargetHours: 0.5,
         gyro: smallGyro,
@@ -270,7 +275,7 @@ describe('estimateRequirements — small-grid gyro sizing', () => {
       config: {
         targetTwr: 1.0,
         lateralThrustFraction: 0,
-        thruster: hydroLarge,
+        thrusters: uniformThrusters(hydroLarge),
         power: { kind: 'battery', block: largeBattery },
         runtimeTargetHours: 0.25,
         gyro: largeGyro,
@@ -317,7 +322,7 @@ describe('estimateRequirements — realistic peak-draw power sizing', () => {
       config: {
         targetTwr: 2.0,
         lateralThrustFraction: 0.5,
-        thruster: smallAtmo,
+        thrusters: uniformThrusters(smallAtmo),
         power: { kind: 'battery', block: smallWarfareBattery },
         runtimeTargetHours: 0.5,
         gyro: smallGyro,
@@ -361,7 +366,7 @@ describe('estimateRequirements — realistic peak-draw power sizing', () => {
 
   it('a hydrogen mining ship (0 W thrusters) needs just one battery for the fixed draw', () => {
     const smallHydro = VANILLA_BLOCKS_BY_ID['small-small-hydrogen-thruster'] as ThrusterBlock;
-    const est = estimateRequirements(miningInput({ thruster: smallHydro }));
+    const est = estimateRequirements(miningInput({ thrusters: uniformThrusters(smallHydro) }));
     // 3 drills + ore detector = 8 kW; one 4 MW / 1 MWh battery covers it.
     expect(est.powerCount).toBe(1);
   });
@@ -369,12 +374,107 @@ describe('estimateRequirements — realistic peak-draw power sizing', () => {
   it('returns an infeasible estimate (no runaway counts) when the thruster type cannot lift the ship', () => {
     // Ion thrusters are near-dead in dense atmosphere; sizing them to lift a
     // mining ship on Earthlike used to diverge to astronomically large counts.
-    const est = estimateRequirements(miningInput({ thruster: smallIon }));
+    const est = estimateRequirements(miningInput({ thrusters: uniformThrusters(smallIon) }));
     expect(est.warnings.length).toBeGreaterThan(0);
     expect(est.warnings.some((w) => /can't lift/i.test(w))).toBe(true);
     expect(est.totalThrusters).toBe(0);
     expect(est.powerCount).toBe(0);
     // Numbers stay finite and sane.
     expect(Number.isFinite(est.loadedMass)).toBe(true);
+  });
+});
+
+// ── Per-direction thruster mixing ────────────────────────────────────────────
+// Each direction can use a different thruster type (e.g. flat atmospheric on the
+// lift/fore/aft axes, ion on the sides). Sizing, mass, and peak draw must all be
+// computed per direction — a lighter/stronger type on one axis needs fewer
+// blocks there, and mixed types draw different watts, so the opposing-pair peak
+// must compare watts, not counts.
+describe('estimateRequirements — per-direction thruster mixing', () => {
+  const light: FixedBlockSpec[] = [{ definition: largeCockpit!, quantity: 1 }];
+
+  function mixInput(thrusters: EstimatorInput['config']['thrusters'], planet = earthlike): EstimatorInput {
+    return {
+      fixedBlocks: light,
+      planet,
+      cargo: { fillFraction: 0, densityKgPerL: 2.0 },
+      config: {
+        targetTwr: 2.0,
+        lateralThrustFraction: 1.0, // full lateral so counts are directly comparable
+        thrusters,
+        power: { kind: 'battery', block: largeBattery },
+        runtimeTargetHours: 0.25,
+        gyro: largeGyro,
+        responsiveness: 'normal',
+      },
+    };
+  }
+
+  it('sizes a stronger-thrust direction with fewer blocks than a weaker one', () => {
+    // Hydrogen (7.2 MN) vs atmospheric (6.48 MN at full air): the stronger
+    // hydrogen axis should need no more thrusters than the atmospheric one for
+    // the same required thrust.
+    const est = estimateRequirements(
+      mixInput({ ...uniformThrusters(atmoLarge), forward: hydroLarge, backward: hydroLarge }),
+    );
+    expect(est.thrusters.forward).toBeLessThanOrEqual(est.thrusters.left);
+    expect(est.thrusters.forward).toBeGreaterThan(0);
+  });
+
+  it('matches the uniform result when every direction uses the same type', () => {
+    const uniform = estimateRequirements(mixInput(uniformThrusters(atmoLarge)));
+    const explicit = estimateRequirements(
+      mixInput({
+        up: atmoLarge,
+        down: atmoLarge,
+        forward: atmoLarge,
+        backward: atmoLarge,
+        left: atmoLarge,
+        right: atmoLarge,
+      }),
+    );
+    expect(explicit.thrusters).toEqual(uniform.thrusters);
+    expect(explicit.peakDraw).toBe(uniform.peakDraw);
+    expect(explicit.powerCount).toBe(uniform.powerCount);
+  });
+
+  it('peak draw compares watts per axis, not block counts (draw-aware)', () => {
+    // atmospheric everywhere but ion on the sides. Ion draws far more watts than
+    // atmospheric, so the left/right axis peak must reflect the ion draw.
+    const est = estimateRequirements(
+      mixInput({ ...uniformThrusters(atmoLarge), left: ionLarge, right: ionLarge }),
+    );
+    const cockpitDraw = 0; // cockpit has no maxPowerDraw
+    const axis = (a: number, ad: number, b: number, bd: number) => Math.max(a * ad, b * bd);
+    const expectedThrusterDraw =
+      axis(est.thrusters.up, atmoLarge.maxPowerDraw, est.thrusters.down, atmoLarge.maxPowerDraw) +
+      axis(est.thrusters.forward, atmoLarge.maxPowerDraw, est.thrusters.backward, atmoLarge.maxPowerDraw) +
+      axis(est.thrusters.left, ionLarge.maxPowerDraw, est.thrusters.right, ionLarge.maxPowerDraw);
+    expect(est.peakDraw).toBe(cockpitDraw + expectedThrusterDraw + est.gyroCount * largeGyro.powerDraw);
+  });
+
+  it('hard-stops with a lift warning when the UP axis type is dead in the environment', () => {
+    // Atmospheric UP in space produces no thrust — the ship can't lift at all,
+    // regardless of what the other axes use.
+    const est = estimateRequirements(
+      mixInput({ ...uniformThrusters(hydroLarge), up: atmoLarge }, space),
+    );
+    expect(est.warnings.some((w) => /can't lift/i.test(w))).toBe(true);
+    expect(est.totalThrusters).toBe(0);
+  });
+
+  it('sizes the rest but flags a dead LATERAL axis without stopping the estimate', () => {
+    // Hydrogen UP (works anywhere) with atmospheric on the sides. On the Moon
+    // (gravity 1.62, no atmosphere) atmospheric is dead but the ship still lifts
+    // on hydrogen — so left/right get 0 thrusters and a per-axis note, while the
+    // hydrogen axes are sized normally.
+    const est = estimateRequirements(
+      mixInput({ ...uniformThrusters(hydroLarge), left: atmoLarge, right: atmoLarge }, moon),
+    );
+    expect(est.thrusters.up).toBeGreaterThan(0);
+    expect(est.thrusters.left).toBe(0);
+    expect(est.thrusters.right).toBe(0);
+    expect(est.thrusters.forward).toBeGreaterThan(0); // hydrogen laterals still sized
+    expect(est.warnings.some((w) => /LEFT/i.test(w))).toBe(true);
   });
 });

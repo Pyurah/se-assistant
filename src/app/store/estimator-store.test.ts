@@ -30,6 +30,43 @@ describe('estimator store', () => {
       expect(s.powerKind).toBe('battery');
       expect(s.powerBlockId).toBe(GRID_DEFAULTS.small.batteryId);
     });
+
+    it('switching grid clears per-direction thruster overrides', () => {
+      state().setDirectionalThruster('left', 'large-large-atmospheric-thruster');
+      expect(state().thrusterOverrides.left).toBe('large-large-atmospheric-thruster');
+      state().setGridSize('small');
+      expect(state().thrusterOverrides).toEqual({});
+    });
+  });
+
+  describe('per-direction thruster overrides', () => {
+    it('defaults to no overrides', () => {
+      expect(state().thrusterOverrides).toEqual({});
+    });
+
+    it('sets an override for a single direction', () => {
+      state().setDirectionalThruster('left', 'large-large-ion-thruster');
+      expect(state().thrusterOverrides).toEqual({ left: 'large-large-ion-thruster' });
+    });
+
+    it('clears an override with null (back to "same as default")', () => {
+      state().setDirectionalThruster('left', 'large-large-ion-thruster');
+      state().setDirectionalThruster('left', null);
+      expect(state().thrusterOverrides).toEqual({});
+      expect('left' in state().thrusterOverrides).toBe(false);
+    });
+
+    it('clearing an unset direction is a no-op (no key added)', () => {
+      state().setDirectionalThruster('right', null);
+      expect(state().thrusterOverrides).toEqual({});
+    });
+
+    it('reset clears all overrides', () => {
+      state().setDirectionalThruster('up', 'large-large-hydrogen-thruster');
+      state().setDirectionalThruster('down', 'large-large-ion-thruster');
+      state().reset();
+      expect(state().thrusterOverrides).toEqual({});
+    });
   });
 
   describe('essentials (add / remove / quantity)', () => {
@@ -121,6 +158,25 @@ describe('estimator store', () => {
       const r = result.current;
       expect(r?.estimate.warnings.length).toBeGreaterThan(0);
       expect(r?.estimate.warnings.join(' ')).toMatch(/thrust/i);
+    });
+
+    it('flows a per-direction override into the resolved thrusters + directional TWR', () => {
+      state().addBlock('large-large-cargo-container');
+      state().setPlanet('earthlike');
+      // Base = atmospheric everywhere; pin the sides to ion.
+      state().setThruster('large-large-atmospheric-thruster');
+      state().setDirectionalThruster('left', 'large-large-ion-thruster');
+      state().setDirectionalThruster('right', 'large-large-ion-thruster');
+      const { result } = renderHook(() => useEstimate());
+      const r = result.current;
+      expect(r).not.toBeNull();
+      // The override reaches the resolved per-direction thruster types.
+      expect(r?.thrusters.up.id).toBe('large-large-atmospheric-thruster');
+      expect(r?.thrusters.left.id).toBe('large-large-ion-thruster');
+      expect(r?.thrusters.right.id).toBe('large-large-ion-thruster');
+      // Directional TWR (empty + loaded) is exposed for the readout.
+      expect(r?.directional.loaded.up).toBeGreaterThan(0);
+      expect(r?.directional.empty.up).toBeGreaterThanOrEqual(r!.directional.loaded.up);
     });
   });
 });

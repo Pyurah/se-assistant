@@ -50,20 +50,27 @@ direction**, how many **batteries/reactors** for your peak draw and runtime, and
 roughly how many **gyroscopes**. It iterates to a stable answer because
 thrusters, power, and gyros each add mass and draw that change the requirement.
 
+You can **mix thruster types per direction** — pick a default, then pin
+individual axes (e.g. flat atmospheric for lift, ion on the sides) under
+"Customize by direction." A **directional TWR readout** runs the recommended
+build through the same thrust-to-weight engine the Analyze view uses, so you can
+check whether it holds altitude tilted fully onto any one axis — empty or fully
+loaded — before you've built a thing.
+
 ## Why the numbers are trustworthy
 
 - Block stats (thrust, mass, power, capacity, fuel burn) are **fixed constants**
   from the game — SE Assistant does exact arithmetic on them, cross-referenced
   to the official wiki and cited in [`docs/data-audit.md`](./docs/data-audit.md).
 - The pure calc engine is covered by **worked-example tests** with hand-verified
-  reference values (currently **216 tests**).
+  reference values (currently **238 tests**).
 - Where a value is genuinely an estimate — the gyro turn-rate (needs the ship's
   moment of inertia) or stopping distance (ignores per-axis gravity) — the UI
   says so rather than implying false precision.
 
 ## Status
 
-Version **0.10.2**. Phases 1 (core engine + blueprint import), 1.5 (requirement
+Version **0.11.0**. Phases 1 (core engine + blueprint import), 1.5 (requirement
 estimator), and 2 (fuel/flight-time + motion/stability) are complete. See
 [`roadmap.md`](./roadmap.md) for what's next (production/logistics,
 multi-design compare, PWA offline) and [`CHANGELOG.md`](./CHANGELOG.md) for

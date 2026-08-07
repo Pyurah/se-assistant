@@ -4,6 +4,35 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.11.0] - 2026-08-07
+
+### Added
+
+- **Per-direction thruster mixing in Estimate mode.** The recommended build can
+  now use a different thruster type per axis — e.g. flat atmospheric on the
+  vertical/fore/aft axes with ion on the sides. A "Customize by direction"
+  disclosure under the thruster picker exposes six selects (up/down/forward/
+  backward/left/right), each defaulting to "Same as default"; a pinned selection
+  overrides just that axis. The estimator sizes each direction against its own
+  thruster and the power budget now measures peak draw per axis from the actual
+  per-direction thruster draw (the larger side of each opposing pair).
+- **Directional TWR readout in Estimate mode.** A new panel shows the recommended
+  build's six-axis thrust-to-weight — the same bars Analyze shows — with an
+  Empty/Loaded toggle and UP emphasized. It answers "can I hold altitude tilted
+  fully onto one axis?" for a build you haven't exported yet, and per-direction
+  thruster captions appear when the build mixes types. The bars run through the
+  same trusted TWR engine as Analyze via a new pure `estimateToDesign` bridge
+  that synthesizes a geometry-less `ShipDesign` from the estimate.
+
+### Changed
+
+- The estimator config now carries a per-direction thruster map
+  (`EstimatorConfig.thrusters: Record<Direction, ThrusterBlock>`) instead of a
+  single `thruster`; a `uniformThrusters(block)` helper builds the common
+  single-type case. A dead lateral axis is now flagged with a soft per-axis
+  warning rather than blocking the whole estimate, while a dead UP axis still
+  hard-stops with a clear "can't lift" message.
+
 ## [0.10.2] - 2026-08-07
 
 ### Fixed

@@ -18,7 +18,7 @@
  */
 import { create } from 'zustand';
 import { logger, type CargoLoadout, type Responsiveness } from '@core';
-import type { GridSize } from '@data';
+import type { GridSize, Direction } from '@data';
 
 const log = logger.child({ module: 'estimator-store' });
 
@@ -42,7 +42,15 @@ export interface EstimatorState {
   // --- Estimator config (block choices held as ids) ---
   targetTwr: number;
   lateralThrustFraction: number;
+  /** Base thruster type applied to every direction that has no override. */
   thrusterId: string;
+  /**
+   * Optional per-direction thruster type overrides. A direction absent here
+   * ("same as default") falls back to {@link thrusterId}; a present id pins that
+   * direction to a specific thruster so builds can mix types (e.g. atmospheric
+   * vertical, ion sides). Cleared on any grid switch and on reset.
+   */
+  thrusterOverrides: Partial<Record<Direction, string>>;
   powerKind: PowerKind;
   powerBlockId: string;
   runtimeTargetHours: number;
@@ -58,6 +66,7 @@ export interface EstimatorState {
   setTargetTwr: (targetTwr: number) => void;
   setLateralThrustFraction: (fraction: number) => void;
   setThruster: (id: string) => void;
+  setDirectionalThruster: (dir: Direction, id: string | null) => void;
   setPower: (kind: PowerKind, blockId: string) => void;
   setRuntimeTargetHours: (hours: number) => void;
   setResponsiveness: (responsiveness: Responsiveness) => void;
@@ -104,6 +113,7 @@ export const useEstimatorStore = create<EstimatorState>((set, get) => ({
   targetTwr: 2.0,
   lateralThrustFraction: 0.5,
   thrusterId: GRID_DEFAULTS[DEFAULT_GRID].thrusterId,
+  thrusterOverrides: {},
   powerKind: 'battery',
   powerBlockId: GRID_DEFAULTS[DEFAULT_GRID].batteryId,
   runtimeTargetHours: 0.5,
@@ -130,6 +140,7 @@ export const useEstimatorStore = create<EstimatorState>((set, get) => ({
       gridSize,
       fixedBlocks: [],
       thrusterId: defaults.thrusterId,
+      thrusterOverrides: {},
       powerKind: 'battery',
       powerBlockId: defaults.batteryId,
     });
@@ -181,6 +192,20 @@ export const useEstimatorStore = create<EstimatorState>((set, get) => ({
 
   setThruster: (id) => set({ thrusterId: id }),
 
+  setDirectionalThruster: (dir, id) => {
+    const { thrusterOverrides } = get();
+    // Clearing an override ("same as default") removes the key entirely so the
+    // hook's fallback to `thrusterId` kicks in; setting one pins the direction.
+    if (id === null) {
+      if (!(dir in thrusterOverrides)) return;
+      const next = { ...thrusterOverrides };
+      delete next[dir];
+      set({ thrusterOverrides: next });
+      return;
+    }
+    set({ thrusterOverrides: { ...thrusterOverrides, [dir]: id } });
+  },
+
   setPower: (kind, blockId) => set({ powerKind: kind, powerBlockId: blockId }),
 
   setRuntimeTargetHours: (hours) => set({ runtimeTargetHours: atLeast(hours, 0) }),
@@ -196,6 +221,7 @@ export const useEstimatorStore = create<EstimatorState>((set, get) => ({
       targetTwr: 2.0,
       lateralThrustFraction: 0.5,
       thrusterId: GRID_DEFAULTS[DEFAULT_GRID].thrusterId,
+      thrusterOverrides: {},
       powerKind: 'battery',
       powerBlockId: GRID_DEFAULTS[DEFAULT_GRID].batteryId,
       runtimeTargetHours: 0.5,
