@@ -292,3 +292,69 @@ hover; SE's HUD labels that group by the direction the thrusters *face* (down),
 whereas this tool labels by the direction the ship is *pushed* (up), matching how
 the TWR/takeoff verdict reads the up-thrust bucket. All five nonzero axes match
 the game exactly.
+
+## Cargo item mass/volume (v0.10.0)
+
+The cargo loadout control used to ask for a single "custom kg/L" density, which
+confused users: the game shows every item as a **mass** (kg) *and* a **volume**
+(L) — e.g. a steel plate is 20 kg / 3 L — not a density. v0.10.0 replaces that
+field with an item picker (plus explicit Mass + Volume inputs for anything
+custom) and derives the density the engine needs (`density = mass / volume`).
+
+The item dataset (`src/data/cargo-items.ts`) is copied **verbatim** from the
+installed game's own item definitions on **SE v1.210.012 b0**:
+
+- **Components** — `SpaceEngineers/Content/Data/Components.sbc`, each
+  `<Component>` element's `<Mass>` / `<Volume>`.
+- **Ores & ingots** — `PhysicalItems.sbc`, each `<PhysicalItem>` element
+  (`TypeId` `Ore` / `Ingot`).
+
+`mass` and `volume` are stored as-authored; `density` is always derived, never
+stored, so the two-field model stays the single source of truth. Load-bearing
+values (guarded by data-integrity tests):
+
+| Item | Mass (kg) | Volume (L) | Density (kg/L) |
+|---|---|---|---|
+| Steel Plate | 20 | 3 | 6.667 |
+| Construction Comp. | 8 | 2 | 4.000 |
+| Computer | 0.2 | 1 | 0.200 |
+| Iron Ingot | 1 | 0.127 | 7.874 |
+| Gold Ingot | 1 | 0.052 | 19.231 |
+| Uranium Ingot | 1 | 0.052 | 19.231 |
+| Platinum Ingot | 1 | 0.047 | 21.277 |
+| All raw ores (except Scrap) | 1 | 0.37 | 2.703 |
+| Scrap ore | 1 | 0.254 | 3.937 |
+
+Notes:
+- **All raw ores share one density (2.703 kg/L)** — mass 1 kg, volume 0.37 L
+  uniformly. Ingots differ per metal (volume shrinks on refining), so ingot
+  density varies from Magnesium (1.739) to Platinum (21.277). This is why the
+  old single "Ingots = 2.0" preset was wrong.
+- The picker excludes tools, plushies, and tree/environment objects (present in
+  the game files but not bulk cargo). Prototech components exist in the files but
+  are omitted until the calculator covers Prototech generally (see the Prototech
+  note above).
+
+## Power budget realism (v0.10.0)
+
+Two power-budget bugs surfaced from the real Rapier data (draw read **11.63 MW**
+against **0 W generation** on a battery-only ship that flies fine):
+
+1. **Opposing thrusters were double-counted.** `peakDraw` summed *every*
+   thruster's full draw, including up-vs-down / fwd-vs-back / left-vs-right pairs
+   that can never fire simultaneously. On the Rapier that roughly doubled the
+   real peak and invented a brownout. Fix: bucket thruster draw by resolved
+   thrust direction and count only the **larger side of each opposing pair**,
+   then add all non-thruster draw. A thruster with no resolved direction is
+   counted in full (can't prove it opposes anything). Verified: the Rapier's
+   realistic peak (~7.83 MW) now sits under its 8.8 MW battery output.
+2. **Batteries weren't counted as supply.** Generation summed only reactors /
+   solar / hydrogen engines / wind, so a battery-only ship reported "0 W
+   generation" and a permanent brownout. Fix: `availablePower = generation +
+   batteryOutput`; a brownout is now `peakDraw > availablePower`, and a
+   `batteryOnly` flag drives an honest "batteries power this ship" message
+   instead of a false deficit. Battery runtime is unchanged (still the deficit
+   generation alone can't cover, drained from stored Wh).
+
+These are realism corrections to the *aggregation*, not to any block stat — no
+dataset values changed.

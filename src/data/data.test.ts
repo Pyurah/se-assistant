@@ -8,6 +8,9 @@ import {
   STANDARD_GRAVITY,
   DLCS,
   DLCS_BY_ID,
+  CARGO_ITEMS,
+  CARGO_ITEMS_BY_ID,
+  itemDensity,
 } from './index';
 
 /**
@@ -262,5 +265,48 @@ describe('planet presets', () => {
   it('models Pertam as a high-g world (1.20 g), guarding the M1 correction', () => {
     // Regression guard: the seed wrongly had Pertam at 1.0 g; verified 1.20 g.
     expect(PLANET_PRESETS_BY_ID['pertam']!.surfaceGravity).toBeCloseTo(11.77, 2);
+  });
+});
+
+describe('cargo items dataset', () => {
+  it('has unique item ids', () => {
+    const ids = CARGO_ITEMS.map((i) => i.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('exposes a consistent id lookup map', () => {
+    expect(Object.keys(CARGO_ITEMS_BY_ID).length).toBe(CARGO_ITEMS.length);
+    for (const item of CARGO_ITEMS) {
+      expect(CARGO_ITEMS_BY_ID[item.id]).toBe(item);
+    }
+  });
+
+  it('has positive mass and volume for every item', () => {
+    for (const item of CARGO_ITEMS) {
+      expect(item.mass, `${item.id} mass`).toBeGreaterThan(0);
+      expect(item.volume, `${item.id} volume`).toBeGreaterThan(0);
+    }
+  });
+
+  it('derives density as mass / volume', () => {
+    for (const item of CARGO_ITEMS) {
+      expect(itemDensity(item)).toBeCloseTo(item.mass / item.volume, 6);
+    }
+  });
+
+  it('guards known-good densities from the game files (v1.210.012 b0)', () => {
+    // Verbatim from Components.sbc / PhysicalItems.sbc; the load-bearing values
+    // the cargo UI derives density from. See docs/data-audit.md.
+    expect(itemDensity(CARGO_ITEMS_BY_ID['comp-steel-plate']!)).toBeCloseTo(6.6667, 3); // 20 / 3
+    expect(itemDensity(CARGO_ITEMS_BY_ID['ore-iron']!)).toBeCloseTo(2.7027, 3); // 1 / 0.37
+    expect(itemDensity(CARGO_ITEMS_BY_ID['ingot-gold']!)).toBeCloseTo(19.2308, 3); // 1 / 0.052
+    expect(itemDensity(CARGO_ITEMS_BY_ID['ingot-uranium']!)).toBeCloseTo(19.2308, 3); // 1 / 0.052
+    expect(itemDensity(CARGO_ITEMS_BY_ID['comp-computer']!)).toBeCloseTo(0.2, 3); // 0.2 / 1
+  });
+
+  it('keeps all raw ores at the uniform ore density (except scrap)', () => {
+    for (const item of CARGO_ITEMS.filter((i) => i.category === 'ore' && i.id !== 'ore-scrap')) {
+      expect(itemDensity(item), `${item.id}`).toBeCloseTo(2.7027, 3);
+    }
   });
 });

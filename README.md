@@ -23,9 +23,12 @@ Drag in an exported `.sbc` (or load the bundled example) and get a live readout:
   thrusters are the inverse, hydrogen is flat), per-planet gravity, and the
   **empty-vs-loaded** comparison with a can-it-take-off verdict.
 - **Mass & cargo** — dry vs loaded mass, breakdown by block category, cargo
-  capacity and how a full hold drags down TWR.
-- **Power budget** — generation vs peak draw, a brownout warning, battery
-  runtime under load.
+  capacity and how a full hold drags down TWR. Pick a real game item (Gold
+  Ingot, Iron Ore, Steel Plate, …) or enter a mass + volume, and the loaded
+  state uses that item's exact density.
+- **Power budget** — available power (generation + battery discharge) vs a
+  realistic peak draw (opposing thrusters don't both fire), a brownout warning,
+  and battery runtime under load.
 - **Fuel & flight time** — total hydrogen capacity, hover time and full-throttle
   time on a full tank, reactor uranium burn, solar sizing guidance.
 - **Motion & stability** — dampener stopping distance, center of mass,
@@ -53,14 +56,14 @@ thrusters, power, and gyros each add mass and draw that change the requirement.
   from the game — SE Assistant does exact arithmetic on them, cross-referenced
   to the official wiki and cited in [`docs/data-audit.md`](./docs/data-audit.md).
 - The pure calc engine is covered by **worked-example tests** with hand-verified
-  reference values (currently **196 tests**).
+  reference values (currently **208 tests**).
 - Where a value is genuinely an estimate — the gyro turn-rate (needs the ship's
   moment of inertia) or stopping distance (ignores per-axis gravity) — the UI
   says so rather than implying false precision.
 
 ## Status
 
-Version **0.9.2**. Phases 1 (core engine + blueprint import), 1.5 (requirement
+Version **0.10.0**. Phases 1 (core engine + blueprint import), 1.5 (requirement
 estimator), and 2 (fuel/flight-time + motion/stability) are complete. See
 [`roadmap.md`](./roadmap.md) for what's next (production/logistics,
 multi-design compare, PWA offline) and [`CHANGELOG.md`](./CHANGELOG.md) for

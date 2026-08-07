@@ -11,3 +11,4 @@ export * from './planets';
 export * from './blocks';
 export * from './functional-blocks';
 export * from './fuel-constants';
+export * from './cargo-items';

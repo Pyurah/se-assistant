@@ -11,9 +11,23 @@ loaded, on any vanilla planet.
 ## 👉 Next session starts here
 
 **Everything through Phase 2 is DONE, committed, and pushed to GitHub**
-(`https://github.com/Pyurah/se-assistant`, branch `master`, at v0.9.2). Working
-tree is clean and all four gates pass (`typecheck` / `lint` / `test` (196) /
+(`https://github.com/Pyurah/se-assistant`, branch `master`, at v0.10.0). Working
+tree is clean and all four gates pass (`typecheck` / `lint` / `test` (208) /
 `build`). Nothing is half-finished.
+
+**v0.10.0 (2026-08-07) — cargo item picker + power-budget realism.** Two
+user-reported fixes on the real "Rapier" ship. (1) **Cargo loadout** replaced the
+confusing "custom kg/L" density field with a **game-item picker** (ingots / ores
+/ components) plus explicit **Mass + Volume** inputs; the app derives density
+(`mass / volume`) so the user never divides by hand. Backed by a new verbatim
+item dataset (`src/data/cargo-items.ts`, 44 items from `Components.sbc` +
+`PhysicalItems.sbc`, SE v1.210.012 b0), guarded by data-integrity tests. (2)
+**Power budget** stopped inventing brownouts: peak draw now counts only the
+larger side of each opposing thruster pair (up/down never fire together), and
+available power now includes **battery discharge** so battery-only ships read as
+supplied instead of "0 W generation / brownout". Both cited in
+`docs/data-audit.md`. The store's `densityKgPerL` and the pure engine are
+unchanged — the item→density mapping lives entirely in `CargoControl.tsx`.
 
 **v0.9.2 (2026-08-07) — cockpit-relative directional thrust.** The same real DLC
 ship ("Rapier") reported **zero forward thrust** despite having two
@@ -66,11 +80,11 @@ SubtypeIds, drill/sensor wattages) against a live game install.
 
 ## Current State
 
-- **Version**: 0.9.2
+- **Version**: 0.10.0
 - **Repo**: pushed to `https://github.com/Pyurah/se-assistant` (`master`);
   commits use the GitHub no-reply email (real email scrubbed from history).
 - **Build**: passing (`pnpm build`)
-- **Tests**: passing — 196 tests across logger, audit, data-integrity, engine
+- **Tests**: passing — 208 tests across logger, audit, data-integrity, engine
   (incl. `estimateRequirements`, the fuel/flight-time engine, and the
   motion/stability engine), blueprint parser, number formatter, stores, and
   UI-rendering suites

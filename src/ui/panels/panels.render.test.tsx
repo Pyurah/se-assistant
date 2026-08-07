@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { useDesignStore } from '../../app/store/design-store';
 import { EXAMPLE_BLUEPRINT_XML } from '../lib/example-blueprint';
+import { CARGO_ITEMS_BY_ID, itemDensity } from '@data';
 import { TwrPanel } from './TwrPanel';
 import { PowerPanel } from './PowerPanel';
+import { CargoControl } from './CargoControl';
 
 /**
  * A minimal ion-thruster blueprint with no power source: peak draw is huge and
@@ -25,6 +27,46 @@ const UNPOWERED_ION_BLUEPRINT = `<?xml version="1.0"?>
               <SubtypeName>LargeBlockLargeThrust</SubtypeName>
               <Min x="0" y="0" z="0" />
               <BlockOrientation Forward="Down" Up="Forward" />
+            </MyObjectBuilder_CubeBlock>
+          </CubeBlocks>
+        </CubeGrid>
+      </CubeGrids>
+    </ShipBlueprint>
+  </ShipBlueprints>
+</Definitions>`;
+
+/**
+ * A battery-powered ion ship: enough battery discharge to cover the thruster
+ * draw, and no reactor. Exercises the PowerPanel's battery-only supply branch
+ * (must NOT report a "0 W generation" brownout).
+ */
+const BATTERY_ION_BLUEPRINT = `<?xml version="1.0"?>
+<Definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <ShipBlueprints>
+    <ShipBlueprint xsi:type="MyObjectBuilder_ShipBlueprintDefinition">
+      <DisplayName>Battery Skiff</DisplayName>
+      <CubeGrids>
+        <CubeGrid>
+          <SubtypeName />
+          <DisplayName>Battery Skiff</DisplayName>
+          <GridSizeEnum>Large</GridSizeEnum>
+          <CubeBlocks>
+            <MyObjectBuilder_CubeBlock xsi:type="MyObjectBuilder_Thrust">
+              <SubtypeName>LargeBlockLargeThrust</SubtypeName>
+              <Min x="0" y="0" z="0" />
+              <BlockOrientation Forward="Down" Up="Forward" />
+            </MyObjectBuilder_CubeBlock>
+            <MyObjectBuilder_CubeBlock xsi:type="MyObjectBuilder_BatteryBlock">
+              <SubtypeName>LargeBlockBatteryBlock</SubtypeName>
+              <Min x="1" y="0" z="0" />
+            </MyObjectBuilder_CubeBlock>
+            <MyObjectBuilder_CubeBlock xsi:type="MyObjectBuilder_BatteryBlock">
+              <SubtypeName>LargeBlockBatteryBlock</SubtypeName>
+              <Min x="2" y="0" z="0" />
+            </MyObjectBuilder_CubeBlock>
+            <MyObjectBuilder_CubeBlock xsi:type="MyObjectBuilder_BatteryBlock">
+              <SubtypeName>LargeBlockBatteryBlock</SubtypeName>
+              <Min x="3" y="0" z="0" />
             </MyObjectBuilder_CubeBlock>
           </CubeBlocks>
         </CubeGrid>
@@ -102,5 +144,40 @@ describe('PowerPanel rendering', () => {
     const alert = screen.getByRole('alert');
     expect(alert).toHaveTextContent(/brownout/i);
     expect(alert).toHaveTextContent(/power deficit/i);
+  });
+
+  it('treats a battery-powered ship as supplied, not a 0 W brownout', async () => {
+    // 3 large batteries (36 MW out) cover one large ion thruster (33.6 MW draw)
+    // with no reactor — the old code reported "generation 0 W" + brownout.
+    await state().importBlueprint(BATTERY_ION_BLUEPRINT, 'skiff.sbc');
+    render(<PowerPanel />);
+    expect(screen.queryByText(/brownout/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/batteries power this ship/i)).toBeInTheDocument();
+  });
+});
+
+describe('CargoControl rendering', () => {
+  beforeEach(() => {
+    state().reset();
+  });
+
+  it('sets the store density from a selected game item (Gold Ingot)', async () => {
+    await state().importBlueprint(EXAMPLE_BLUEPRINT_XML, 'example.sbc');
+    render(<CargoControl />);
+    const select = screen.getByLabelText(/cargo contents/i);
+    fireEvent.change(select, { target: { value: 'ingot-gold' } });
+    // Gold ingot: 1 kg / 0.052 L = 19.2308 kg/L — derived by the app.
+    expect(state().cargo.densityKgPerL).toBeCloseTo(itemDensity(CARGO_ITEMS_BY_ID['ingot-gold']!), 4);
+    expect(state().cargo.densityKgPerL).toBeCloseTo(19.2308, 3);
+  });
+
+  it('derives density from custom Mass and Volume fields', async () => {
+    await state().importBlueprint(EXAMPLE_BLUEPRINT_XML, 'example.sbc');
+    render(<CargoControl />);
+    fireEvent.change(screen.getByLabelText(/cargo contents/i), { target: { value: 'custom' } });
+    fireEvent.change(screen.getByLabelText(/cargo mass in kilograms/i), { target: { value: '500' } });
+    fireEvent.change(screen.getByLabelText(/cargo volume in liters/i), { target: { value: '250' } });
+    // 500 kg / 250 L = 2.0 kg/L.
+    expect(state().cargo.densityKgPerL).toBeCloseTo(2.0, 6);
   });
 });

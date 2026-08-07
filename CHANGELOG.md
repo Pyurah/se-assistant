@@ -4,6 +4,37 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.10.0] - 2026-08-07
+
+### Added
+
+- **Cargo contents picker.** The cargo loadout control now lets you choose a real
+  game item — Ingots (Iron, Gold, Uranium, Platinum, …), Ores, or Components
+  (Steel Plate, Computer, Power Cell, …) — and derives the cargo density from that
+  item's exact mass and volume. This replaces the old "custom kg/L" field, which
+  was confusing because the game shows every item as a **mass** (kg) *and* a
+  **volume** (L), never a density. For anything not in the list you can still enter
+  a **Mass** and **Volume** directly and the app computes the density for you.
+- **Cargo item dataset** (`src/data/cargo-items.ts`) — 44 haulable items (ingots,
+  ores, components) with mass/volume copied verbatim from the installed game's
+  `Components.sbc` and `PhysicalItems.sbc` (SE v1.210.012 b0), guarded by
+  data-integrity tests. Cited in `docs/data-audit.md`.
+
+### Fixed
+
+- **Power budget no longer invents brownouts.** Two aggregation bugs are fixed:
+  - **Opposing thrusters were double-counted.** Peak draw summed every thruster,
+    including up-vs-down / forward-vs-back / left-vs-right pairs that can't fire
+    at once. It now counts only the larger side of each opposing pair (plus all
+    non-thruster draw), matching what the ship actually pulls at full throttle.
+  - **Battery-only ships showed "0 W generation" and a permanent brownout.**
+    Available power is now generation **plus** battery discharge, so a ship run
+    entirely on batteries reads as supplied — a brownout appears only when peak
+    draw genuinely exceeds all available power. A real imported ship (the
+    "Rapier") that flies fine on batteries no longer reports a false deficit.
+
+  These are corrections to how power is aggregated; no block stat changed.
+
 ## [0.9.2] - 2026-08-07
 
 ### Fixed

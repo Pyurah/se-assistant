@@ -208,10 +208,76 @@ describe('power budget', () => {
     const p = powerSummary(ship);
     expect(p.generation).toBe(15_000_000);
     expect(p.peakDraw).toBe(67_200_000);
+    expect(p.availablePower).toBe(27_000_000); // gen 15 + battery 12
     // draw 67.2 > gen 15 + battery 12 = 27 → brownout
     expect(p.brownout).toBe(true);
+    expect(p.batteryOnly).toBe(false);
     // deficit 52,200,000 W; 3,000,000 Wh / 52,200,000 W = 0.05747 h
     expect(p.batteryRuntimeHours).toBeCloseTo(0.05747, 4);
+  });
+
+  it('counts only the larger side of an opposing thruster pair (up vs down)', () => {
+    // 3 up + 2 down ion thrusters: you fire one axis at a time, so peak draw is
+    // the larger side (3 × 33.6M), not the naive sum of all 5 (which would be
+    // 168M and invent a brownout the ship never sees).
+    const ship: ShipDesign = {
+      id: 'p3',
+      name: 'P3',
+      gridSize: 'large',
+      blocks: [
+        block('large-large-reactor', 1), // 300 MW
+        block('large-large-ion-thruster', 3, 'up'), // 100.8 MW
+        block('large-large-ion-thruster', 2, 'down'), // 67.2 MW
+      ],
+      planetId: 'earthlike',
+      cargo: { fillFraction: 0, densityKgPerL: 2.0 },
+    };
+    const p = powerSummary(ship);
+    // max(up 100.8M, down 67.2M) = 100.8M, NOT 168M.
+    expect(p.peakDraw).toBe(100_800_000);
+    expect(p.brownout).toBe(false);
+  });
+
+  it('sums distinct axes but only the larger of each opposing pair', () => {
+    // up 3 (100.8M) vs down 1 (33.6M) → 100.8M; left 1 vs right 2 → 67.2M.
+    // Total peak = 100.8M + 67.2M = 168M across two independent axes.
+    const ship: ShipDesign = {
+      id: 'p4',
+      name: 'P4',
+      gridSize: 'large',
+      blocks: [
+        block('large-large-ion-thruster', 3, 'up'),
+        block('large-large-ion-thruster', 1, 'down'),
+        block('large-large-ion-thruster', 1, 'left'),
+        block('large-large-ion-thruster', 2, 'right'),
+      ],
+      planetId: 'earthlike',
+      cargo: { fillFraction: 0, densityKgPerL: 2.0 },
+    };
+    expect(powerSummary(ship).peakDraw).toBe(168_000_000);
+  });
+
+  it('treats a battery-only ship as battery-powered, not a 0 W brownout', () => {
+    // A battery covering the peak draw is supply, not "0 W generation".
+    const ship: ShipDesign = {
+      id: 'p5',
+      name: 'P5',
+      gridSize: 'large',
+      blocks: [
+        block('large-battery', 8), // 96 MW out, 24 MWh
+        block('large-large-ion-thruster', 2, 'up'), // 67.2 MW draw
+      ],
+      planetId: 'earthlike',
+      cargo: { fillFraction: 0, densityKgPerL: 2.0 },
+    };
+    const p = powerSummary(ship);
+    expect(p.generation).toBe(0);
+    expect(p.batteryOutput).toBe(96_000_000);
+    expect(p.availablePower).toBe(96_000_000);
+    expect(p.batteryOnly).toBe(true);
+    expect(p.brownout).toBe(false); // 96 MW battery covers 67.2 MW draw
+    // Runtime: full draw is the deficit (no generation). 24 MWh / 67.2 MW.
+    expect(p.batteryRuntimeHours).toBeCloseTo(24_000_000 / 67_200_000, 4);
   });
 });
 
