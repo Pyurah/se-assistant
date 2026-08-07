@@ -11,9 +11,22 @@ loaded, on any vanilla planet.
 ## 👉 Next session starts here
 
 **Everything through Phase 2 is DONE, committed, and pushed to GitHub**
-(`https://github.com/Pyurah/se-assistant`, branch `master`, at v0.10.0). Working
-tree is clean and all four gates pass (`typecheck` / `lint` / `test` (208) /
+(`https://github.com/Pyurah/se-assistant`, branch `master`, at v0.10.1). Working
+tree is clean and all four gates pass (`typecheck` / `lint` / `test` (212) /
 `build`). Nothing is half-finished.
+
+**v0.10.1 (2026-08-07) — grid-aware gyro estimate.** A small-grid utility ship
+(3 welders + cockpit + small cargo container, ≈6 t loaded) was recommended **3
+gyros** where the real build flies fine on 2 (the math now says 1 is the
+minimum). The estimator's torque-per-kg gyro target had been calibrated only for
+the large grid (1 gyro per ~200 t) and applied unchanged to small-grid ships,
+then divided by the 75×-weaker small gyro — a compounding over-count. Fix: scale
+the target by the square of the grid cell-size ratio `(cell / large_cell)²`,
+matching the moment-of-inertia model (`I ∝ m·s²`) the motion engine already
+uses — a small-grid ship's inertia per kg is 1/25 of a large-grid ship's. The
+large-grid calibration is untouched. See `gyroTorquePerKg` in
+`src/core/engine/estimate.ts` and the "Grid-aware gyro sizing" note in
+`docs/data-audit.md`.
 
 **v0.10.0 (2026-08-07) — cargo item picker + power-budget realism.** Two
 user-reported fixes on the real "Rapier" ship. (1) **Cargo loadout** replaced the
@@ -80,11 +93,11 @@ SubtypeIds, drill/sensor wattages) against a live game install.
 
 ## Current State
 
-- **Version**: 0.10.0
+- **Version**: 0.10.1
 - **Repo**: pushed to `https://github.com/Pyurah/se-assistant` (`master`);
   commits use the GitHub no-reply email (real email scrubbed from history).
 - **Build**: passing (`pnpm build`)
-- **Tests**: passing — 208 tests across logger, audit, data-integrity, engine
+- **Tests**: passing — 212 tests across logger, audit, data-integrity, engine
   (incl. `estimateRequirements`, the fuel/flight-time engine, and the
   motion/stability engine), blueprint parser, number formatter, stores, and
   UI-rendering suites

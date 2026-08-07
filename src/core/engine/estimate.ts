@@ -23,7 +23,7 @@
  * target, clearly labeled an estimate.
  */
 
-import type { PlanetPreset, ThrusterBlock, Direction } from '../../data/schema';
+import type { PlanetPreset, ThrusterBlock, Direction, GridSize } from '../../data/schema';
 import type { CargoLoadout } from '../types';
 import type {
   GyroscopeBlock,
@@ -31,6 +31,7 @@ import type {
   BatteryBlock,
   BlockDefinition,
 } from '../../data/schema';
+import { GRID_CELL_SIZE_M } from '../../data/fuel-constants';
 import { effectiveThrust } from './thruster';
 import { weight, DIRECTIONS } from './twr';
 
@@ -38,7 +39,8 @@ import { weight, DIRECTIONS } from './twr';
 export type Responsiveness = 'sluggish' | 'normal' | 'nimble';
 
 /**
- * Target gyro torque (N·m) per kg of loaded mass, by responsiveness.
+ * Target gyro torque (N·m) per kg of loaded mass, by responsiveness, for a
+ * LARGE-grid ship.
  *
  * Calibrated so one large-grid gyro (33.6 MN·m) handles roughly:
  *   sluggish ≈ 1 per 400 t,  normal ≈ 1 per 200 t,  nimble ≈ 1 per 100 t.
@@ -46,11 +48,35 @@ export type Responsiveness = 'sluggish' | 'normal' | 'nimble';
  * This is a linear torque-per-mass heuristic; true turn rate depends on the
  * ship's moment of inertia (geometry), so the count is an ESTIMATE, not exact.
  */
-const GYRO_TORQUE_PER_KG: Record<Responsiveness, number> = {
+const GYRO_TORQUE_PER_KG_LARGE: Record<Responsiveness, number> = {
   sluggish: 84,
   normal: 168,
   nimble: 336,
 };
+
+/**
+ * Torque-per-kg must scale with grid size, because the torque a ship *needs* is
+ * governed by its moment of inertia I = k·m·s² (a solid-box model — the same
+ * one `motion.ts` uses), where `s` is the ship's characteristic size. Two ships
+ * of equal mass but different grids have wildly different `s`: a large-grid cube
+ * is built from 2.5 m cells, a small-grid one from 0.5 m cells, so for the same
+ * block count the small ship is 5× smaller per axis and its moment of inertia
+ * per kg is (0.5/2.5)² = 1/25 of the large ship's. It therefore needs ~1/25 the
+ * torque-per-kg for the same responsiveness.
+ *
+ * Without this, the large-grid calibration above was applied to small-grid
+ * ships and then divided by the 75×-weaker small gyro (448 kN·m vs 33.6 MN·m) —
+ * a compounding over-count that recommended 3 gyros for a ~6 t utility ship real
+ * builds fly on 1–2.
+ *
+ * We scale by (cell_size / large_cell_size)² so the large-grid row is unchanged
+ * (ratio 1) and the small-grid target drops to 1/25, matching real small-grid
+ * builds where a single gyro spins a light ship briskly.
+ */
+function gyroTorquePerKg(responsiveness: Responsiveness, gridSize: GridSize): number {
+  const cellRatio = GRID_CELL_SIZE_M[gridSize] / GRID_CELL_SIZE_M.large;
+  return GYRO_TORQUE_PER_KG_LARGE[responsiveness] * cellRatio * cellRatio;
+}
 
 /** A block the user has committed to (the "essentials"), with a count. */
 export interface FixedBlockSpec {
@@ -221,8 +247,11 @@ export function estimateRequirements(input: EstimatorInput): Estimate {
       newPowerCount = Math.max(newPowerCount, byCapacity);
     }
 
-    // 3) Gyros: heuristic torque-per-mass target against loaded mass.
-    const torqueNeeded = GYRO_TORQUE_PER_KG[config.responsiveness] * loadedMass;
+    // 3) Gyros: heuristic torque-per-mass target against loaded mass, scaled to
+    // the ship's grid (small-grid ships need far less torque-per-kg — see
+    // gyroTorquePerKg).
+    const torqueNeeded =
+      gyroTorquePerKg(config.responsiveness, config.gyro.gridSize) * loadedMass;
     const newGyroCount = config.gyro.maxTorque > 0 ? Math.ceil(torqueNeeded / config.gyro.maxTorque) : 0;
 
     const converged =

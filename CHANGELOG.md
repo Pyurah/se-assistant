@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.10.1] - 2026-08-07
+
+### Fixed
+
+- **Estimator gyro count is now grid-aware and no longer over-recommends on
+  small-grid ships.** A small-grid utility ship (3 welders, a cockpit, a small
+  cargo container — ≈6 t loaded) was recommended **3 gyros** where the real
+  build flies fine on 2; it now recommends 1. Root cause: the torque-per-kg
+  target was calibrated only for the large grid (1 gyro per ~200 t) and applied
+  unchanged to small-grid ships, then divided by the 75×-weaker small gyro — a
+  compounding over-count. The target now scales by the square of the grid
+  cell-size ratio `(cell / large_cell)²`, matching the moment-of-inertia model
+  (`I ∝ m·s²`) the motion engine already uses: a small-grid ship's inertia per
+  kg is 1/25 of a large-grid ship's, so it needs ~1/25 the torque-per-kg. The
+  large-grid calibration is unchanged. Cited in `docs/data-audit.md`.
+
 ## [0.10.0] - 2026-08-07
 
 ### Added

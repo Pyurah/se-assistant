@@ -167,3 +167,89 @@ describe('estimateRequirements', () => {
     expect(inAtmo.thrusters.up).toBeGreaterThan(inSpace.thrusters.up);
   });
 });
+
+// ── Small-grid gyro sizing ───────────────────────────────────────────────────
+// A small-grid gyro is 75× weaker than a large one (448 kN·m vs 33.6 MN·m), but
+// a small-grid ship is also physically ~5× smaller per axis (0.5 m cells vs
+// 2.5 m), so its moment of inertia per kg is ~1/25 as large and it needs ~1/25
+// the torque-per-kg for the same feel. The estimator must scale the torque
+// target by grid or it wildly over-counts small ships. These tests lock the
+// user-reported scenario (3 welders + cockpit + small container → 1–2 gyros,
+// NOT 3) and confirm the large-grid calibration is untouched.
+describe('estimateRequirements — small-grid gyro sizing', () => {
+  const smallGyro = VANILLA_BLOCKS_BY_ID['small-gyroscope'] as GyroscopeBlock;
+  const smallWelder = VANILLA_BLOCKS_BY_ID['small-welder'] as BlockDefinition;
+  const smallCockpit = VANILLA_BLOCKS_BY_ID['small-cockpit'] as BlockDefinition;
+  const smallContainer = VANILLA_BLOCKS_BY_ID['small-small-cargo-container'] as BlockDefinition;
+  const smallHydro = VANILLA_BLOCKS_BY_ID['small-small-hydrogen-thruster'] as ThrusterBlock;
+  const smallBattery = VANILLA_BLOCKS_BY_ID['small-battery'] as BatteryBlock;
+
+  // The user's actual build: 3 welders, a cockpit, a small cargo container.
+  const welderShipEssentials: FixedBlockSpec[] = [
+    { definition: smallWelder, quantity: 3 },
+    { definition: smallCockpit, quantity: 1 },
+    { definition: smallContainer, quantity: 1 },
+  ];
+
+  function smallInput(overrides?: Partial<EstimatorInput['config']>): EstimatorInput {
+    return {
+      fixedBlocks: welderShipEssentials,
+      planet: earthlike,
+      cargo: { fillFraction: 0, densityKgPerL: 2.0 },
+      config: {
+        targetTwr: 2.0,
+        lateralThrustFraction: 0.5,
+        thruster: smallHydro,
+        power: { kind: 'battery', block: smallBattery },
+        runtimeTargetHours: 0.5,
+        gyro: smallGyro,
+        responsiveness: 'normal',
+        ...overrides,
+      },
+    };
+  }
+
+  it("recommends 1–2 gyros for the user's welder ship, not 3+", () => {
+    const est = estimateRequirements(smallInput());
+    // Real build flies fine on 2; the old flat heuristic recommended 3+.
+    expect(est.gyroCount).toBeGreaterThanOrEqual(1);
+    expect(est.gyroCount).toBeLessThanOrEqual(2);
+  });
+
+  it('needs far fewer gyros than the un-scaled large-grid target would imply', () => {
+    const est = estimateRequirements(smallInput());
+    // The old code did ceil(168 * loadedMass / 448_000). Recompute what that
+    // WOULD have produced for this ship's settled loaded mass and assert we now
+    // recommend dramatically fewer (grid scaling divides the target by 25).
+    const oldTarget = Math.ceil((168 * est.loadedMass) / 448_000);
+    expect(est.gyroCount).toBeLessThan(oldTarget);
+  });
+
+  it('still scales gyro count with responsiveness on small grid', () => {
+    const sluggish = estimateRequirements(smallInput({ responsiveness: 'sluggish' }));
+    const nimble = estimateRequirements(smallInput({ responsiveness: 'nimble' }));
+    expect(nimble.gyroCount).toBeGreaterThanOrEqual(sluggish.gyroCount);
+  });
+
+  it('leaves the large-grid gyro calibration unchanged (~1 per 200 t at normal)', () => {
+    // A ~600 t large-grid ship at "normal" should want ceil(168*600000/33.6e6)=3.
+    // Build a bare large-grid ship whose loaded mass lands near 600 t via cargo.
+    const est = estimateRequirements({
+      fixedBlocks: [{ definition: largeCockpit!, quantity: 1 }],
+      planet: earthlike,
+      cargo: { fillFraction: 1.0, densityKgPerL: 2.0 },
+      config: {
+        targetTwr: 1.0,
+        lateralThrustFraction: 0,
+        thruster: hydroLarge,
+        power: { kind: 'battery', block: largeBattery },
+        runtimeTargetHours: 0.25,
+        gyro: largeGyro,
+        responsiveness: 'normal',
+      },
+    });
+    // Exact large-grid formula, unchanged by the grid scaling (ratio = 1).
+    const expected = Math.ceil((168 * est.loadedMass) / 33_600_000);
+    expect(est.gyroCount).toBe(expected);
+  });
+});

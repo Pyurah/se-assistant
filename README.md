@@ -56,14 +56,14 @@ thrusters, power, and gyros each add mass and draw that change the requirement.
   from the game — SE Assistant does exact arithmetic on them, cross-referenced
   to the official wiki and cited in [`docs/data-audit.md`](./docs/data-audit.md).
 - The pure calc engine is covered by **worked-example tests** with hand-verified
-  reference values (currently **208 tests**).
+  reference values (currently **212 tests**).
 - Where a value is genuinely an estimate — the gyro turn-rate (needs the ship's
   moment of inertia) or stopping distance (ignores per-axis gravity) — the UI
   says so rather than implying false precision.
 
 ## Status
 
-Version **0.10.0**. Phases 1 (core engine + blueprint import), 1.5 (requirement
+Version **0.10.1**. Phases 1 (core engine + blueprint import), 1.5 (requirement
 estimator), and 2 (fuel/flight-time + motion/stability) are complete. See
 [`roadmap.md`](./roadmap.md) for what's next (production/logistics,
 multi-design compare, PWA offline) and [`CHANGELOG.md`](./CHANGELOG.md) for

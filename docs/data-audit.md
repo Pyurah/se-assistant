@@ -358,3 +358,26 @@ against **0 W generation** on a battery-only ship that flies fine):
 
 These are realism corrections to the *aggregation*, not to any block stat — no
 dataset values changed.
+
+## Grid-aware gyro sizing (v0.10.1)
+
+The estimator's gyro-count heuristic over-recommended on small-grid ships: a
+real build with 3 welders, a cockpit, and a small cargo container (≈6 t loaded)
+was told to fit **3 gyros** where the actual ship flies fine on **2** (and the
+math now says 1 is the minimum).
+
+Root cause: the torque-per-kg target was a single set of constants calibrated
+for the **large** grid (1 gyro per 200 t at "normal" = 168 N·m/kg, from the
+33.6 MN·m large gyro), then applied unchanged to small-grid ships and divided by
+the **75×-weaker** small gyro (448 kN·m). That double penalty ballooned the
+count.
+
+Fix: scale the torque-per-kg target by the square of the grid cell-size ratio,
+`(cell / large_cell)²`. This follows the same moment-of-inertia model the motion
+engine uses (`I = k·m·s²`): for equal block counts a small-grid ship is 5×
+smaller per axis (0.5 m vs 2.5 m cells), so its inertia per kg — and thus its
+torque need — is `(0.5/2.5)² = 1/25` of a large-grid ship's. The large-grid row
+is unchanged (ratio = 1); the small-grid target drops to 1/25, matching real
+small-grid builds where one gyro spins a light ship briskly. Still a labeled
+estimate — true turn rate needs the built ship's geometry. No dataset values
+changed; this is a calibration fix in `src/core/engine/estimate.ts`.
