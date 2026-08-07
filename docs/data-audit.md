@@ -381,3 +381,34 @@ is unchanged (ratio = 1); the small-grid target drops to 1/25, matching real
 small-grid builds where one gyro spins a light ship briskly. Still a labeled
 estimate — true turn rate needs the built ship's geometry. No dataset values
 changed; this is a calibration fix in `src/core/engine/estimate.ts`.
+
+## Estimator peak-draw realism + divergence guard (v0.10.2)
+
+Two power-sizing bugs in the requirement estimator (`src/core/engine/estimate.ts`),
+both surfaced from a real small-grid mining ship (cockpit, 3 drills, connector,
+ore detector) that was told it needed **4 warfare batteries** where half that
+runs the real ship fine.
+
+1. **Peak draw summed all six thruster directions.** The estimator sized power
+   against `totalThrusters × maxPowerDraw` — every up/down/fwd/back/left/right
+   thruster drawing full power at once. But opposing thrusters never fire
+   together, exactly the realism the analyzer's `peakDraw()` already applies
+   (v0.10.0). On atmospheric thrusters (600 kW each) this roughly doubled the
+   electrical load and inflated the battery count. Fix: size power (and report
+   `peakDraw`) against only the larger side of each opposing pair —
+   `up + 2×lateral` for the estimator's symmetric lateral split — via a shared
+   `peakThrusterCount()` helper mirroring `power.ts`. The reported example
+   dropped from 7 → 3 batteries; peak draw 12.6 MW → 4.8 MW.
+
+2. **No guard against a runaway mass↔count loop.** The estimator iterates
+   thrusters → power → mass → thrusters to a fixed point. For a thruster type
+   that can't lift the ship on the chosen planet (e.g. ion in dense atmosphere,
+   where effectiveness falls to 0.3), each added thruster brings more mass than
+   thrust, so the loop diverged — one probe produced **58 trillion batteries**
+   before hitting the iteration cap. Fix: a `SANITY_THRUSTER_CAP` (2000) short-
+   circuits the loop and returns an infeasible estimate (zero counts) with a
+   clear "can't lift this ship — try a stronger thruster, lower TWR, or less
+   cargo" warning, instead of astronomically large numbers.
+
+Neither touches a block stat — both are corrections to the estimator's
+*aggregation and convergence*, matching the analyzer's existing peak-draw model.

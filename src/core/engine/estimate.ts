@@ -173,7 +173,30 @@ function fixedCargoCapacity(fixed: readonly FixedBlockSpec[]): number {
   return total;
 }
 
+/**
+ * Realistic peak *thruster* count for power sizing: opposing thrusters (up vs.
+ * down, forward vs. back, left vs. right) never fire together, so only the
+ * larger side of each pair draws power at once. Summing all six directions —
+ * as the naive `totalThrusters` does — roughly doubles the true electrical load
+ * and over-sizes the batteries. Mirrors `peakDraw()` in `power.ts`.
+ */
+function peakThrusterCount(thrusters: DirectionalCount): number {
+  return (
+    Math.max(thrusters.up, thrusters.down) +
+    Math.max(thrusters.forward, thrusters.backward) +
+    Math.max(thrusters.left, thrusters.right)
+  );
+}
+
 const MAX_ITERATIONS = 25;
+
+/**
+ * No real ship has this many thrusters in total. If the coupled mass↔count loop
+ * pushes past it, the thruster type simply can't lift the power/support mass it
+ * needs on this planet (each added thruster brings more weight than thrust), so
+ * the loop would diverge toward absurd counts. We stop and warn instead.
+ */
+const SANITY_THRUSTER_CAP = 2000;
 
 /**
  * Estimate the thruster/power/gyro requirements for a ship from its essentials.
@@ -234,8 +257,39 @@ export function estimateRequirements(input: EstimatorInput): Estimate {
         : 0;
     const newThrusterTotal = newUp + newLateral * 5;
 
-    // 2) Power: cover peak draw (fixed + thrusters at full + gyros).
-    const thrusterDraw = newThrusterTotal * config.thruster.maxPowerDraw;
+    // Divergence guard: if the thruster count runs away, this thruster type
+    // can't lift the mass it drags in (power/support blocks) on this planet —
+    // each added thruster brings more weight than thrust (e.g. ion in dense
+    // atmosphere). Stop and return an infeasible estimate rather than emitting
+    // astronomically large battery/thruster counts.
+    if (newThrusterTotal > SANITY_THRUSTER_CAP) {
+      warnings.push(
+        `${config.thruster.displayName} can't lift this ship on ${planet.displayName} — ` +
+          `it needs so many thrusters that their own mass (plus the power to run ` +
+          `them) outweighs the thrust gained. Try a stronger or better-suited ` +
+          `thruster type, a lower target TWR, or less cargo.`,
+      );
+      return finalize(
+        input,
+        { up: 0, down: 0, forward: 0, backward: 0, left: 0, right: 0 },
+        0,
+        0,
+        perThruster,
+        perPowerSupply,
+        cargoPayload,
+        baseMass,
+        baseDraw,
+        iterations,
+        warnings,
+      );
+    }
+
+    // 2) Power: cover REALISTIC peak draw. Opposing thruster pairs never fire
+    // together, so peak thruster draw comes from only the larger side of each
+    // pair: up/down → newUp, fwd/back → newLateral, left/right → newLateral.
+    // (This mirrors peakDraw() in power.ts; summing all six over-sizes power.)
+    const peakThrusters = newUp + newLateral * 2;
+    const thrusterDraw = peakThrusters * config.thruster.maxPowerDraw;
     const gyroDraw = gyroCount * config.gyro.powerDraw;
     const peakDraw = baseDraw + thrusterDraw + gyroDraw;
     let newPowerCount = perPowerSupply > 0 ? Math.ceil(peakDraw / perPowerSupply) : 0;
@@ -325,8 +379,12 @@ function finalize(
   const upThrust = thrusters.up * perThruster;
   const w = weight(loadedMass, planet.surfaceGravity);
   const achievedUpTwr = w === 0 ? (upThrust > 0 ? Infinity : 0) : upThrust / w;
+  // Peak draw counts only the larger side of each opposing thruster pair — the
+  // same realistic model power was sized against (see peakThrusterCount).
   const peakDraw =
-    baseDraw + totalThrusters * config.thruster.maxPowerDraw + gyroCount * config.gyro.powerDraw;
+    baseDraw +
+    peakThrusterCount(thrusters) * config.thruster.maxPowerDraw +
+    gyroCount * config.gyro.powerDraw;
 
   return {
     thrusters,

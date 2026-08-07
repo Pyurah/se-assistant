@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.10.2] - 2026-08-07
+
+### Fixed
+
+- **Estimator no longer over-sizes batteries.** A small-grid mining ship
+  (cockpit, 3 drills, connector, ore detector) on atmospheric thrusters was told
+  it needed **4 warfare batteries**; it now needs far fewer. The estimator sized
+  power against *every* thruster direction firing at once, but opposing thrusters
+  (up/down, fwd/back, left/right) never fire together — the same realism the
+  power-budget analyzer already applies. Peak draw (and the battery count it
+  drives) now counts only the larger side of each opposing pair. In the reported
+  case peak draw dropped from ~12.6 MW to ~4.8 MW.
+- **Estimator no longer emits absurd counts for an unliftable thruster choice.**
+  Sizing a thruster type that can't lift the ship on the chosen planet (e.g. ion
+  in dense atmosphere) sent the mass↔count convergence loop running away — one
+  case reached tens of trillions of batteries before the iteration cap. It now
+  short-circuits with an infeasible estimate (zero counts) and a clear "can't
+  lift this ship — try a stronger thruster, a lower target TWR, or less cargo"
+  warning.
+
 ## [0.10.1] - 2026-08-07
 
 ### Fixed

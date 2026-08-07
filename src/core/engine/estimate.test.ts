@@ -127,15 +127,34 @@ describe('estimateRequirements', () => {
   });
 
   it('sizes more batteries for a longer runtime target', () => {
-    // Ion thrusters draw real power (hydrogen draw 0 W), so battery runtime
-    // scaling is observable. Use ion + battery here.
-    const ionCfg = { ...baseInput().config, thruster: ionLarge };
-    const short = estimateRequirements(
-      baseInput({ config: { ...ionCfg, runtimeTargetHours: 0.1 } }),
-    );
-    const long = estimateRequirements(
-      baseInput({ config: { ...ionCfg, runtimeTargetHours: 4 } }),
-    );
+    // Atmospheric thrusters draw real power (hydrogen draw 0 W), so battery
+    // runtime scaling is observable. Use a LIGHT ship (cockpit only) so both
+    // runtimes converge well inside the sanity cap — the heavy 4-drill mining
+    // baseInput would run the count away at long runtimes.
+    const lightAtmo: EstimatorInput = {
+      fixedBlocks: [{ definition: largeCockpit!, quantity: 1 }],
+      planet: earthlike,
+      cargo: { fillFraction: 0, densityKgPerL: 2.0 },
+      config: {
+        targetTwr: 2.0,
+        lateralThrustFraction: 0.5,
+        thruster: atmoLarge,
+        power: { kind: 'battery', block: largeBattery },
+        runtimeTargetHours: 0.25,
+        gyro: largeGyro,
+        responsiveness: 'normal',
+      },
+    };
+    const short = estimateRequirements({
+      ...lightAtmo,
+      config: { ...lightAtmo.config, runtimeTargetHours: 0.25 },
+    });
+    const long = estimateRequirements({
+      ...lightAtmo,
+      config: { ...lightAtmo.config, runtimeTargetHours: 2 },
+    });
+    expect(short.warnings).toHaveLength(0);
+    expect(long.warnings).toHaveLength(0);
     expect(long.powerCount).toBeGreaterThan(short.powerCount);
   });
 
@@ -158,13 +177,23 @@ describe('estimateRequirements', () => {
     expect(est.powerSupply).toBeGreaterThanOrEqual(est.peakDraw);
   });
 
-  it('ion thrusters need more count in atmosphere than in space', () => {
-    const inAtmo = estimateRequirements(baseInput({ config: { ...baseInput().config, thruster: ionLarge } }));
-    const inSpace = estimateRequirements(
-      baseInput({ planet: space, config: { ...baseInput().config, thruster: ionLarge } }),
-    );
-    // In space there's no gravity → up-TWR target is trivially met → far fewer.
-    expect(inAtmo.thrusters.up).toBeGreaterThan(inSpace.thrusters.up);
+  it('ion thrusters are inefficient in dense atmosphere but work in thin air (Moon)', () => {
+    // Ion effectiveness falls to 0.3 in full atmosphere, so lifting a large-grid
+    // ship to TWR 2 on Earthlike is infeasible (the estimator flags it rather
+    // than diverging). On the Moon (thin atmosphere → near-full effectiveness +
+    // low gravity) the same ship is easily liftable with a modest count.
+    const light: EstimatorInput = {
+      fixedBlocks: [{ definition: largeCockpit!, quantity: 1 }],
+      planet: earthlike,
+      cargo: { fillFraction: 0, densityKgPerL: 2.0 },
+      config: { ...baseInput().config, thruster: ionLarge },
+    };
+    const onEarth = estimateRequirements(light);
+    const onMoon = estimateRequirements({ ...light, planet: moon });
+    expect(onEarth.warnings.length).toBeGreaterThan(0);
+    expect(onEarth.totalThrusters).toBe(0);
+    expect(onMoon.warnings).toHaveLength(0);
+    expect(onMoon.thrusters.up).toBeGreaterThan(0);
   });
 });
 
@@ -251,5 +280,101 @@ describe('estimateRequirements — small-grid gyro sizing', () => {
     // Exact large-grid formula, unchanged by the grid scaling (ratio = 1).
     const expected = Math.ceil((168 * est.loadedMass) / 33_600_000);
     expect(est.gyroCount).toBe(expected);
+  });
+});
+
+// ── Realistic peak-draw power sizing ─────────────────────────────────────────
+// Opposing thrusters (up/down, fwd/back, left/right) never fire together, so
+// power must be sized against only the larger side of each pair — the same
+// model the analyzer's peakDraw() uses. The estimator used to sum ALL six
+// directions, roughly doubling the electrical load and over-sizing batteries
+// (a user's 3-drill mining ship on atmospheric thrusters was told it needed 4
+// warfare batteries). It also had no guard against a runaway mass↔count loop
+// for a thruster type that can't lift the ship.
+describe('estimateRequirements — realistic peak-draw power sizing', () => {
+  const smallGyro = VANILLA_BLOCKS_BY_ID['small-gyroscope'] as GyroscopeBlock;
+  const smallDrill = VANILLA_BLOCKS_BY_ID['small-drill'] as BlockDefinition;
+  const smallCockpit = VANILLA_BLOCKS_BY_ID['small-cockpit'] as BlockDefinition;
+  const smallConnector = VANILLA_BLOCKS_BY_ID['small-connector'] as BlockDefinition;
+  const smallOreDetector = VANILLA_BLOCKS_BY_ID['small-ore-detector'] as BlockDefinition;
+  const smallAtmo = VANILLA_BLOCKS_BY_ID['small-small-atmospheric-thruster'] as ThrusterBlock;
+  const smallIon = VANILLA_BLOCKS_BY_ID['small-small-ion-thruster'] as ThrusterBlock;
+  const smallWarfareBattery = VANILLA_BLOCKS_BY_ID['small-battery-warfare2'] as BatteryBlock;
+
+  // The user's reported mining ship: cockpit, 3 drills, connector, ore detector.
+  const miningEssentials: FixedBlockSpec[] = [
+    { definition: smallCockpit, quantity: 1 },
+    { definition: smallDrill, quantity: 3 },
+    { definition: smallConnector, quantity: 1 },
+    { definition: smallOreDetector, quantity: 1 },
+  ];
+
+  function miningInput(overrides?: Partial<EstimatorInput['config']>): EstimatorInput {
+    return {
+      fixedBlocks: miningEssentials,
+      planet: earthlike,
+      cargo: { fillFraction: 0, densityKgPerL: 2.0 },
+      config: {
+        targetTwr: 2.0,
+        lateralThrustFraction: 0.5,
+        thruster: smallAtmo,
+        power: { kind: 'battery', block: smallWarfareBattery },
+        runtimeTargetHours: 0.5,
+        gyro: smallGyro,
+        responsiveness: 'normal',
+        ...overrides,
+      },
+    };
+  }
+
+  it('peak draw counts only the larger side of each opposing thruster pair', () => {
+    const est = estimateRequirements(miningInput());
+    // Realistic peak = fixed draw + (up + 2×lateral)×thrusterDraw + gyros.
+    // The naive all-six sum would be up + 5×lateral — strictly more whenever
+    // any lateral thrusters exist, so peak draw must be BELOW that bound.
+    const perThr = smallAtmo.maxPowerDraw;
+    const naiveAllSix =
+      3 * 2000 + // drills
+      2000 + // ore detector
+      est.totalThrusters * perThr +
+      est.gyroCount * smallGyro.powerDraw;
+    expect(est.thrusters.forward).toBeGreaterThan(0); // laterals exist
+    expect(est.peakDraw).toBeLessThan(naiveAllSix);
+    // And it equals the opposing-pair formula exactly.
+    const peakThrusters =
+      Math.max(est.thrusters.up, est.thrusters.down) +
+      Math.max(est.thrusters.forward, est.thrusters.backward) +
+      Math.max(est.thrusters.left, est.thrusters.right);
+    const expectedPeak =
+      3 * 2000 + 2000 + peakThrusters * perThr + est.gyroCount * smallGyro.powerDraw;
+    expect(est.peakDraw).toBe(expectedPeak);
+  });
+
+  it('sizes batteries to the realistic peak, not the doubled sum', () => {
+    const est = estimateRequirements(miningInput());
+    // The bug reported 4 warfare batteries; the realistic peak needs fewer.
+    expect(est.powerCount).toBeLessThan(4);
+    expect(est.powerCount).toBeGreaterThan(0);
+    // Supply must still cover the (realistic) peak.
+    expect(est.powerSupply).toBeGreaterThanOrEqual(est.peakDraw);
+  });
+
+  it('a hydrogen mining ship (0 W thrusters) needs just one battery for the fixed draw', () => {
+    const smallHydro = VANILLA_BLOCKS_BY_ID['small-small-hydrogen-thruster'] as ThrusterBlock;
+    const est = estimateRequirements(miningInput({ thruster: smallHydro }));
+    // 3 drills + ore detector = 8 kW; one 4 MW / 1 MWh battery covers it.
+    expect(est.powerCount).toBe(1);
+  });
+
+  it('returns an infeasible estimate (no runaway counts) when the thruster type cannot lift the ship', () => {
+    // Ion thrusters are near-dead in dense atmosphere; sizing them to lift a
+    // mining ship on Earthlike used to diverge to astronomically large counts.
+    const est = estimateRequirements(miningInput({ thruster: smallIon }));
+    expect(est.warnings.length).toBeGreaterThan(0);
+    expect(est.warnings.some((w) => /can't lift/i.test(w))).toBe(true);
+    expect(est.totalThrusters).toBe(0);
+    expect(est.powerCount).toBe(0);
+    // Numbers stay finite and sane.
+    expect(Number.isFinite(est.loadedMass)).toBe(true);
   });
 });

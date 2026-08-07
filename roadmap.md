@@ -11,9 +11,23 @@ loaded, on any vanilla planet.
 ## 👉 Next session starts here
 
 **Everything through Phase 2 is DONE, committed, and pushed to GitHub**
-(`https://github.com/Pyurah/se-assistant`, branch `master`, at v0.10.1). Working
-tree is clean and all four gates pass (`typecheck` / `lint` / `test` (212) /
+(`https://github.com/Pyurah/se-assistant`, branch `master`, at v0.10.2). Working
+tree is clean and all four gates pass (`typecheck` / `lint` / `test` (216) /
 `build`). Nothing is half-finished.
+
+**v0.10.2 (2026-08-07) — estimator power-sizing realism.** Two power bugs on a
+real small-grid mining ship (cockpit, 3 drills, connector, ore detector) that
+was told it needed **4 warfare batteries** for a ship half that runs fine. (1)
+The estimator sized power against *all six* thruster directions at full draw,
+but opposing pairs never fire together — the same realism the analyzer's
+`peakDraw()` already applies (v0.10.0). Peak draw and the battery count it drives
+now count only the larger side of each opposing pair (`up + 2×lateral`); the
+reported case dropped 7 → 3 batteries (12.6 MW → 4.8 MW peak). (2) A
+`SANITY_THRUSTER_CAP` now stops the mass↔count convergence loop from diverging
+when a thruster type can't lift the ship (ion in dense atmosphere produced tens
+of trillions of batteries) — it returns an infeasible estimate with a clear
+"pick a stronger thruster / lower TWR / less cargo" warning. Both cited in
+`docs/data-audit.md`; no dataset values changed.
 
 **v0.10.1 (2026-08-07) — grid-aware gyro estimate.** A small-grid utility ship
 (3 welders + cockpit + small cargo container, ≈6 t loaded) was recommended **3
@@ -93,11 +107,11 @@ SubtypeIds, drill/sensor wattages) against a live game install.
 
 ## Current State
 
-- **Version**: 0.10.1
+- **Version**: 0.10.2
 - **Repo**: pushed to `https://github.com/Pyurah/se-assistant` (`master`);
   commits use the GitHub no-reply email (real email scrubbed from history).
 - **Build**: passing (`pnpm build`)
-- **Tests**: passing — 212 tests across logger, audit, data-integrity, engine
+- **Tests**: passing — 216 tests across logger, audit, data-integrity, engine
   (incl. `estimateRequirements`, the fuel/flight-time engine, and the
   motion/stability engine), blueprint parser, number formatter, stores, and
   UI-rendering suites
