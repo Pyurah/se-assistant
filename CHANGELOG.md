@@ -4,6 +4,39 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.1] - 2026-08-07
+
+### Added
+
+- **8 DLC / base blocks** that real imported ships use but the dataset was
+  dropping as "unrecognized" — sourced directly from the installed game's
+  definition files (`CubeBlocks/*.sbc` + `Components.sbc`), the authoritative
+  source. Block mass is computed from the component list; the method was
+  validated by reproducing a known value (small atmospheric thruster = 699 kg).
+  - Thrusters: `SmallBlockLargeFlatAtmosphericThrustDShape` (230 kN, 1060 kg),
+    `SmallBlockSmallAtmosphericThrustSciFi` (Sparks of the Future reskin, 96 kN).
+  - Cargo: `SmallBlockModularContainer` (Contact reskin of the Medium container,
+    3375 L, 463 kg).
+  - Welder: `SmallShipWelderReskin` (Apex Survival reskin, 448.4 kg).
+  - Conveyors: `SmallShipConveyorHub` (313 kg), `ConveyorTubeCurvedMedium`
+    (365 kg) — the first `conveyor`-category blocks in the dataset.
+  - Armor: `SmallBlockArmorBlock`, `SmallBlockArmorSlope` (small-grid light
+    armor, 20 kg each) — the first `structural`-category blocks.
+- Two DLC packs added to the catalogue to tag the reskins: **Apex Survival**
+  (`apex-survival`) and **Scrap Race** (`scrap-race`).
+
+### Fixed
+
+- **Missing thruster orientation no longer drops thrust from TWR.** Space
+  Engineers omits `<BlockOrientation>` when a block is at its default identity
+  orientation (`Forward="Forward"`); the parser was treating a missing element
+  as "unoriented" and excluding that thruster from directional TWR, undercounting
+  thrust. A missing orientation now correctly defaults to `Forward`. Only an
+  orientation that is present but has an unparseable axis is still counted as
+  unoriented. A real DLC-built ship that previously imported with 40/48 blocks
+  unrecognized and 2 unoriented thrusters now resolves 48/48, 0 unrecognized,
+  0 unoriented.
+
 ## [0.9.0] - 2026-08-03
 
 ### Added

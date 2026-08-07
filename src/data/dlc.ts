@@ -36,6 +36,8 @@ export const DLCS: readonly DlcInfo[] = [
   { id: 'core-systems', displayName: 'Core Systems Pack', addsFunctionalBlocks: true },
   { id: 'economy-2', displayName: 'Economy 2 Pack', addsFunctionalBlocks: true },
   { id: 'prosperity', displayName: 'Prosperity Pack', addsFunctionalBlocks: false },
+  { id: 'scrap-race', displayName: 'Scrap Race Pack', addsFunctionalBlocks: true },
+  { id: 'apex-survival', displayName: 'Apex Survival Pack', addsFunctionalBlocks: true },
 ] as const;
 
 /** Convenience lookup by id. */

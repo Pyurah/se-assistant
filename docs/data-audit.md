@@ -221,3 +221,47 @@ Five battery blocks, all wiki-confirmed for mass/capacity/I-O:
 Flagged: the two **Warfare 2 SubtypeId strings** follow Keen's convention but
 were not confirmed against a live `.sbc` this session — verify before relying on
 them for blueprint matching.
+
+## DLC-reskin & armor blocks (v0.9.1)
+
+Added after a real DLC-built ship ("Rapier") imported with **40 of 48 blocks
+unrecognized** — every one a genuine DLC/base block, not a mod. These were
+sourced by reading the **installed game's own definition files** directly
+(`SpaceEngineers/Content/Data/CubeBlocks/*.sbc` + `Components.sbc`), which is a
+stronger primary source than the wiki. Block mass is the sum of its component
+masses; the method was validated by recomputing a known block —
+`SmallBlockSmallAtmosphericThrust` came out to exactly **699 kg**, matching the
+existing trusted value.
+
+| SubtypeId | Category | Grid | Mass (kg) | Key stats | DLC | Source file |
+|---|---|---|---|---|---|---|
+| `SmallBlockLargeFlatAtmosphericThrustDShape` | thruster (atmo) | small | 1060 | 230 kN, 1 MW | base | `CubeBlocks_Thrusters.sbc` |
+| `SmallBlockSmallAtmosphericThrustSciFi` | thruster (atmo) | small | 699 | 96 kN, 0.6 MW | Sparks of the Future | `CubeBlocks_SparksOfTheFuturePack.sbc` |
+| `SmallBlockModularContainer` | cargo | small | 463 | 3375 L (= Medium) | Contact | `CubeBlocks_ContactPack.sbc` |
+| `SmallShipWelderReskin` | welder | small | 448.4 | 2 kW | Apex Survival | `CubeBlocks_ApexSurvivalPack.sbc` |
+| `SmallShipConveyorHub` | conveyor | small | 313 | 0 W (passive) | base | `CubeBlocks_Logistics.sbc` |
+| `ConveyorTubeCurvedMedium` | conveyor | small | 365 | 0 W (passive) | base | `CubeBlocks_Logistics.sbc` |
+| `SmallBlockArmorBlock` | structural | small | 20 | mass only | base | `CubeBlocks_Armor.sbc` |
+| `SmallBlockArmorSlope` | structural | small | 20 | mass only | base | `CubeBlocks_Armor.sbc` |
+
+- The three reskins (`…SciFi`, `…ModularContainer`, `…WelderReskin`) are
+  stat-identical to their base counterparts — only the DLC tag and model differ.
+- Two new DLC packs were added to the catalogue to tag these:
+  **`apex-survival`** (Apex Survival Pack) and **`scrap-race`** (Scrap Race Pack,
+  catalogued for completeness). The game's DLC tokens are `ApexSurvival` /
+  `ScrapRace`.
+- Small-grid **light armor** is 20 kg for every shape; only the two shapes the
+  Rapier uses are added. Heavy armor and large-grid armor can be added the same
+  way when a ship needs them.
+
+### Orientation fix (v0.9.1)
+
+The Rapier also exposed a parser bug: SE **omits** `<BlockOrientation>` entirely
+when a block sits at the default identity orientation (`Forward="Forward"`). The
+parser was treating a *missing* element as "unoriented" and dropping that thrust
+from directional TWR. Two of the Rapier's thrusters had no orientation element
+and were being silently excluded. Fixed: a missing orientation now defaults to
+`Forward` (SE's identity), so it resolves to `backward` thrust; only an
+orientation that is *present but has an unparseable axis* is still counted as
+unoriented. Result: the Rapier now resolves **48/48 blocks, 0 unrecognized, 0
+unoriented**.

@@ -168,6 +168,44 @@ export const VANILLA_CORE_BLOCKS: readonly BlockDefinition[] = [
     effectivenessAtMaxInfluence: 1.0,
     source: 'vanilla',
   },
+  {
+    // Sparks of the Future reskin of the small-grid Small Atmospheric Thruster.
+    // Stat-identical to SmallBlockSmallAtmosphericThrust (96 kN, 0.6 MW, 699 kg).
+    id: 'small-small-atmospheric-thruster-scifi',
+    subtypeId: 'SmallBlockSmallAtmosphericThrustSciFi',
+    displayName: 'Atmospheric Thruster (Small Grid, Sci-Fi)',
+    category: 'thruster',
+    thrusterType: 'atmospheric',
+    gridSize: 'small',
+    dlc: 'sparks-of-the-future',
+    mass: 699,
+    maxThrust: 96_000,
+    maxPowerDraw: 600_000,
+    minPlanetaryInfluence: 0.3,
+    maxPlanetaryInfluence: 1,
+    effectivenessAtMinInfluence: 0.0,
+    effectivenessAtMaxInfluence: 1.0,
+    source: 'vanilla',
+  },
+  {
+    // Base-game flat "D-shape" large atmospheric thruster for small grid
+    // (low-profile variant). 230 kN, 1 MW, 1060 kg.
+    id: 'small-large-flat-atmospheric-thruster-dshape',
+    subtypeId: 'SmallBlockLargeFlatAtmosphericThrustDShape',
+    displayName: 'Large Flat Atmospheric Thruster (Small Grid, D-Shape)',
+    category: 'thruster',
+    thrusterType: 'atmospheric',
+    gridSize: 'small',
+    dlc: 'base',
+    mass: 1060,
+    maxThrust: 230_000,
+    maxPowerDraw: 1_000_000,
+    minPlanetaryInfluence: 0.3,
+    maxPlanetaryInfluence: 1,
+    effectivenessAtMinInfluence: 0.0,
+    effectivenessAtMaxInfluence: 1.0,
+    source: 'vanilla',
+  },
 
   // === HYDROGEN THRUSTERS (0 W electric; burn hydrogen; flat everywhere) ==
   {
@@ -247,6 +285,19 @@ export const VANILLA_CORE_BLOCKS: readonly BlockDefinition[] = [
     gridSize: 'small',
     dlc: 'base',
     mass: 274.8,
+    inventoryVolume: 3375,
+    source: 'vanilla',
+  },
+  {
+    // Contact Pack reskin of the small-grid Medium Cargo Container. Same 3375 L
+    // capacity; slightly heavier component list (computed 463 kg from parts).
+    id: 'small-modular-cargo-container',
+    subtypeId: 'SmallBlockModularContainer',
+    displayName: 'Modular Cargo Container (Small Grid)',
+    category: 'cargo',
+    gridSize: 'small',
+    dlc: 'contact',
+    mass: 463,
     inventoryVolume: 3375,
     source: 'vanilla',
   },

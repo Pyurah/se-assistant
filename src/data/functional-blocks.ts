@@ -98,6 +98,20 @@ export const FUNCTIONAL_BLOCKS: readonly BlockDefinition[] = [
     source: 'vanilla',
   },
   {
+    // Apex Survival Pack reskin of the small-grid Ship Welder. Stat-identical
+    // (2 kW, computed 448.4 kg from the same component list).
+    id: 'small-welder-reskin',
+    subtypeId: 'SmallShipWelderReskin',
+    displayName: 'Ship Welder (Small Grid, Apex)',
+    category: 'welder',
+    gridSize: 'small',
+    dlc: 'apex-survival',
+    mass: 448.4,
+    maxPowerDraw: 2000,
+    variableDraw: true,
+    source: 'vanilla',
+  },
+  {
     id: 'small-grinder',
     subtypeId: 'SmallShipGrinder',
     displayName: 'Ship Grinder (Small Grid)',
@@ -165,6 +179,30 @@ export const FUNCTIONAL_BLOCKS: readonly BlockDefinition[] = [
     dlc: 'base',
     mass: 1237.6,
     maxPowerDraw: 2000,
+    source: 'vanilla',
+  },
+  // Conveyor plumbing — passive (0 W); contributes mass only. Small-grid
+  // medium conveyor line from the base-game Logistics set.
+  {
+    id: 'small-conveyor-hub',
+    subtypeId: 'SmallShipConveyorHub',
+    displayName: 'Conveyor Hub (Small Grid)',
+    category: 'conveyor',
+    gridSize: 'small',
+    dlc: 'base',
+    mass: 313,
+    maxPowerDraw: 0,
+    source: 'vanilla',
+  },
+  {
+    id: 'small-conveyor-tube-curved-medium',
+    subtypeId: 'ConveyorTubeCurvedMedium',
+    displayName: 'Conveyor Tube Curved Medium (Small Grid)',
+    category: 'conveyor',
+    gridSize: 'small',
+    dlc: 'base',
+    mass: 365,
+    maxPowerDraw: 0,
     source: 'vanilla',
   },
 
@@ -538,6 +576,32 @@ export const FUNCTIONAL_BLOCKS: readonly BlockDefinition[] = [
     dlc: 'base',
     mass: 3304,
     maxPowerDraw: 0,
+    source: 'vanilla',
+  },
+
+  // === ARMOR (structural; mass only, no power) =============================
+  // Small-grid light armor. Every armor variant (block, slope, corner, etc.)
+  // shares the same 20 kg light-armor mass on small grid; we cover the two
+  // shapes that appear in imported ships so their mass isn't dropped. Heavy
+  // armor and large-grid armor can be added the same way as ships need them.
+  {
+    id: 'small-light-armor-block',
+    subtypeId: 'SmallBlockArmorBlock',
+    displayName: 'Light Armor Block (Small Grid)',
+    category: 'structural',
+    gridSize: 'small',
+    dlc: 'base',
+    mass: 20,
+    source: 'vanilla',
+  },
+  {
+    id: 'small-light-armor-slope',
+    subtypeId: 'SmallBlockArmorSlope',
+    displayName: 'Light Armor Slope (Small Grid)',
+    category: 'structural',
+    gridSize: 'small',
+    dlc: 'base',
+    mass: 20,
     source: 'vanilla',
   },
 ] as const;

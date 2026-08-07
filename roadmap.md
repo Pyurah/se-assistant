@@ -1,6 +1,6 @@
 # SE Assistant — Product Roadmap
 
-> **Last Updated**: 2026-08-03
+> **Last Updated**: 2026-08-07
 
 A Space Engineers ship & base planner: import a blueprint (`.sbc`) and get
 instant thrust-to-weight, mass, cargo, and power analysis — empty vs fully
@@ -11,9 +11,27 @@ loaded, on any vanilla planet.
 ## 👉 Next session starts here
 
 **Everything through Phase 2 is DONE, committed, and pushed to GitHub**
-(`https://github.com/Pyurah/se-assistant`, branch `master`, at v0.9.0). Working
-tree is clean and all four gates pass (`typecheck` / `lint` / `test` (186) /
+(`https://github.com/Pyurah/se-assistant`, branch `master`, at v0.9.1). Working
+tree is clean and all four gates pass (`typecheck` / `lint` / `test` (189) /
 `build`). Nothing is half-finished.
+
+**v0.9.1 (2026-08-07) — DLC block-coverage fix.** A real DLC-built ship
+("Rapier") imported with 40 of 48 blocks unrecognized — all genuine DLC/base
+blocks, not mods. Root cause: those subtypes weren't in the dataset. Added 8
+blocks (2 atmospheric thruster variants, a Contact cargo reskin, an Apex welder
+reskin, 2 conveyor pieces — the first `conveyor` blocks — and 2 small-grid light
+armor shapes — the first `structural` blocks), all sourced from the **installed
+game's own definition files** (`CubeBlocks/*.sbc` + `Components.sbc`), with mass
+computed from component lists and the method validated against a known value.
+Also fixed a real parser bug: a **missing** `<BlockOrientation>` (SE's identity
+default) was being dropped from directional TWR instead of defaulting to
+`Forward`. The Rapier now resolves 48/48, 0 unrecognized, 0 unoriented. If more
+unrecognized blocks turn up from other ships, the same workflow applies — read
+the SubtypeId from `bp.sbc`, find its def file under the game's `CubeBlocks/`,
+compute mass from `Components.sbc`, add it with a citation in
+`docs/data-audit.md`. Known coverage gap: only the armor *shapes* and DLC blocks
+seen so far are in the set; heavy armor, large-grid armor, and other shape
+variants are added on demand the same way.
 
 **The next unit of work is Phase 3 — Production & Logistics (M7 + M8).** See the
 Phase 3 section below. Before building it, note the data lift: M7/M8 need NEW
@@ -34,11 +52,11 @@ SubtypeIds, drill/sensor wattages) against a live game install.
 
 ## Current State
 
-- **Version**: 0.9.0
+- **Version**: 0.9.1
 - **Repo**: pushed to `https://github.com/Pyurah/se-assistant` (`master`);
   commits use the GitHub no-reply email (real email scrubbed from history).
 - **Build**: passing (`pnpm build`)
-- **Tests**: passing — 186 tests across logger, audit, data-integrity, engine
+- **Tests**: passing — 189 tests across logger, audit, data-integrity, engine
   (incl. `estimateRequirements`, the fuel/flight-time engine, and the
   motion/stability engine), blueprint parser, number formatter, stores, and
   UI-rendering suites

@@ -48,7 +48,7 @@ describe('vanilla blocks dataset', () => {
 
   it('gives thrusters positive thrust and type-correct effectiveness envelopes', () => {
     const thrusters = VANILLA_BLOCKS.filter((b) => b.category === 'thruster');
-    expect(thrusters.length).toBe(12); // 3 types x 2 grids x 2 variants
+    expect(thrusters.length).toBe(14); // 12 base (3 types x 2 grids x 2 sizes) + 2 DLC atmo variants
     for (const t of thrusters) {
       if (t.category !== 'thruster') continue;
       expect(t.maxThrust, `${t.id} thrust`).toBeGreaterThan(0);
@@ -77,14 +77,38 @@ describe('vanilla blocks dataset', () => {
 
   it('provides full vanilla coverage across every category', () => {
     const count = (c: string) => VANILLA_BLOCKS.filter((b) => b.category === c).length;
-    expect(count('thruster')).toBe(12);
-    expect(count('cargo')).toBe(5);
+    expect(count('thruster')).toBe(14); // +2: Sci-Fi (Sparks) & Flat D-Shape atmospheric
+    expect(count('cargo')).toBe(6); // +1: Modular Cargo Container (Contact reskin)
     expect(count('reactor')).toBe(4);
     expect(count('battery')).toBe(5); // small, small-small, large + 2 Warfare 2 reskins
     expect(count('solar')).toBe(2);
     expect(count('hydrogen-engine')).toBe(2);
     expect(count('wind-turbine')).toBe(1);
     expect(count('cockpit')).toBe(2);
+  });
+
+  it('recognizes the DLC-reskin & armor subtypes that real imported ships use', () => {
+    // Regression guard: these subtypes appear in real DLC-built blueprints and
+    // were previously dropped as "unrecognized", corrupting mass/TWR. Each must
+    // resolve to a vanilla-source definition. Stats verified against the game's
+    // own definition files (see docs/data-audit.md).
+    const expected: Record<string, { category: string; mass: number }> = {
+      SmallBlockLargeFlatAtmosphericThrustDShape: { category: 'thruster', mass: 1060 },
+      SmallBlockSmallAtmosphericThrustSciFi: { category: 'thruster', mass: 699 },
+      SmallBlockModularContainer: { category: 'cargo', mass: 463 },
+      SmallShipWelderReskin: { category: 'welder', mass: 448.4 },
+      SmallShipConveyorHub: { category: 'conveyor', mass: 313 },
+      ConveyorTubeCurvedMedium: { category: 'conveyor', mass: 365 },
+      SmallBlockArmorBlock: { category: 'structural', mass: 20 },
+      SmallBlockArmorSlope: { category: 'structural', mass: 20 },
+    };
+    for (const [subtype, want] of Object.entries(expected)) {
+      const block = VANILLA_BLOCKS_BY_SUBTYPE[subtype];
+      expect(block, `${subtype} must exist`).toBeDefined();
+      expect(block!.source, `${subtype} source`).toBe('vanilla');
+      expect(block!.category, `${subtype} category`).toBe(want.category);
+      expect(block!.mass, `${subtype} mass`).toBeCloseTo(want.mass, 1);
+    }
   });
 
   it('gives every cargo/cockpit block a positive inventory volume', () => {
@@ -191,6 +215,12 @@ describe('DLC catalogue', () => {
     expect(DLCS_BY_ID['base']).toBeDefined();
     expect(DLCS_BY_ID['base']!.addsFunctionalBlocks).toBe(true);
     expect(DLCS_BY_ID['prosperity']).toBeDefined();
+  });
+
+  it('includes the Sparks / Contact / Apex packs used by real DLC ships', () => {
+    for (const id of ['sparks-of-the-future', 'contact', 'apex-survival', 'scrap-race']) {
+      expect(DLCS_BY_ID[id], `${id} must be catalogued`).toBeDefined();
+    }
   });
 
   it('exposes a consistent lookup map', () => {

@@ -149,7 +149,11 @@ describe('parseBlueprint — multi-grid & errors', () => {
     );
   });
 
-  it('counts a thruster with an unparseable orientation as unoriented', () => {
+  it('defaults a MISSING orientation to identity (Forward), not unoriented', () => {
+    // SE omits <BlockOrientation> at the default identity orientation
+    // (Forward="Forward"). A missing element means Forward — the thruster
+    // exhausts forward and so pushes the grid backward — and must NOT be
+    // dropped from directional TWR.
     const xml = `<?xml version="1.0"?>
 <Definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <ShipBlueprints><ShipBlueprint><CubeGrids><CubeGrid>
@@ -157,6 +161,25 @@ describe('parseBlueprint — multi-grid & errors', () => {
     <CubeBlocks>
       <MyObjectBuilder_CubeBlock xsi:type="MyObjectBuilder_Thrust">
         <SubtypeName>LargeBlockLargeThrust</SubtypeName>
+      </MyObjectBuilder_CubeBlock>
+    </CubeBlocks>
+  </CubeGrid></CubeGrids></ShipBlueprint></ShipBlueprints>
+</Definitions>`;
+    const { design, report } = parseBlueprint(xml);
+    expect(report.unorientedThrusters).toBe(0);
+    const thruster = design.blocks.find((b) => b.definition.category === 'thruster');
+    expect(thruster?.thrustDirection).toBe('backward');
+  });
+
+  it('counts a thruster with a PRESENT but unparseable orientation as unoriented', () => {
+    const xml = `<?xml version="1.0"?>
+<Definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <ShipBlueprints><ShipBlueprint><CubeGrids><CubeGrid>
+    <GridSizeEnum>Large</GridSizeEnum>
+    <CubeBlocks>
+      <MyObjectBuilder_CubeBlock xsi:type="MyObjectBuilder_Thrust">
+        <SubtypeName>LargeBlockLargeThrust</SubtypeName>
+        <BlockOrientation Forward="sideways" Up="Up" />
       </MyObjectBuilder_CubeBlock>
     </CubeBlocks>
   </CubeGrid></CubeGrids></ShipBlueprint></ShipBlueprints>

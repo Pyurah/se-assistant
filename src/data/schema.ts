@@ -57,7 +57,9 @@ export type Dlc =
   | 'fieldwork'
   | 'core-systems'
   | 'economy-2'
-  | 'prosperity';
+  | 'prosperity'
+  | 'scrap-race'
+  | 'apex-survival';
 
 /** Display metadata for a content pack, used to build DLC filter UI. */
 export interface DlcInfo {

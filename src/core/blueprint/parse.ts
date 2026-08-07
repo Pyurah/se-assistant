@@ -170,7 +170,13 @@ export function parseBlueprint(
 
       let thrustDirection: Direction | undefined;
       if (definition.category === 'thruster') {
-        thrustDirection = thrustDirectionFromForward(cb.BlockOrientation?.['@_Forward']);
+        // SE omits <BlockOrientation> when the block sits at the default
+        // identity orientation (Forward="Forward", Up="Up"). A MISSING element
+        // therefore means Forward — not "unknown" — so default it rather than
+        // dropping the thruster from directional TWR. Only an orientation that
+        // is present but has an unparseable axis is counted as unoriented.
+        const forwardAxis = cb.BlockOrientation?.['@_Forward'] ?? 'Forward';
+        thrustDirection = thrustDirectionFromForward(forwardAxis);
         if (thrustDirection === undefined) unorientedThrusters += 1;
       }
 
