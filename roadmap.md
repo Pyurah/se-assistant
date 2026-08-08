@@ -115,10 +115,10 @@ Suggestions), then M6.7 (Edit an Imported Blueprint).** M6.5 shipped its two
 highest-value features in v0.11.0 — per-direction thruster mixing and the
 directional TWR readout in Estimate — built on the pure `estimateToDesign`
 bridge (a geometry-less `ShipDesign` the Analyze engine runs on unchanged). The
-one M6.5 deliverable deliberately deferred is the fully store-backed *editable*
-design model; it's folded into M6.7, where editing an imported blueprint's
-loadout is the real consumer that needs it. `estimateToDesign` is the reusable
-seed for that. Follow the established rhythm: extend the engine in
+one M6.5 deliverable deliberately deferred is the fully store-backed *mutable*
+loadout state; it's folded into M6.7, where seeding an Estimate build from an
+imported blueprint and adjusting its loadout is the real consumer that needs it.
+`estimateToDesign` is the (reverse-direction) seed for that. Follow the established rhythm: extend the engine in
 `src/core/engine` with worked-example tests → build the UI via the web-ui-builder
 agent → bump version + CHANGELOG + roadmap. No new game *data* is required
 (unlike Phase 3), so it's a lighter lift.
@@ -388,21 +388,22 @@ hand-edited). Build that once and the rest hang off it.
 ### M6.5 — Editable Design Model + Per-Direction Thruster Mix
 
 **Status**: ✅ Mostly complete (v0.11.0) — per-direction mix + directional TWR
-readout shipped; the store-backed editable model is deferred into M6.7 (its real
-consumer).
+readout shipped; the store-backed mutable loadout state is deferred into M6.7 (its
+real consumer: seeding an Estimate build from an imported blueprint).
 
 The foundational plumbing plus the highest-value features it unlocks. The pure
 `estimateToDesign` bridge (a geometry-less `ShipDesign` the Analyze engine runs
-on unchanged) is the foundational piece; the fully mutable, store-backed editable
-model is only worth building alongside blueprint editing, so it moved to M6.7.
+on unchanged) is the foundational piece; the store-backed *mutable* loadout state
+is only worth building alongside blueprint-seeded builds, so it moved to M6.7.
 
 **Deliverables:**
 
 - [~] **Editable design model** — the pure half shipped: `estimateToDesign`
       synthesizes a `ShipDesign` the existing Analyze engine (`twr`, `mass`,
       `power`, …) runs on unchanged, decoupled from the parse step. The
-      *store-backed mutable* half (hand-editing) is deferred to M6.7, where
-      editing an imported blueprint is the consumer that needs it.
+      *store-backed mutable loadout* half is deferred to M6.7, where seeding an
+      Estimate build from an imported blueprint and adjusting it is the consumer
+      that needs it.
 - [x] **Per-direction thruster type** — `config.thruster` generalized to
       `thrusters: Record<Direction, ThrusterBlock>` (`uniformThrusters(block)`
       keeps the single-type default unchanged). The convergence loop sizes each
@@ -444,28 +445,39 @@ the decider and the app removes the arithmetic.
 - [ ] Tests: ranking correctness at representative planets (Earthlike / Moon /
       space), infeasible-type exclusion
 
-### M6.7 — Edit an Imported Blueprint
+### M6.7 — Blueprint as a Base for an Estimate Build
 
 **Status**: Not started
 
-Load a `.sbc`, change its loadout, and re-analyze live — the "platform I load out
-with different utilities" case. **Now also owns the store-backed mutable editable
-design model** (the pure `estimateToDesign` seed shipped in M6.5/v0.11.0; the
-mutation surface lands here alongside its real consumer).
+**Not** an in-place blueprint editor. The flow is: **import a `.sbc` → seed an
+Estimate build from its block list → adjust the loadout from there → see the
+analysis update live.** The blueprint is a *starting point*, not a document you
+mutate; the source file is never changed. This is the "platform I load out with
+different utilities" case — take a hull you already have and try different gear on
+it. It's the reverse of the `estimateToDesign` bridge shipped in M6.5/v0.11.0
+(estimate → design): here a parsed design *seeds* the estimate inputs, and this
+milestone owns the store-backed mutable design state that adjusting the loadout
+needs.
 
 **Deliverables:**
 
-- [ ] **Store-backed mutable `ShipDesign`** — hand-editable design state the
-      Analyze engine runs on unchanged (parsed blueprints and estimator output
-      both produce one; mutation lives in the store, the model stays pure data).
-- [ ] Add / remove / change block counts on an imported design (built on the
-      mutable model above) with live recomputation across all analysis panels
+- [ ] **Seed the estimator from a parsed blueprint** — an import path that
+      populates the Estimate build's essentials/loadout from a `.sbc`'s block
+      list (the inverse of `estimateToDesign`), so the user starts from a real
+      hull instead of a blank slate.
+- [ ] **Store-backed mutable loadout** — adjustable design state the Analyze
+      engine runs on unchanged (both a seeded blueprint and a from-scratch
+      estimate produce one; mutation lives in the store, the model stays pure
+      data).
+- [ ] Add / remove / change block counts on the seeded build with live
+      recomputation across all analysis panels
 - [ ] Scope note: **counts/loadout, not geometry.** Center-of-mass and
       thrust-alignment (Motion) depend on block *placement*, which a 2D web editor
       can't meaningfully change; geometry-dependent readouts are flagged as
-      "reflects the original layout" when only counts were edited
-- [ ] A clear "edited — no longer matches the source file" indicator + reset
-- [ ] Tests: loadout-edit recompute, geometry-flag behavior
+      "reflects the original layout" when only counts were adjusted
+- [ ] A clear "adjusted — no longer matches the source file" indicator + reset
+- [ ] Tests: seed-from-blueprint round-trip, loadout-adjust recompute,
+      geometry-flag behavior
 
 ---
 
