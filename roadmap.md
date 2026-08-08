@@ -181,15 +181,16 @@ game install.
 
 ## Current State
 
-- **Version**: 0.14.0
+- **Version**: 0.15.0
 - **Repo**: pushed to `https://github.com/Pyurah/se-assistant` (`master`);
   commits use the GitHub no-reply email (real email scrubbed from history).
 - **Build**: passing (`pnpm build`)
-- **Tests**: passing — 293 tests across logger, audit, data-integrity, engine
+- **Tests**: passing — 307 tests across logger, audit, data-integrity, engine
   (incl. `estimateRequirements`, the `estimateToDesign` + `designToEstimateSeed`
   bridges, the `rankThrusterTypes` ranker, the `buildCost` bill-of-materials
-  engine, the fuel/flight-time engine, and the motion/stability engine),
-  blueprint parser, number formatter, stores, and UI-rendering suites
+  engine, the `manufacturingThroughput` fleet/ratio engine, the fuel/flight-time
+  engine, and the motion/stability engine), blueprint parser, number formatter,
+  stores, and UI-rendering suites
 - **Phase**: Phases 1, 1.5, and 2 all COMPLETE; Phase 3 begun. M1 dataset, M2
   blueprint parser, M3 calc engine, M4 analysis UI, M4.5 requirement estimator,
   M5 fuel/flight time, M6 motion/stability — all delivered. Phase 3 / M7 opened
@@ -546,11 +547,11 @@ needs.
 
 ### M7 — Manufacturing
 
-**Status**: 🚧 In progress — build cost shipped (v0.14.0)
+**Status**: 🚧 In progress — build cost + throughput shipped (v0.14.0, v0.15.0)
 
 **Deliverables:**
 
-- [ ] Refinery / assembler throughput and optimal ratios
+- [x] Refinery / assembler throughput and optimal ratios — **v0.15.0**
 - [x] Blueprint total resource cost (ore-to-build) — **v0.14.0**
 - [ ] Conveyor throughput analysis
 
@@ -568,6 +569,21 @@ refinery/assembler/efficiency, and honest "cost known for N of M block types"
 reporting (modded/unrecognized blocks flagged, never zeroed). Locked decisions
 (with the user): build cost is the first Phase 3 slice; 1 ore unit = 1 kg;
 Assembler-Efficiency ×1 default; refine time is the headline resource metric.
+
+**Delivered (v0.15.0):** manufacturing throughput & optimal fleet ratios, folded
+into the Build cost panel (locked decision: shared refinery/assembler pickers, no
+duplicate controls). New pure `manufacturingThroughput(cost, opts)` engine
+(`src/core/engine/throughput.ts`) built on the build-cost `refineTimeSeconds` /
+`assembleTimeSeconds` — no new dataset. Solves **both directions** (locked
+decision): forward, `max(refineTime ÷ N, assembleTime ÷ M)` steady-state build
+time for a chosen refinery/assembler fleet + bottleneck + per-stage utilization;
+inverse, the balanced ratio (`refineTime : assembleTime`) and a suggested integer
+refinery count. 11 worked-example tests (stage division, bottleneck each
+direction, balance epsilon, per-hour rates, zero/divide-by-zero guards). New
+shared `Stepper` component drives the fleet steppers; panel render tests extended
+(4 → 7). Bottleneck-bound pipeline model documented as an explicit simplification
+in `docs/data-audit.md`. Conveyor throughput (the third M7 deliverable) remains
+open — it needs a fresh data pass (transfer rates, port sizes).
 
 ### M8 — Life Support & Combat
 

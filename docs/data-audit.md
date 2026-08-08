@@ -487,3 +487,22 @@ certainty. Confirm against the local game's `.sbc` files if exactness matters.
    **"cost unknown"**, never costed as zero. Reskin/variant blocks that are
    stat-identical to a base block (`*SciFi`, `*Warfare2`, `SmallShipWelderReskin`,
    `SmallBlockModularContainer`) map to the base recipe via `BLOCK_COST_ALIASES`.
+
+## Manufacturing throughput model (M7 / v0.15.0)
+
+No new dataset values — the throughput analysis (`src/core/engine/throughput.ts`)
+is pure math on top of the build-cost `refineTimeSeconds` / `assembleTimeSeconds`
+already derived from the recipes above. One **explicit modeling simplification**
+worth recording:
+
+- **Bottleneck-bound build time.** Refining and assembling are treated as a
+  two-stage pipeline that runs concurrently — ore refines into ingots while
+  earlier components are already assembling — so the wall-clock build time for a
+  fleet is `max(refineTime ÷ refineryCount, assembleTime ÷ assemblerCount)`, the
+  slower stage. This **ignores pipeline fill/drain** (the first component can't
+  assemble until the first ingots exist, and the last components trail the final
+  refine). For a whole-ship batch these edge effects are negligible against the
+  steady-state throughput; the figure is presented as a steady-state estimate,
+  not a to-the-second schedule. The **balanced ratio** (refineries per assembler)
+  is simply `refineTime : assembleTime`, exact for the given recipes and machine
+  tiers.

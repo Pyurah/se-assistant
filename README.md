@@ -35,7 +35,10 @@ Drag in an exported `.sbc` (or load the bundled example) and get a live readout:
   (by metal), total ingots, and refine time — walking blocks → components →
   ingots → ore with exact arithmetic on the game's recipes. Toggle refinery /
   assembler tier and Assembler-Efficiency and the ore totals recompute; blocks
-  with no recipe are flagged "cost unknown" rather than counted as free.
+  with no recipe are flagged "cost unknown" rather than counted as free. A
+  **throughput** readout turns that into wall-clock build time for a chosen
+  refinery/assembler fleet, flags the bottleneck stage, and suggests the fleet
+  ratio that keeps neither stage idle.
 - **Motion & stability** — dampener stopping distance, center of mass,
   thrust-center alignment (off-center thrust that causes unwanted spin), and a
   gyroscope turn-rate estimate.
@@ -79,20 +82,21 @@ relationship clear.
   from the game — SE Assistant does exact arithmetic on them, cross-referenced
   to the official wiki and cited in [`docs/data-audit.md`](./docs/data-audit.md).
 - The pure calc engine is covered by **worked-example tests** with hand-verified
-  reference values (currently **293 tests**).
+  reference values (currently **307 tests**).
 - Where a value is genuinely an estimate — the gyro turn-rate (needs the ship's
   moment of inertia) or stopping distance (ignores per-axis gravity) — the UI
   says so rather than implying false precision.
 
 ## Status
 
-Version **0.14.0**. Phases 1 (core engine + blueprint import), 1.5 (requirement
+Version **0.15.0**. Phases 1 (core engine + blueprint import), 1.5 (requirement
 estimator), 2 (fuel/flight-time + motion/stability), and 2.5 (Estimate-mode
 enhancements incl. blueprint-seeded builds) are complete, and Phase 3
-(production/logistics) has begun with **build-cost analysis**. See
-[`roadmap.md`](./roadmap.md) for what's next (rest of production/logistics,
-multi-design compare, PWA offline) and [`CHANGELOG.md`](./CHANGELOG.md) for
-release history.
+(production/logistics) is under way with **build-cost analysis** and
+**manufacturing throughput / optimal fleet ratios**. See
+[`roadmap.md`](./roadmap.md) for what's next (conveyor throughput, life
+support/combat, multi-design compare, PWA offline) and
+[`CHANGELOG.md`](./CHANGELOG.md) for release history.
 
 ## Prerequisites
 

@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.15.0] - 2026-08-08
+
+### Added
+
+- **Manufacturing throughput & optimal fleet ratios.** The Build cost panel now
+  answers "how long will this ship take to build, and what's the bottleneck?" —
+  enter a fleet (N refineries, M assemblers) and get the pipelined **steady-state
+  build time** (`max(refine ÷ N, assemble ÷ M)`), which stage is the bottleneck,
+  and each stage's time against the other. It also solves the inverse: the
+  **balanced ratio** (refineries per assembler) and a suggested integer refinery
+  count that keeps neither stage idle.
+- Shared **`Stepper`** component (controlled −/＋ integer stepper) driving the
+  fleet-size controls.
+
+### Notes
+
+- The build-time model is bottleneck-bound: it assumes refining and assembling
+  pipeline (the slower stage governs) and ignores pipeline fill/drain — an
+  explicit, documented simplification (see [`docs/data-audit.md`](./docs/data-audit.md)),
+  negligible against a whole-ship batch.
+
 ## [0.14.0] - 2026-08-08
 
 ### Added
