@@ -4,6 +4,37 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.13.0] - 2026-08-07
+
+### Added
+
+- **Seed an Estimate build from an imported blueprint.** A parsed `.sbc` can now
+  pre-fill an Estimate build: essentials (drills, cargo, cockpit, tools) carry
+  over with their real counts, and the ship's dominant thruster + power block
+  preset the Estimate config's _model choices_ — while the estimator re-sizes
+  _how many_ are needed for the target TWR. It is explicitly not an in-place
+  blueprint editor: the source `.sbc` is never mutated; it's read once,
+  snapshotted, and a fresh mutable build is handed over. Two entry points: a
+  **Use as estimate base** button on the Analyze view (seeds + switches to
+  Estimate), and a **Start from a blueprint** dropzone in Estimate mode.
+- **Adjusted-vs-source indicator + one-click reset.** Once seeded, Estimate mode
+  shows "Matches _{source}_" or "Adjusted — no longer matches _{source}_" as you
+  change counts, cargo, planet, or the thruster/power config, with a **Reset to
+  source** button that re-seeds from the snapshot. The dirty check is derived, so
+  it is always correct (sized-block counts are excluded — they're re-estimated,
+  never seeded).
+- **Seed diagnostics for skipped blocks.** Modded / unrecognized blocks that
+  can't round-trip through the id-based estimator are listed as chips ("N block
+  types not carried over") rather than silently dropped, and a caption flags that
+  the directional TWR reflects the imported ship's mass while thruster counts are
+  re-estimated, not its original layout.
+
+### Changed
+
+- Extracted the sized-category set to a shared `SIZED_CATEGORIES` constant in
+  `src/data` so the engine seed mapper and the essentials palette agree on which
+  categories the estimator sizes (thrusters, power, gyros) vs. carries over.
+
 ## [0.12.0] - 2026-08-07
 
 ### Added

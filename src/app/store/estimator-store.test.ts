@@ -1,10 +1,41 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useEstimatorStore, GRID_DEFAULTS } from './estimator-store';
+import { useEstimatorStore, GRID_DEFAULTS, isAdjustedFromSource } from './estimator-store';
 import { useEstimate } from '../hooks/use-estimate';
 import { renderHook } from '@testing-library/react';
+import { VANILLA_BLOCKS_BY_ID } from '@data';
+import type { BlockDefinition, ThrusterBlock } from '@data';
+import type { ShipDesign, DesignBlock } from '@core';
 
 /** Read current store state without React. */
 const state = () => useEstimatorStore.getState();
+
+const cockpit = VANILLA_BLOCKS_BY_ID['large-cockpit'] as BlockDefinition;
+const largeCargo = VANILLA_BLOCKS_BY_ID['large-large-cargo-container'] as BlockDefinition;
+const atmoLarge = VANILLA_BLOCKS_BY_ID['large-large-atmospheric-thruster'] as ThrusterBlock;
+const largeReactor = VANILLA_BLOCKS_BY_ID['large-large-reactor'] as BlockDefinition;
+
+const moddedBlock: BlockDefinition = {
+  id: 'modded:Exotic',
+  subtypeId: 'Exotic',
+  displayName: 'Exotic (modded)',
+  category: 'other',
+  gridSize: 'large',
+  dlc: 'base',
+  mass: 0,
+  source: 'blueprint',
+};
+
+function seedDesign(blocks: DesignBlock[], overrides?: Partial<ShipDesign>): ShipDesign {
+  return {
+    id: 'seed-src',
+    name: 'Seed Source',
+    gridSize: 'large',
+    blocks,
+    planetId: 'earthlike',
+    cargo: { fillFraction: 0.5, densityKgPerL: 2.8 },
+    ...overrides,
+  };
+}
 
 describe('estimator store', () => {
   beforeEach(() => {
@@ -206,6 +237,143 @@ describe('estimator store', () => {
       expect(atmo.countNeeded).toBe(Infinity);
       // Infeasible type sorts after every feasible one.
       expect(up[up.length - 1]!.thrusterType).toBe('atmospheric');
+    });
+  });
+
+  describe('seedFromDesign', () => {
+    it('populates essentials + config atomically, without clearing mid-seed', () => {
+      const src = seedDesign([
+        { definition: cockpit, quantity: 1 },
+        { definition: largeCargo, quantity: 3 },
+        { definition: atmoLarge, quantity: 8, thrustDirection: 'up' },
+        { definition: largeReactor, quantity: 2 },
+      ]);
+      state().seedFromDesign(src, 'my-ship.sbc');
+      const s = state();
+
+      // Essentials carried with real counts; sized blocks are NOT essentials.
+      expect(s.fixedBlocks).toEqual([
+        { id: cockpit.id, quantity: 1 },
+        { id: largeCargo.id, quantity: 3 },
+      ]);
+      // Config choices seeded from the dominant thruster + power block.
+      expect(s.thrusterId).toBe(atmoLarge.id);
+      expect(s.powerKind).toBe('producer');
+      expect(s.powerBlockId).toBe(largeReactor.id);
+      // Planet + cargo + grid carry through; overrides cleared.
+      expect(s.gridSize).toBe('large');
+      expect(s.planetId).toBe('earthlike');
+      expect(s.cargo).toEqual({ fillFraction: 0.5, densityKgPerL: 2.8 });
+      expect(s.thrusterOverrides).toEqual({});
+      // Source snapshot recorded for the adjusted/reset affordance.
+      expect(s.sourceName).toBe('my-ship.sbc');
+      expect(s.sourceDesign).toBe(src);
+    });
+
+    it('falls back to grid defaults when the design has no thrusters/power', () => {
+      state().seedFromDesign(seedDesign([{ definition: cockpit, quantity: 1 }]), 'bare.sbc');
+      const s = state();
+      expect(s.thrusterId).toBe(GRID_DEFAULTS.large.thrusterId);
+      expect(s.powerBlockId).toBe(GRID_DEFAULTS.large.batteryId);
+      expect(s.powerKind).toBe('battery');
+    });
+
+    it('records skipped modded blocks and never lists them as essentials', () => {
+      state().seedFromDesign(
+        seedDesign([
+          { definition: cockpit, quantity: 1 },
+          { definition: moddedBlock, quantity: 4, thrustDirection: 'up' },
+        ]),
+        'modded.sbc',
+      );
+      const s = state();
+      expect(s.fixedBlocks.map((b) => b.id)).not.toContain(moddedBlock.id);
+      expect(s.lastSeedSkipped).toHaveLength(1);
+      expect(s.lastSeedSkipped[0]).toMatchObject({ id: moddedBlock.id, quantity: 4 });
+    });
+
+    it('does not mutate the source design', () => {
+      const src = seedDesign([{ definition: largeCargo, quantity: 2 }]);
+      const before = JSON.stringify(src);
+      state().seedFromDesign(src, 'x.sbc');
+      state().addBlock('large-large-cargo-container');
+      state().setCargoFill(0.9);
+      expect(JSON.stringify(src)).toBe(before);
+    });
+  });
+
+  describe('isAdjustedFromSource + resetToSource', () => {
+    const src = () =>
+      seedDesign([
+        { definition: cockpit, quantity: 1 },
+        { definition: largeCargo, quantity: 2 },
+        { definition: atmoLarge, quantity: 8, thrustDirection: 'up' },
+      ]);
+
+    it('is false with no source snapshot', () => {
+      expect(isAdjustedFromSource(state())).toBe(false);
+    });
+
+    it('is false immediately after seeding', () => {
+      state().seedFromDesign(src(), 'ship.sbc');
+      expect(isAdjustedFromSource(state())).toBe(false);
+    });
+
+    it('flips true after adding an essential, false again after reset', () => {
+      state().seedFromDesign(src(), 'ship.sbc');
+      state().addBlock('large-large-cargo-container');
+      expect(isAdjustedFromSource(state())).toBe(true);
+      state().resetToSource();
+      expect(isAdjustedFromSource(state())).toBe(false);
+    });
+
+    it('flips true after changing an essential quantity', () => {
+      state().seedFromDesign(src(), 'ship.sbc');
+      state().setQuantity(largeCargo.id, 5);
+      expect(isAdjustedFromSource(state())).toBe(true);
+    });
+
+    it('flips true after changing cargo fill', () => {
+      state().seedFromDesign(src(), 'ship.sbc');
+      state().setCargoFill(0.1);
+      expect(isAdjustedFromSource(state())).toBe(true);
+    });
+
+    it('flips true after changing the thruster config choice', () => {
+      state().seedFromDesign(src(), 'ship.sbc');
+      state().setThruster('large-large-ion-thruster');
+      expect(isAdjustedFromSource(state())).toBe(true);
+    });
+
+    it('flips true after pinning a per-direction thruster override', () => {
+      state().seedFromDesign(src(), 'ship.sbc');
+      state().setDirectionalThruster('left', 'large-large-ion-thruster');
+      expect(isAdjustedFromSource(state())).toBe(true);
+    });
+
+    it('resetToSource is a no-op when nothing was seeded', () => {
+      state().addBlock('large-large-cargo-container');
+      state().resetToSource();
+      // No source → reset does nothing; the manual essential remains.
+      expect(state().fixedBlocks.map((b) => b.id)).toContain('large-large-cargo-container');
+      expect(state().sourceDesign).toBeNull();
+    });
+
+    it('reset() clears the source snapshot and skipped diagnostics', () => {
+      state().seedFromDesign(
+        seedDesign([
+          { definition: cockpit, quantity: 1 },
+          { definition: moddedBlock, quantity: 2 },
+        ]),
+        'ship.sbc',
+      );
+      expect(state().sourceDesign).not.toBeNull();
+      expect(state().lastSeedSkipped.length).toBeGreaterThan(0);
+      state().reset();
+      const s = state();
+      expect(s.sourceDesign).toBeNull();
+      expect(s.sourceName).toBeNull();
+      expect(s.lastSeedSkipped).toEqual([]);
     });
   });
 });

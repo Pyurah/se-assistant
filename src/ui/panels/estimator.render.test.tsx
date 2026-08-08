@@ -1,12 +1,42 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, within, fireEvent } from '@testing-library/react';
+import { render, screen, within, fireEvent, act } from '@testing-library/react';
 import { useEstimatorStore } from '../../app/store/estimator-store';
+import { VANILLA_BLOCKS_BY_ID } from '@data';
+import type { BlockDefinition, ThrusterBlock } from '@data';
+import type { ShipDesign, DesignBlock } from '@core';
 import { RecommendationsPanel } from './RecommendationsPanel';
 import { EssentialsBuilder } from './EssentialsBuilder';
 import { EstimatorConfigPanel } from './EstimatorConfigPanel';
 import { EstimatorTwrPanel } from './EstimatorTwrPanel';
+import { SeedFromBlueprint } from './SeedFromBlueprint';
 
 const state = () => useEstimatorStore.getState();
+
+const cockpit = VANILLA_BLOCKS_BY_ID['large-cockpit'] as BlockDefinition;
+const largeCargo = VANILLA_BLOCKS_BY_ID['large-large-cargo-container'] as BlockDefinition;
+const atmoLarge = VANILLA_BLOCKS_BY_ID['large-large-atmospheric-thruster'] as ThrusterBlock;
+
+const moddedBlock: BlockDefinition = {
+  id: 'modded:Exotic',
+  subtypeId: 'Exotic',
+  displayName: 'Exotic Widget',
+  category: 'other',
+  gridSize: 'large',
+  dlc: 'base',
+  mass: 0,
+  source: 'blueprint',
+};
+
+function seedDesign(blocks: DesignBlock[]): ShipDesign {
+  return {
+    id: 'seed-src',
+    name: 'Seed Source',
+    gridSize: 'large',
+    blocks,
+    planetId: 'earthlike',
+    cargo: { fillFraction: 0.5, densityKgPerL: 2.8 },
+  };
+}
 
 describe('RecommendationsPanel rendering', () => {
   beforeEach(() => {
@@ -156,5 +186,88 @@ describe('EstimatorTwrPanel rendering', () => {
     state().setPlanet('space');
     render(<EstimatorTwrPanel />);
     expect(screen.getByText(/no gravity here/i)).toBeInTheDocument();
+  });
+
+  it('shows the geometry caption only when the build was seeded from a blueprint', () => {
+    state().addBlock('large-large-cargo-container');
+    state().setPlanet('earthlike');
+    const { unmount } = render(<EstimatorTwrPanel />);
+    // Hand-started build: no seed caption.
+    expect(screen.queryByText(/counts are re-estimated/i)).not.toBeInTheDocument();
+    unmount();
+
+    // Seed from a design, then re-render: the caption appears.
+    state().seedFromDesign(
+      seedDesign([
+        { definition: cockpit, quantity: 1 },
+        { definition: largeCargo, quantity: 2 },
+        { definition: atmoLarge, quantity: 8, thrustDirection: 'up' },
+      ]),
+      'ship.sbc',
+    );
+    render(<EstimatorTwrPanel />);
+    expect(screen.getByText(/counts are re-estimated/i)).toBeInTheDocument();
+  });
+});
+
+describe('SeedFromBlueprint rendering', () => {
+  beforeEach(() => {
+    state().reset();
+  });
+
+  it('shows the dropzone prompt when nothing has been seeded', () => {
+    render(<SeedFromBlueprint />);
+    expect(screen.getByText(/start from a blueprint/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^Matches/)).not.toBeInTheDocument();
+  });
+
+  it('shows a "Matches {source}" indicator right after seeding', () => {
+    state().seedFromDesign(
+      seedDesign([
+        { definition: cockpit, quantity: 1 },
+        { definition: largeCargo, quantity: 2 },
+        { definition: atmoLarge, quantity: 8, thrustDirection: 'up' },
+      ]),
+      'ship.sbc',
+    );
+    render(<SeedFromBlueprint />);
+    expect(screen.getByText(/^Matches/)).toBeInTheDocument();
+    expect(screen.getByText('ship.sbc')).toBeInTheDocument();
+    // Not adjusted yet → no reset button.
+    expect(screen.queryByRole('button', { name: /reset to source/i })).not.toBeInTheDocument();
+  });
+
+  it('flips to "Adjusted" and reveals Reset after an edit, which reset undoes', () => {
+    state().seedFromDesign(
+      seedDesign([
+        { definition: cockpit, quantity: 1 },
+        { definition: largeCargo, quantity: 2 },
+        { definition: atmoLarge, quantity: 8, thrustDirection: 'up' },
+      ]),
+      'ship.sbc',
+    );
+    const { rerender } = render(<SeedFromBlueprint />);
+    // Adjust the build → indicator flips and Reset appears.
+    act(() => state().setQuantity(largeCargo.id, 5));
+    rerender(<SeedFromBlueprint />);
+    expect(screen.getByText(/adjusted — no longer matches/i)).toBeInTheDocument();
+    const resetBtn = screen.getByRole('button', { name: /reset to source/i });
+    fireEvent.click(resetBtn);
+    rerender(<SeedFromBlueprint />);
+    expect(screen.getByText(/^Matches/)).toBeInTheDocument();
+    expect(state().fixedBlocks.find((b) => b.id === largeCargo.id)?.quantity).toBe(2);
+  });
+
+  it('lists skipped modded blocks as diagnostics chips', () => {
+    state().seedFromDesign(
+      seedDesign([
+        { definition: cockpit, quantity: 1 },
+        { definition: moddedBlock, quantity: 3 },
+      ]),
+      'modded.sbc',
+    );
+    render(<SeedFromBlueprint />);
+    expect(screen.getByText(/not carried over/i)).toBeInTheDocument();
+    expect(screen.getByText(/Exotic Widget/)).toBeInTheDocument();
   });
 });

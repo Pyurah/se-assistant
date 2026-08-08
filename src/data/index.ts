@@ -6,6 +6,7 @@
  * engine (`src/core`) and from any future headless/Tauri build.
  */
 export * from './schema';
+export * from './block-categories';
 export * from './dlc';
 export * from './planets';
 export * from './blocks';

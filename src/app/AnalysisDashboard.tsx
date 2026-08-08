@@ -7,8 +7,10 @@
  * column on narrow viewports.
  */
 import { useDesignStore } from './store/design-store';
+import { useEstimatorStore } from './store/estimator-store';
+import { useAppModeStore } from './store/app-mode-store';
 import { Button } from '../ui/components/Button';
-import { IconRefresh, IconRocket } from '../ui/components/icons';
+import { IconRefresh, IconRocket, IconSparkles } from '../ui/components/icons';
 import { PlanetSelector } from '../ui/panels/PlanetSelector';
 import { CargoControl } from '../ui/panels/CargoControl';
 import { TwrPanel } from '../ui/panels/TwrPanel';
@@ -22,6 +24,14 @@ export function AnalysisDashboard(): React.JSX.Element {
   const design = useDesignStore((s) => s.design);
   const sourceName = useDesignStore((s) => s.sourceName);
   const reset = useDesignStore((s) => s.reset);
+  const seedFromDesign = useEstimatorStore((s) => s.seedFromDesign);
+  const setMode = useAppModeStore((s) => s.setMode);
+
+  const useAsEstimateBase = (): void => {
+    if (!design) return;
+    seedFromDesign(design, sourceName ?? design.name);
+    setMode('estimate');
+  };
 
   return (
     <div className="flex min-h-full flex-col">
@@ -37,9 +47,19 @@ export function AnalysisDashboard(): React.JSX.Element {
             {sourceName && <p className="truncate text-xs text-subtle">{sourceName}</p>}
           </div>
         </div>
-        <Button variant="secondary" icon={<IconRefresh size={15} />} onClick={reset}>
-          New import
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button
+            variant="secondary"
+            icon={<IconSparkles size={15} />}
+            disabled={!design}
+            onClick={useAsEstimateBase}
+          >
+            Use as estimate base
+          </Button>
+          <Button variant="secondary" icon={<IconRefresh size={15} />} onClick={reset}>
+            New import
+          </Button>
+        </div>
       </header>
 
       <main className="mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 gap-4 p-6 lg:grid-cols-3">

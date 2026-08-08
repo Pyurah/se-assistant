@@ -26,7 +26,8 @@ export type AuditAction =
   | 'block.quantity.change'
   | 'block.stats.override'
   | 'planet.change'
-  | 'loadout.change';
+  | 'loadout.change'
+  | 'estimate.seed';
 
 /** Entities that actions operate on. */
 export type AuditEntityType = 'design' | 'block' | 'blueprint' | 'settings';

@@ -15,6 +15,7 @@ import { useState } from 'react';
 import { DIRECTIONS, type DirectionalThrust } from '@core';
 import type { Direction, ThrusterBlock } from '@data';
 import { useEstimate } from '../../app/hooks/use-estimate';
+import { useEstimatorStore } from '../../app/store/estimator-store';
 import { formatTwr } from '../lib/format';
 import { Panel } from '../components/Panel';
 import { TwrBar } from '../components/TwrBar';
@@ -48,6 +49,7 @@ function directionCaption(
 
 export function EstimatorTwrPanel(): React.JSX.Element | null {
   const result = useEstimate();
+  const seededFrom = useEstimatorStore((s) => s.sourceName);
   const [loadState, setLoadState] = useState<LoadState>('loaded');
 
   // Only render once there's a build to analyze (mirrors RecommendationsPanel).
@@ -114,6 +116,14 @@ export function EstimatorTwrPanel(): React.JSX.Element | null {
           Can this build hold altitude tilted fully onto one axis? Each bar crosses the 1.0 line when
           that direction alone out-thrusts gravity.
         </p>
+
+        {seededFrom && (
+          <p className="rounded-lg border border-border bg-bg px-3 py-2 text-[11px] text-subtle">
+            TWR reflects the imported ship&apos;s mass; thruster{' '}
+            <span className="font-medium text-muted">counts are re-estimated</span>, not its original
+            layout.
+          </p>
+        )}
       </div>
     </Panel>
   );

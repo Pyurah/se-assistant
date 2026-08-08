@@ -60,21 +60,30 @@ readout** runs the recommended build through the same thrust-to-weight engine th
 Analyze view uses, so you can check whether it holds altitude tilted fully onto
 any one axis — empty or fully loaded — before you've built a thing.
 
+**Already have a hull you like?** Import its blueprint and click **Use as estimate
+base** (or drop the `.sbc` straight onto Estimate mode) to _seed_ a build from it:
+your essentials carry over with their real counts, and the ship's dominant
+thruster + power block preset the config — then adjust counts, cargo, or planet
+and watch the analysis recompute. It never edits the source file; an "Adjusted —
+no longer matches" indicator with one-click **Reset to source** keeps the
+relationship clear.
+
 ## Why the numbers are trustworthy
 
 - Block stats (thrust, mass, power, capacity, fuel burn) are **fixed constants**
   from the game — SE Assistant does exact arithmetic on them, cross-referenced
   to the official wiki and cited in [`docs/data-audit.md`](./docs/data-audit.md).
 - The pure calc engine is covered by **worked-example tests** with hand-verified
-  reference values (currently **246 tests**).
+  reference values (currently **276 tests**).
 - Where a value is genuinely an estimate — the gyro turn-rate (needs the ship's
   moment of inertia) or stopping distance (ignores per-axis gravity) — the UI
   says so rather than implying false precision.
 
 ## Status
 
-Version **0.12.0**. Phases 1 (core engine + blueprint import), 1.5 (requirement
-estimator), and 2 (fuel/flight-time + motion/stability) are complete. See
+Version **0.13.0**. Phases 1 (core engine + blueprint import), 1.5 (requirement
+estimator), 2 (fuel/flight-time + motion/stability), and 2.5 (Estimate-mode
+enhancements incl. blueprint-seeded builds) are complete. See
 [`roadmap.md`](./roadmap.md) for what's next (production/logistics,
 multi-design compare, PWA offline) and [`CHANGELOG.md`](./CHANGELOG.md) for
 release history.

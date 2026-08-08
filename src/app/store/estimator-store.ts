@@ -17,10 +17,24 @@
  * The two stores are intentionally separate and never entangled.
  */
 import { create } from 'zustand';
-import { logger, type CargoLoadout, type Responsiveness } from '@core';
+import {
+  logger,
+  createCorrelationId,
+  AuditLogger,
+  InMemoryAuditStore,
+  designToEstimateSeed,
+  type CargoLoadout,
+  type Responsiveness,
+  type ShipDesign,
+  type SkippedSeedBlock,
+} from '@core';
 import type { GridSize, Direction } from '@data';
 
 const log = logger.child({ module: 'estimator-store' });
+
+/** Append-only audit trail for estimator actions (seeding from a blueprint). */
+export const estimatorAuditStore = new InMemoryAuditStore();
+const audit = new AuditLogger(estimatorAuditStore, logger);
 
 /** A fixed ("essential") block the user committed to, stored by id + count. */
 export interface FixedBlockRef {
@@ -56,6 +70,17 @@ export interface EstimatorState {
   runtimeTargetHours: number;
   responsiveness: Responsiveness;
 
+  /**
+   * The design this build was seeded from, kept as an immutable snapshot so the
+   * UI can show an "adjusted vs. source" indicator and offer a one-click reset.
+   * `null` for a hand-started build (never seeded from a blueprint).
+   */
+  sourceDesign: ShipDesign | null;
+  /** Source label (filename/example name) of {@link sourceDesign}. */
+  sourceName: string | null;
+  /** Blocks that couldn't be carried over on the last seed (modded/unrecognized). */
+  lastSeedSkipped: readonly SkippedSeedBlock[];
+
   setGridSize: (gridSize: GridSize) => void;
   addBlock: (id: string) => void;
   removeBlock: (id: string) => void;
@@ -70,6 +95,15 @@ export interface EstimatorState {
   setPower: (kind: PowerKind, blockId: string) => void;
   setRuntimeTargetHours: (hours: number) => void;
   setResponsiveness: (responsiveness: Responsiveness) => void;
+  /**
+   * Seed the whole build from an imported design in one atomic update: grid,
+   * essentials (real counts), and the thruster/power config choices (counts are
+   * re-estimated). Snapshots the source for the adjusted/reset affordance. Never
+   * mutates the source design.
+   */
+  seedFromDesign: (design: ShipDesign, sourceName: string) => void;
+  /** Re-seed from the stored source snapshot (one-click "back to as-imported"). */
+  resetToSource: () => void;
   reset: () => void;
 }
 
@@ -118,6 +152,10 @@ export const useEstimatorStore = create<EstimatorState>((set, get) => ({
   powerBlockId: GRID_DEFAULTS[DEFAULT_GRID].batteryId,
   runtimeTargetHours: 0.5,
   responsiveness: 'normal',
+
+  sourceDesign: null,
+  sourceName: null,
+  lastSeedSkipped: [],
 
   setGridSize: (gridSize) => {
     const current = get();
@@ -212,6 +250,65 @@ export const useEstimatorStore = create<EstimatorState>((set, get) => ({
 
   setResponsiveness: (responsiveness) => set({ responsiveness }),
 
+  seedFromDesign: (design, sourceName) => {
+    const correlationId = createCorrelationId();
+    const seed = designToEstimateSeed(design);
+    const defaults = GRID_DEFAULTS[seed.gridSize];
+
+    // One atomic update — never composed from setGridSize/addBlock, which would
+    // clear essentials and bump counts one-by-one. Sized categories seed the
+    // config *choice* (model); the estimator re-sizes the count. A null dominant
+    // block falls back to the grid default battery (and powerKind is 'battery').
+    set({
+      gridSize: seed.gridSize,
+      fixedBlocks: seed.fixedBlocks.map((b) => ({ id: b.id, quantity: b.quantity })),
+      planetId: seed.planetId,
+      cargo: seed.cargo,
+      thrusterId: seed.thrusterId ?? defaults.thrusterId,
+      thrusterOverrides: {},
+      powerKind: seed.powerKind,
+      powerBlockId: seed.powerBlockId ?? defaults.batteryId,
+      sourceDesign: design,
+      sourceName,
+      lastSeedSkipped: seed.skipped,
+    });
+
+    log.info('estimator seeded from design', {
+      correlationId,
+      sourceName,
+      gridSize: seed.gridSize,
+      essentials: seed.fixedBlocks.length,
+      thrusterId: seed.thrusterId,
+      powerBlockId: seed.powerBlockId,
+      skipped: seed.skipped.length,
+    });
+
+    // Best-effort audit trail; a logging failure must never break seeding.
+    void audit
+      .record({
+        action: 'estimate.seed',
+        entityType: 'design',
+        entityId: design.id,
+        after: {
+          name: design.name,
+          gridSize: seed.gridSize,
+          essentials: seed.fixedBlocks.length,
+          skipped: seed.skipped.length,
+        },
+        metadata: { sourceName },
+        correlationId,
+      })
+      .catch(() => {
+        /* audit sink swallows its own errors; nothing actionable here */
+      });
+  },
+
+  resetToSource: () => {
+    const { sourceDesign, sourceName } = get();
+    if (!sourceDesign) return;
+    get().seedFromDesign(sourceDesign, sourceName ?? sourceDesign.name);
+  },
+
   reset: () =>
     set({
       gridSize: DEFAULT_GRID,
@@ -226,5 +323,43 @@ export const useEstimatorStore = create<EstimatorState>((set, get) => ({
       powerBlockId: GRID_DEFAULTS[DEFAULT_GRID].batteryId,
       runtimeTargetHours: 0.5,
       responsiveness: 'normal',
+      sourceDesign: null,
+      sourceName: null,
+      lastSeedSkipped: [],
     }),
 }));
+
+/**
+ * Whether the current build has diverged from the design it was seeded from.
+ *
+ * Derived (not stored) so it is always correct: re-derives the seed the source
+ * *would* produce and compares the parts the seed controls — grid, the essentials
+ * multiset, the thruster/power config choices, planet, and cargo. Sized-block
+ * *counts* are intentionally excluded (they're re-estimated, never seeded). When
+ * there is no source snapshot, a build can't be "adjusted from" anything → false.
+ */
+export function isAdjustedFromSource(state: EstimatorState): boolean {
+  const { sourceDesign } = state;
+  if (!sourceDesign) return false;
+  const seed = designToEstimateSeed(sourceDesign);
+  const defaults = GRID_DEFAULTS[seed.gridSize];
+
+  if (state.gridSize !== seed.gridSize) return true;
+  if (state.planetId !== seed.planetId) return true;
+  if (state.cargo.fillFraction !== seed.cargo.fillFraction) return true;
+  if (state.cargo.densityKgPerL !== seed.cargo.densityKgPerL) return true;
+
+  if ((seed.thrusterId ?? defaults.thrusterId) !== state.thrusterId) return true;
+  if (Object.keys(state.thrusterOverrides).length > 0) return true;
+
+  const seededPowerId = seed.powerBlockId ?? defaults.batteryId;
+  if (state.powerKind !== seed.powerKind || state.powerBlockId !== seededPowerId) return true;
+
+  // Essentials multiset (id → quantity) must match exactly.
+  if (state.fixedBlocks.length !== seed.fixedBlocks.length) return true;
+  const seededById = new Map(seed.fixedBlocks.map((b) => [b.id, b.quantity]));
+  for (const b of state.fixedBlocks) {
+    if (seededById.get(b.id) !== b.quantity) return true;
+  }
+  return false;
+}

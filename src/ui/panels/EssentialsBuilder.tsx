@@ -12,7 +12,13 @@
  * labeled button/input so it stays keyboard- and screen-reader operable.
  */
 import { useMemo, useState } from 'react';
-import { VANILLA_BLOCKS, type BlockCategory, type BlockDefinition, type GridSize } from '@data';
+import {
+  VANILLA_BLOCKS,
+  SIZED_CATEGORIES,
+  type BlockCategory,
+  type BlockDefinition,
+  type GridSize,
+} from '@data';
 import { useEstimatorStore } from '../../app/store/estimator-store';
 import { useEstimate } from '../../app/hooks/use-estimate';
 import { CATEGORY_LABELS, CATEGORY_COLOR, CATEGORY_ORDER } from '../lib/category-meta';
@@ -22,20 +28,6 @@ import { Button } from '../components/Button';
 import { SegmentedControl } from '../components/SegmentedControl';
 import { IconLayers, IconSearch, IconPlus, IconMinus, IconTrash } from '../components/icons';
 import { cn } from '../lib/cn';
-
-/**
- * Categories the estimator SIZES for you (propulsion/power/attitude) — excluded
- * from the essentials palette so the user only declares payload/utility gear.
- */
-const SIZED_CATEGORIES: ReadonlySet<BlockCategory> = new Set<BlockCategory>([
-  'thruster',
-  'battery',
-  'reactor',
-  'solar',
-  'hydrogen-engine',
-  'wind-turbine',
-  'gyroscope',
-]);
 
 /** Palette order: only the categories a user declares as essentials. */
 const PALETTE_CATEGORIES: readonly BlockCategory[] = CATEGORY_ORDER.filter(

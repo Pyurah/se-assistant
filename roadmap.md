@@ -1,6 +1,6 @@
 # SE Assistant — Product Roadmap
 
-> **Last Updated**: 2026-08-07 (v0.12.0)
+> **Last Updated**: 2026-08-07 (v0.13.0)
 
 A Space Engineers ship & base planner: import a blueprint (`.sbc`) and get
 instant thrust-to-weight, mass, cargo, and power analysis — empty vs fully
@@ -10,10 +10,27 @@ loaded, on any vanilla planet.
 
 ## 👉 Next session starts here
 
-**Everything through Phase 2 plus M6.6 is DONE, committed, and pushed to GitHub**
-(`https://github.com/Pyurah/se-assistant`, branch `master`, at v0.12.0). Working
-tree is clean and all four gates pass (`typecheck` / `lint` / `test` (246) /
-`build`). Nothing is half-finished.
+**Everything through Phase 2 plus M6.6 and M6.7 is DONE, committed, and pushed to
+GitHub** (`https://github.com/Pyurah/se-assistant`, branch `master`, at v0.13.0).
+Working tree is clean and all four gates pass (`typecheck` / `lint` / `test`
+(276) / `build`). Nothing is half-finished.
+
+**v0.13.0 (2026-08-07) — blueprint as a base for an Estimate build (M6.7).**
+Analyze read a finished ship; Estimate sized one from scratch; the two were
+disconnected. Now a parsed `.sbc` can **seed an Estimate build**: essentials
+(drills, cargo, cockpit, tools) carry over with their real counts, and the ship's
+dominant thruster + power block preset the Estimate config's _model choices_ —
+while the estimator re-sizes _how many_ for the target TWR. It is explicitly not
+an in-place editor: the source `.sbc` is never mutated; it's read once,
+snapshotted, and a fresh mutable build is handed over. New pure
+`designToEstimateSeed` engine mapper (exact inverse of `estimateToDesign`), an
+atomic `seedFromDesign` store action + source snapshot + derived
+`isAdjustedFromSource` + `resetToSource`, two entry points (a **Use as estimate
+base** button on Analyze and a **Start from a blueprint** dropzone in Estimate,
+sharing one parse helper), an adjusted-vs-source indicator with reset, seed
+diagnostics for skipped modded blocks, and a geometry caption on the directional
+TWR. Locked decisions (with the user): both entry points; sized blocks seed the
+config choice and re-size counts. No new game data.
 
 **v0.12.0 (2026-08-07) — ranked thruster-type suggestions per direction
 (M6.6).** Estimate mode's "Customize by direction" let the user pin a type per
@@ -125,19 +142,14 @@ compute mass from `Components.sbc`, add it with a citation in
 seen so far are in the set; heavy armor, large-grid armor, and other shape
 variants are added on demand the same way.
 
-**The next unit of work is Phase 2.5 — M6.7 (Blueprint as a Base for an Estimate
-Build).** M6.5 shipped its two highest-value features in v0.11.0 —
-per-direction thruster mixing and the directional TWR readout in Estimate — and
-M6.6 (ranked thruster-type suggestions) shipped in v0.12.0, both built on the
-pure `estimateToDesign` bridge (a geometry-less `ShipDesign` the Analyze engine
-runs on unchanged). The one M6.5 deliverable deliberately deferred is the fully
-store-backed *mutable* loadout state; it's folded into M6.7, where seeding an
-Estimate build from an imported blueprint and adjusting its loadout is the real
-consumer that needs it. `estimateToDesign` is the (reverse-direction) seed for
-that. Follow the established rhythm: extend the engine in `src/core/engine` with
-worked-example tests → build the UI via the web-ui-builder agent → bump version +
-CHANGELOG + roadmap. No new game *data* is required (unlike Phase 3), so it's a
-lighter lift.
+**The next unit of work is Phase 3 — Production & Logistics (M7 + M8).** Phase
+2.5 is fully shipped: M6.5 (per-direction thruster mixing + directional TWR,
+v0.11.0), M6.6 (ranked thruster-type suggestions, v0.12.0), and M6.7 (blueprint
+as a base for an Estimate build, v0.13.0) all built on the pure `estimateToDesign`
+/ `designToEstimateSeed` bridges (a geometry-less `ShipDesign` the Analyze engine
+runs on unchanged). The M6.5 store-backed *mutable* loadout state that was
+deferred is now delivered as M6.7's `seedFromDesign` + source snapshot. Phase 3 is
+a heavier lift because it needs new game *data*.
 
 **Phase 3 — Production & Logistics (M7 + M8) is still queued** after 2.5. Note
 its data lift when the time comes: M7/M8 need NEW game data that isn't in the
@@ -157,13 +169,13 @@ SubtypeIds, drill/sensor wattages) against a live game install.
 
 ## Current State
 
-- **Version**: 0.12.0
+- **Version**: 0.13.0
 - **Repo**: pushed to `https://github.com/Pyurah/se-assistant` (`master`);
   commits use the GitHub no-reply email (real email scrubbed from history).
 - **Build**: passing (`pnpm build`)
-- **Tests**: passing — 246 tests across logger, audit, data-integrity, engine
-  (incl. `estimateRequirements`, the `estimateToDesign` bridge, the
-  `rankThrusterTypes` ranker, the fuel/flight-time engine, and the
+- **Tests**: passing — 276 tests across logger, audit, data-integrity, engine
+  (incl. `estimateRequirements`, the `estimateToDesign` + `designToEstimateSeed`
+  bridges, the `rankThrusterTypes` ranker, the fuel/flight-time engine, and the
   motion/stability engine), blueprint parser, number formatter,
   stores, and UI-rendering suites
 - **Phase**: Phases 1, 1.5, and 2 all COMPLETE. M1 dataset, M2 blueprint parser,
@@ -476,7 +488,7 @@ no new game data.
 
 ### M6.7 — Blueprint as a Base for an Estimate Build
 
-**Status**: Not started
+**Status**: ✅ Complete (v0.13.0)
 
 **Not** an in-place blueprint editor. The flow is: **import a `.sbc` → seed an
 Estimate build from its block list → adjust the loadout from there → see the
@@ -488,25 +500,30 @@ it. It's the reverse of the `estimateToDesign` bridge shipped in M6.5/v0.11.0
 milestone owns the store-backed mutable design state that adjusting the loadout
 needs.
 
-**Deliverables:**
+**Delivered (v0.13.0):**
 
-- [ ] **Seed the estimator from a parsed blueprint** — an import path that
-      populates the Estimate build's essentials/loadout from a `.sbc`'s block
-      list (the inverse of `estimateToDesign`), so the user starts from a real
-      hull instead of a blank slate.
-- [ ] **Store-backed mutable loadout** — adjustable design state the Analyze
-      engine runs on unchanged (both a seeded blueprint and a from-scratch
-      estimate produce one; mutation lives in the store, the model stays pure
-      data).
-- [ ] Add / remove / change block counts on the seeded build with live
-      recomputation across all analysis panels
-- [ ] Scope note: **counts/loadout, not geometry.** Center-of-mass and
-      thrust-alignment (Motion) depend on block *placement*, which a 2D web editor
-      can't meaningfully change; geometry-dependent readouts are flagged as
-      "reflects the original layout" when only counts were adjusted
-- [ ] A clear "adjusted — no longer matches the source file" indicator + reset
-- [ ] Tests: seed-from-blueprint round-trip, loadout-adjust recompute,
-      geometry-flag behavior
+- [x] **Seed the estimator from a parsed blueprint** — a pure `designToEstimateSeed`
+      engine mapper (the exact inverse of `estimateToDesign`): non-sized essentials
+      carry their real counts; the dominant thruster + power block preset the config
+      _model choices_ (per the locked decision) while the estimator re-sizes _how
+      many_. Two entry points: a **Use as estimate base** button on the Analyze
+      header, and a **Start from a blueprint** dropzone in Estimate mode (both share
+      one read-file-then-parse helper in `src/ui/lib/blueprint-import.ts`).
+- [x] **Store-backed mutable loadout** — `seedFromDesign` applies the seed in one
+      atomic `set` (never composed from `setGridSize`/`addBlock`, which would clear
+      essentials), snapshots the source, and hands back a fully adjustable build the
+      Analyze engine runs on unchanged.
+- [x] Add / remove / change block counts on the seeded build with live
+      recomputation across all analysis panels (already free via `useEstimate`).
+- [x] Scope note: **counts/loadout, not geometry.** The seeded build is
+      geometry-less; the directional-TWR readout carries a caption that TWR reflects
+      the imported ship's mass while thruster counts are re-estimated, not its layout.
+- [x] A clear "Adjusted — no longer matches _{source}_" indicator (derived via
+      `isAdjustedFromSource`) + **Reset to source**, plus seed diagnostics listing
+      modded/unrecognized blocks that couldn't be carried over.
+- [x] Tests: engine worked-examples + `estimateToDesign` round-trip, store
+      (atomic seed, dirty flip, reset, skipped), UI render (indicator, reset,
+      geometry caption).
 
 ---
 

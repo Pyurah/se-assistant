@@ -11,12 +11,14 @@ import { EssentialsBuilder } from '../ui/panels/EssentialsBuilder';
 import { EstimatorConfigPanel } from '../ui/panels/EstimatorConfigPanel';
 import { RecommendationsPanel } from '../ui/panels/RecommendationsPanel';
 import { EstimatorTwrPanel } from '../ui/panels/EstimatorTwrPanel';
+import { SeedFromBlueprint } from '../ui/panels/SeedFromBlueprint';
 
 export function EstimatorDashboard(): React.JSX.Element {
   return (
     <main className="mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 gap-4 p-6 lg:grid-cols-3">
-      {/* Left column: inputs — essentials builder + build goals. */}
+      {/* Left column: seed-from-blueprint affordance, then the essentials builder. */}
       <div className="flex flex-col gap-4">
+        <SeedFromBlueprint />
         <EssentialsBuilder />
       </div>
       <div className="flex flex-col gap-4">
