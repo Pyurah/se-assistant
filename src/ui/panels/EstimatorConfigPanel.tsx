@@ -21,10 +21,10 @@ import {
   type ThrusterBlock,
   type ThrusterType,
 } from '@data';
-import type { Responsiveness } from '@core';
+import type { Responsiveness, ThrusterTypeSuggestion } from '@core';
 import { useEstimatorStore, type PowerKind } from '../../app/store/estimator-store';
-import { resolvePlanet } from '../../app/hooks/use-estimate';
-import { formatGravity, formatPercent, formatForce, formatRuntime } from '../lib/format';
+import { resolvePlanet, useEstimate } from '../../app/hooks/use-estimate';
+import { formatGravity, formatPercent, formatForce, formatRuntime, formatCount } from '../lib/format';
 import { Panel } from '../components/Panel';
 import { Badge } from '../components/Badge';
 import { SegmentedControl } from '../components/SegmentedControl';
@@ -38,6 +38,13 @@ const THRUSTER_TYPE_LABELS: Record<ThrusterType, string> = {
 };
 
 const THRUSTER_TYPE_ORDER: readonly ThrusterType[] = ['hydrogen', 'ion', 'atmospheric'];
+
+/** Compact type label for the per-direction ranking chips. */
+const THRUSTER_TYPE_SHORT: Record<ThrusterType, string> = {
+  hydrogen: 'Hydrogen',
+  ion: 'Ion',
+  atmospheric: 'Atmospheric',
+};
 
 /** Per-direction rows for the "customize by direction" disclosure (UP first). */
 const DIRECTION_ROWS: readonly { dir: Direction; label: string }[] = [
@@ -92,6 +99,11 @@ export function EstimatorConfigPanel(): React.JSX.Element {
   const setCargoDensity = useEstimatorStore((s) => s.setCargoDensity);
 
   const planet = resolvePlanet(planetId);
+
+  // The live estimate powers the per-direction ranked type suggestions. Guard
+  // null (unresolvable config) — the chips simply don't render in that case.
+  const result = useEstimate();
+  const suggestions = result?.suggestions ?? null;
 
   // Thrusters for this grid, grouped by type (hydrogen / ion / atmospheric).
   const thrusterGroups = useMemo(() => {
@@ -281,38 +293,54 @@ export function EstimatorConfigPanel(): React.JSX.Element {
             <div className="flex flex-col gap-2.5 border-t border-border px-3 py-3">
               <p className="text-xs text-subtle">
                 Each direction uses the default above unless you pin a type here — e.g. atmospheric
-                lift with ion sides.
+                lift with ion sides. Counts are sized against the current build&apos;s loaded mass.
               </p>
               {DIRECTION_ROWS.map(({ dir, label }) => {
                 const overrideId = thrusterOverrides[dir];
                 const selectId = `est-thruster-${dir}`;
+                const ranked = suggestions?.[dir] ?? [];
                 return (
-                  <div key={dir} className="flex items-center gap-2">
-                    <label
-                      htmlFor={selectId}
-                      className="w-20 shrink-0 text-xs font-medium text-muted"
-                    >
-                      {label}
-                    </label>
-                    <select
-                      id={selectId}
-                      value={overrideId ?? ''}
-                      onChange={(e) =>
-                        setDirectionalThruster(dir, e.target.value === '' ? null : e.target.value)
-                      }
-                      className={cn(selectClass, 'h-8 flex-1 text-xs')}
-                    >
-                      <option value="">Same as default</option>
-                      {thrusterGroups.map(({ type, blocks }) => (
-                        <optgroup key={type} label={THRUSTER_TYPE_LABELS[type]}>
-                          {blocks.map((b) => (
-                            <option key={b.id} value={b.id}>
-                              {b.displayName} · {formatForce(b.maxThrust)}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
+                  <div key={dir} className="flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <label
+                        htmlFor={selectId}
+                        className="w-20 shrink-0 text-xs font-medium text-muted"
+                      >
+                        {label}
+                      </label>
+                      <select
+                        id={selectId}
+                        value={overrideId ?? ''}
+                        onChange={(e) =>
+                          setDirectionalThruster(dir, e.target.value === '' ? null : e.target.value)
+                        }
+                        className={cn(selectClass, 'h-8 flex-1 text-xs')}
+                      >
+                        <option value="">Same as default</option>
+                        {thrusterGroups.map(({ type, blocks }) => (
+                          <optgroup key={type} label={THRUSTER_TYPE_LABELS[type]}>
+                            {blocks.map((b) => (
+                              <option key={b.id} value={b.id}>
+                                {b.displayName} · {formatForce(b.maxThrust)}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                    </div>
+                    {ranked.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pl-[calc(5rem+0.5rem)]">
+                        {ranked.map((s, i) => (
+                          <SuggestionChip
+                            key={s.thrusterType}
+                            suggestion={s}
+                            rank={i}
+                            active={overrideId === s.blockId}
+                            onPick={() => setDirectionalThruster(dir, s.blockId)}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -463,5 +491,54 @@ export function EstimatorConfigPanel(): React.JSX.Element {
         </section>
       </div>
     </Panel>
+  );
+}
+
+/**
+ * One ranked thruster-*type* suggestion for a direction. Shows the type, the
+ * count it would take (or "—" when the type is dead here), and a short
+ * trade-off note. Clicking pins that type's least-added-mass variant; the
+ * pinned chip highlights. The engine already sorted them, so `rank` 0 is the
+ * best feasible option and gets a ✓.
+ */
+function SuggestionChip({
+  suggestion,
+  rank,
+  active,
+  onPick,
+}: {
+  suggestion: ThrusterTypeSuggestion;
+  rank: number;
+  active: boolean;
+  onPick: () => void;
+}): React.JSX.Element {
+  const { thrusterType, feasible, countNeeded, note, needsFuel } = suggestion;
+  const isTop = rank === 0 && feasible;
+  const countLabel = !feasible ? '—' : countNeeded === 0 ? '0' : `×${formatCount(countNeeded)}`;
+
+  return (
+    <button
+      type="button"
+      onClick={onPick}
+      aria-pressed={active}
+      disabled={!feasible}
+      title={`${THRUSTER_TYPE_SHORT[thrusterType]} — ${note}`}
+      className={cn(
+        'flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors duration-150',
+        active
+          ? 'border-accent bg-accent text-white'
+          : feasible
+            ? 'border-border bg-surface-2 text-muted hover:border-border-strong hover:text-fg'
+            : 'cursor-not-allowed border-border/60 bg-surface-2/50 text-subtle',
+      )}
+    >
+      {isTop && !active && <span className="text-success" aria-hidden>✓</span>}
+      <span>{THRUSTER_TYPE_SHORT[thrusterType]}</span>
+      <span className={cn('font-mono', active ? 'text-white' : 'text-fg-bright')}>{countLabel}</span>
+      {needsFuel && feasible && (
+        <span className={cn('text-[10px]', active ? 'text-white/80' : 'text-subtle')}>fuel</span>
+      )}
+      {!feasible && <span className="text-[10px]">n/a here</span>}
+    </button>
   );
 }

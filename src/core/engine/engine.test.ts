@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { VANILLA_BLOCKS_BY_ID } from '../../data/blocks';
+import { VANILLA_BLOCKS, VANILLA_BLOCKS_BY_ID } from '../../data/blocks';
 import { PLANET_PRESETS_BY_ID } from '../../data/planets';
 import type { ShipDesign, DesignBlock } from '../types';
 import type { ThrusterBlock, Direction } from '../../data/schema';
@@ -7,7 +7,7 @@ import { thrusterEffectiveness, effectiveThrust } from './thruster';
 import { dryMass, cargoCapacity, cargoMass, loadedMass, massByCategory } from './mass';
 import { directionalThrust, directionalTwr, liftAnalysis } from './twr';
 import { powerSummary } from './power';
-import { recommendThrusters } from './recommend';
+import { recommendThrusters, rankThrusterTypes } from './recommend';
 
 /** Build a DesignBlock from a dataset id, optionally with a thrust direction. */
 function block(id: string, quantity: number, thrustDirection?: Direction): DesignBlock {
@@ -300,5 +300,95 @@ describe('thruster recommender', () => {
     const r = recommendThrusters(atmoLarge, space, 1_000_000);
     expect(r.feasible).toBe(false);
     expect(r.countNeeded).toBe(Infinity);
+  });
+});
+
+describe('ranked thruster-type suggestions', () => {
+  // Every large-grid thruster block, both model sizes of each type.
+  const largeThrusters = VANILLA_BLOCKS.filter(
+    (b): b is ThrusterBlock => b.category === 'thruster' && b.gridSize === 'large',
+  );
+
+  it('Earthlike (dense air): counts are exact ceil(need / effective), ranked count-then-mass', () => {
+    // need = full thrust of one large atmospheric thruster in dense air.
+    const s = rankThrusterTypes(largeThrusters, earthlike, 6_480_000);
+    expect(s).toHaveLength(3);
+
+    // Atmospheric (eff 6.48 MN) and hydrogen (flat 7.2 MN) both need exactly 1;
+    // the tiebreak on added mass puts the lighter hydrogen (6,940 kg) first.
+    expect(s[0]!.thrusterType).toBe('hydrogen');
+    expect(s[0]!.countNeeded).toBe(1);
+    expect(s[0]!.blockId).toBe('large-large-hydrogen-thruster');
+    expect(s[0]!.needsFuel).toBe(true);
+    expect(s[0]!.note).toBe('works everywhere · needs fuel');
+
+    expect(s[1]!.thrusterType).toBe('atmospheric');
+    expect(s[1]!.countNeeded).toBe(1);
+    expect(s[1]!.blockId).toBe('large-large-atmospheric-thruster');
+    expect(s[1]!.note).toBe('strong in air');
+
+    // Ion is only 30% effective in dense air → 4.32 MN × 0.3 = 1.296 MN each,
+    // ceil(6.48 / 1.296) = 5.
+    expect(s[2]!.thrusterType).toBe('ion');
+    expect(s[2]!.countNeeded).toBe(5);
+    expect(s[2]!.blockId).toBe('large-large-ion-thruster');
+    expect(s[2]!.effectivePerThruster).toBeCloseTo(1_296_000, 0);
+    expect(s[2]!.note).toBe('weak in dense air');
+
+    // Every type is feasible in dense air.
+    expect(s.every((x) => x.feasible)).toBe(true);
+  });
+
+  it('variant selection: picks the least-added-mass model per type', () => {
+    // A small need (648 kN) is met by 1 small atmospheric (4,000 kg) — far less
+    // added mass than 1 large atmospheric (32,970 kg) — so the small variant wins.
+    const s = rankThrusterTypes(largeThrusters, earthlike, 648_000);
+    const atmo = s.find((x) => x.thrusterType === 'atmospheric')!;
+    expect(atmo.blockId).toBe('large-small-atmospheric-thruster');
+    expect(atmo.countNeeded).toBe(1);
+    expect(atmo.addedMass).toBeCloseTo(4_000, 0);
+  });
+
+  it('Moon (vacuum + gravity): atmospheric is infeasible and sorted last', () => {
+    const s = rankThrusterTypes(largeThrusters, moon, 4_320_000);
+    expect(s).toHaveLength(3);
+
+    // In vacuum ion runs at full power (4.32 MN each) → exactly 1.
+    expect(s[0]!.thrusterType).toBe('ion');
+    expect(s[0]!.countNeeded).toBe(1);
+    expect(s[0]!.feasible).toBe(true);
+    expect(s[0]!.note).toBe('full in vacuum');
+
+    // Hydrogen: least-added-mass variant is 4 small (5,680 kg) < 1 large (6,940 kg).
+    expect(s[1]!.thrusterType).toBe('hydrogen');
+    expect(s[1]!.countNeeded).toBe(4);
+    expect(s[1]!.blockId).toBe('large-small-hydrogen-thruster');
+
+    // Atmospheric produces zero thrust in vacuum → infeasible, ranked last.
+    expect(s[2]!.thrusterType).toBe('atmospheric');
+    expect(s[2]!.feasible).toBe(false);
+    expect(s[2]!.countNeeded).toBe(Infinity);
+    expect(s[2]!.addedMass).toBe(Infinity);
+    expect(s[2]!.note).toBe('no thrust in vacuum');
+  });
+
+  it('Space (no gravity): working types need 0, atmospheric still infeasible', () => {
+    const s = rankThrusterTypes(largeThrusters, space, 0);
+    const ion = s.find((x) => x.thrusterType === 'ion')!;
+    const hydro = s.find((x) => x.thrusterType === 'hydrogen')!;
+    const atmo = s.find((x) => x.thrusterType === 'atmospheric')!;
+
+    expect(ion.feasible).toBe(true);
+    expect(ion.countNeeded).toBe(0);
+    expect(ion.addedMass).toBe(0);
+    expect(hydro.feasible).toBe(true);
+    expect(hydro.countNeeded).toBe(0);
+
+    // No air means atmospheric is dead even with nothing to lift.
+    expect(atmo.feasible).toBe(false);
+    expect(atmo.countNeeded).toBe(Infinity);
+
+    // Feasible types always rank ahead of infeasible ones.
+    expect(s[s.length - 1]!.thrusterType).toBe('atmospheric');
   });
 });

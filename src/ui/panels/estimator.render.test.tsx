@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import { useEstimatorStore } from '../../app/store/estimator-store';
 import { RecommendationsPanel } from './RecommendationsPanel';
 import { EssentialsBuilder } from './EssentialsBuilder';
@@ -96,6 +96,39 @@ describe('EstimatorConfigPanel per-direction pickers', () => {
     render(<EstimatorConfigPanel />);
     const select = document.getElementById('est-thruster-left') as HTMLSelectElement;
     expect(select.value).toBe('large-large-ion-thruster');
+  });
+
+  it('renders ranked type chips under each direction once a build exists', () => {
+    state().addBlock('large-large-cargo-container');
+    state().setPlanet('earthlike');
+    render(<EstimatorConfigPanel />);
+    // Each direction's chip row exposes a pressable button per thruster type.
+    const upSelect = document.getElementById('est-thruster-up') as HTMLSelectElement;
+    const row = upSelect.closest('div')?.parentElement as HTMLElement;
+    const chips = within(row).getAllByRole('button');
+    // Three type chips (hydrogen / ion / atmospheric).
+    expect(chips.length).toBeGreaterThanOrEqual(3);
+    expect(within(row).getByText('Atmospheric')).toBeInTheDocument();
+    expect(within(row).getByText('Ion')).toBeInTheDocument();
+  });
+
+  it('clicking a suggestion chip pins that type to the direction', () => {
+    state().addBlock('large-large-cargo-container');
+    state().setPlanet('earthlike');
+    render(<EstimatorConfigPanel />);
+    const leftSelect = document.getElementById('est-thruster-left') as HTMLSelectElement;
+    expect(leftSelect.value).toBe('');
+    const row = leftSelect.closest('div')?.parentElement as HTMLElement;
+    // Pin ion to the LEFT axis by clicking its chip. The pinned block is the
+    // ion variant the engine ranked for this axis (least added mass) — which at
+    // the smaller lateral requirement is the small model, not the large one.
+    fireEvent.click(within(row).getByRole('button', { name: /^Ion/ }));
+    expect(state().thrusterOverrides.left).toMatch(/ion-thruster$/);
+    const pinned = state().thrusterOverrides.left;
+    // The select reflects the pinned block.
+    expect(
+      (document.getElementById('est-thruster-left') as HTMLSelectElement).value,
+    ).toBe(pinned);
   });
 });
 

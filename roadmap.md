@@ -1,6 +1,6 @@
 # SE Assistant — Product Roadmap
 
-> **Last Updated**: 2026-08-07 (v0.11.0)
+> **Last Updated**: 2026-08-07 (v0.12.0)
 
 A Space Engineers ship & base planner: import a blueprint (`.sbc`) and get
 instant thrust-to-weight, mass, cargo, and power analysis — empty vs fully
@@ -10,10 +10,25 @@ loaded, on any vanilla planet.
 
 ## 👉 Next session starts here
 
-**Everything through Phase 2 is DONE, committed, and pushed to GitHub**
-(`https://github.com/Pyurah/se-assistant`, branch `master`, at v0.11.0). Working
-tree is clean and all four gates pass (`typecheck` / `lint` / `test` (238) /
+**Everything through Phase 2 plus M6.6 is DONE, committed, and pushed to GitHub**
+(`https://github.com/Pyurah/se-assistant`, branch `master`, at v0.12.0). Working
+tree is clean and all four gates pass (`typecheck` / `lint` / `test` (246) /
 `build`). Nothing is half-finished.
+
+**v0.12.0 (2026-08-07) — ranked thruster-type suggestions per direction
+(M6.6).** Estimate mode's "Customize by direction" let the user pin a type per
+axis, but they picked blind. Now each axis shows the three thruster types ranked
+for the current build — feasible first, then fewest thrusters, then least added
+mass — each a one-click chip with the count it would take and a short trade-off
+tag (ion "weak in dense air", hydrogen "needs fuel", atmospheric "n/a here" in
+vacuum); a ✓ marks the top feasible pick. Clicking a chip pins that type's
+least-added-mass variant to the axis, feeding the existing per-direction config.
+The ranking is a new pure `rankThrusterTypes` engine function (exact arithmetic
+on the existing dataset via `effectiveThrust` + `weight`), sized against the
+current build's loaded mass and surfaced through a new `suggestions` field on the
+`useEstimate` result. Locked decision (with the user): rank the three *types*
+(each as its least-added-mass variant), not every block, to keep the narrow
+config column calm. No new game data.
 
 **v0.11.0 (2026-08-07) — per-direction thruster mix + directional TWR in
 Estimate.** Estimate mode was thin next to Analyze; this closes the two biggest
@@ -110,18 +125,19 @@ compute mass from `Components.sbc`, add it with a citation in
 seen so far are in the set; heavy armor, large-grid armor, and other shape
 variants are added on demand the same way.
 
-**The next unit of work is Phase 2.5 — M6.6 (Ranked Thruster-Type
-Suggestions), then M6.7 (Edit an Imported Blueprint).** M6.5 shipped its two
-highest-value features in v0.11.0 — per-direction thruster mixing and the
-directional TWR readout in Estimate — built on the pure `estimateToDesign`
-bridge (a geometry-less `ShipDesign` the Analyze engine runs on unchanged). The
-one M6.5 deliverable deliberately deferred is the fully store-backed *mutable*
-loadout state; it's folded into M6.7, where seeding an Estimate build from an
-imported blueprint and adjusting its loadout is the real consumer that needs it.
-`estimateToDesign` is the (reverse-direction) seed for that. Follow the established rhythm: extend the engine in
-`src/core/engine` with worked-example tests → build the UI via the web-ui-builder
-agent → bump version + CHANGELOG + roadmap. No new game *data* is required
-(unlike Phase 3), so it's a lighter lift.
+**The next unit of work is Phase 2.5 — M6.7 (Blueprint as a Base for an Estimate
+Build).** M6.5 shipped its two highest-value features in v0.11.0 —
+per-direction thruster mixing and the directional TWR readout in Estimate — and
+M6.6 (ranked thruster-type suggestions) shipped in v0.12.0, both built on the
+pure `estimateToDesign` bridge (a geometry-less `ShipDesign` the Analyze engine
+runs on unchanged). The one M6.5 deliverable deliberately deferred is the fully
+store-backed *mutable* loadout state; it's folded into M6.7, where seeding an
+Estimate build from an imported blueprint and adjusting its loadout is the real
+consumer that needs it. `estimateToDesign` is the (reverse-direction) seed for
+that. Follow the established rhythm: extend the engine in `src/core/engine` with
+worked-example tests → build the UI via the web-ui-builder agent → bump version +
+CHANGELOG + roadmap. No new game *data* is required (unlike Phase 3), so it's a
+lighter lift.
 
 **Phase 3 — Production & Logistics (M7 + M8) is still queued** after 2.5. Note
 its data lift when the time comes: M7/M8 need NEW game data that isn't in the
@@ -141,13 +157,14 @@ SubtypeIds, drill/sensor wattages) against a live game install.
 
 ## Current State
 
-- **Version**: 0.11.0
+- **Version**: 0.12.0
 - **Repo**: pushed to `https://github.com/Pyurah/se-assistant` (`master`);
   commits use the GitHub no-reply email (real email scrubbed from history).
 - **Build**: passing (`pnpm build`)
-- **Tests**: passing — 238 tests across logger, audit, data-integrity, engine
-  (incl. `estimateRequirements`, the `estimateToDesign` bridge, the fuel/flight-time
-  engine, and the motion/stability engine), blueprint parser, number formatter,
+- **Tests**: passing — 246 tests across logger, audit, data-integrity, engine
+  (incl. `estimateRequirements`, the `estimateToDesign` bridge, the
+  `rankThrusterTypes` ranker, the fuel/flight-time engine, and the
+  motion/stability engine), blueprint parser, number formatter,
   stores, and UI-rendering suites
 - **Phase**: Phases 1, 1.5, and 2 all COMPLETE. M1 dataset, M2 blueprint parser,
   M3 calc engine, M4 analysis UI, M4.5 requirement estimator, M5 fuel/flight
@@ -428,22 +445,34 @@ is only worth building alongside blueprint-seeded builds, so it moved to M6.7.
 
 ### M6.6 — Ranked Thruster-Type Suggestions
 
-**Status**: Not started
+**Status**: ✅ Complete (v0.12.0)
 
 The honest form of "recommend a thruster type for these sliders": not a black-box
 auto-pick, but a **ranked list of viable types per direction** so the user stays
 the decider and the app removes the arithmetic.
 
+Shipped as per-direction ranked chips inside "Customize by direction": for each
+axis, the three thruster types are ranked (feasible first, then fewest thrusters,
+then least added mass) with the count each would take and a short trade-off tag
+(ion "weak in dense air", hydrogen "needs fuel", atmospheric "n/a here" in
+vacuum); a ✓ marks the top feasible pick. Clicking a chip pins that type's
+least-added-mass variant to the axis (feeding the M6.5 per-direction config).
+Counts are sized against the current build's loaded mass. Locked decision (with
+the user): rank the three *types*, each represented by its least-added-mass
+variant — not every one of the 7–8 blocks — so the narrow config column stays
+calm. Exact arithmetic on the existing dataset (new pure `rankThrusterTypes`),
+no new game data.
+
 **Deliverables:**
 
-- [ ] For each direction, given planet + required thrust, size *every* candidate
-      thruster type and rank them (e.g. _"UP needs 1.2 MN — Atmospheric: 3 ✓ /
-      Hydrogen: 2 (needs fuel) / Ion: 9 (weak here)"_), with feasibility and
-      trade-off tags (fuel dependency, atmosphere fit, mass cost)
-- [ ] UI surfaces the ranking inline on the per-direction control; picking one
+- [x] For each direction, given planet + required thrust, size the candidate
+      thruster types and rank them (e.g. _"UP needs 6.48 MN — Hydrogen: 1 (fuel) /
+      Atmospheric: 1 ✓ / Ion: 5 (weak here)"_), with feasibility and trade-off
+      tags (fuel dependency, atmosphere fit, mass cost)
+- [x] UI surfaces the ranking inline on the per-direction control; picking one
       feeds M6.5's per-direction config
-- [ ] Tests: ranking correctness at representative planets (Earthlike / Moon /
-      space), infeasible-type exclusion
+- [x] Tests: ranking correctness at representative planets (Earthlike / Moon /
+      space), variant selection, infeasible-type exclusion
 
 ### M6.7 — Blueprint as a Base for an Estimate Build
 

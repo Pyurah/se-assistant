@@ -16,6 +16,8 @@ import {
   estimateToDesign,
   directionalTwr,
   uniformThrusters,
+  rankThrusterTypes,
+  weight,
   logger,
   DIRECTIONS,
   type Estimate,
@@ -24,8 +26,10 @@ import {
   type FixedBlockSpec,
   type PowerChoice,
   type DirectionalThrust,
+  type ThrusterTypeSuggestion,
 } from '@core';
 import {
+  VANILLA_BLOCKS,
   VANILLA_BLOCKS_BY_ID,
   PLANET_PRESETS_BY_ID,
   type BatteryBlock,
@@ -63,6 +67,14 @@ export interface EstimateResult {
   readonly thrusters: Record<Direction, ThrusterBlock>;
   /** The base (default) thruster — the type used for any un-overridden direction. */
   readonly thruster: ThrusterBlock;
+  /**
+   * Ranked thruster-*type* suggestions per direction, sized against the current
+   * build's loaded mass — feasible types first, then fewest thrusters, then
+   * least added mass. Powers the per-direction "which type here?" chips; picking
+   * one pins its least-added-mass variant. An honest snapshot at the current
+   * mass, not a re-run of the fixed point per candidate.
+   */
+  readonly suggestions: Record<Direction, readonly ThrusterTypeSuggestion[]>;
   readonly gyro: GyroscopeBlock;
   readonly powerBlock: BatteryBlock | PowerProducerBlock;
   /**
@@ -234,11 +246,28 @@ export function useEstimate(): EstimateResult | null {
       loaded: directionalTwr(design, planet, estimate.loadedMass),
     };
 
+    // Rank the thruster *types* per direction against the current build's loaded
+    // mass, using the same required-thrust formula the estimator itself uses
+    // (up = targetTwr × weight; each lateral axis = a fraction of that). The
+    // candidate set is every thruster of the current grid — the ranker reduces
+    // each type to its least-added-mass variant.
+    const candidates = VANILLA_BLOCKS.filter(
+      (b): b is ThrusterBlock => b.category === 'thruster' && b.gridSize === gridSize,
+    );
+    const upThrustNeeded = targetTwr * weight(estimate.loadedMass, planet.surfaceGravity);
+    const lateralThrustNeeded = lateralThrustFraction * upThrustNeeded;
+    const suggestions = {} as Record<Direction, readonly ThrusterTypeSuggestion[]>;
+    for (const dir of DIRECTIONS) {
+      const need = dir === 'up' ? upThrustNeeded : lateralThrustNeeded;
+      suggestions[dir] = rankThrusterTypes(candidates, planet, need);
+    }
+
     return {
       estimate,
       planet,
       thrusters,
       thruster,
+      suggestions,
       gyro,
       powerBlock,
       directional,

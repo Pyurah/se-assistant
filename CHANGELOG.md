@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.12.0] - 2026-08-07
+
+### Added
+
+- **Ranked thruster-type suggestions per direction (Estimate mode).** Inside
+  "Customize by direction," each axis now shows the three thruster types ranked
+  for the current build — feasible types first, then fewest thrusters, then least
+  added mass — each as a one-click chip with the count it would take and a short
+  trade-off note (e.g. ion "weak in dense air", hydrogen "needs fuel",
+  atmospheric "n/a here" in vacuum). A ✓ marks the top feasible pick. Clicking a
+  chip pins that type's least-added-mass variant to the axis, feeding the existing
+  per-direction config. Counts are sized against the current build's loaded mass.
+  The ranking is exact arithmetic on the existing block dataset (a new pure
+  `rankThrusterTypes` engine function), so it needs no new game data.
+
 ## [0.11.0] - 2026-08-07
 
 ### Added

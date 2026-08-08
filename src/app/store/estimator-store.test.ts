@@ -178,5 +178,34 @@ describe('estimator store', () => {
       expect(r?.directional.loaded.up).toBeGreaterThan(0);
       expect(r?.directional.empty.up).toBeGreaterThanOrEqual(r!.directional.loaded.up);
     });
+
+    it('exposes ranked thruster-type suggestions per direction', () => {
+      state().addBlock('large-large-cargo-container');
+      state().setPlanet('earthlike');
+      const { result } = renderHook(() => useEstimate());
+      const r = result.current;
+      expect(r).not.toBeNull();
+      // Three types ranked for the lift axis, best feasible pick first.
+      const up = r!.suggestions.up;
+      expect(up).toHaveLength(3);
+      expect(up[0]!.feasible).toBe(true);
+      expect(Number.isFinite(up[0]!.countNeeded)).toBe(true);
+      expect(up[0]!.countNeeded).toBeGreaterThan(0);
+      // In dense air, atmospheric is feasible and ion reads "weak".
+      const ion = up.find((s) => s.thrusterType === 'ion')!;
+      expect(ion.note).toBe('weak in dense air');
+    });
+
+    it('ranks atmospheric last (infeasible) in vacuum', () => {
+      state().addBlock('large-large-cargo-container');
+      state().setPlanet('moon'); // vacuum + gravity
+      const { result } = renderHook(() => useEstimate());
+      const up = result.current!.suggestions.up;
+      const atmo = up.find((s) => s.thrusterType === 'atmospheric')!;
+      expect(atmo.feasible).toBe(false);
+      expect(atmo.countNeeded).toBe(Infinity);
+      // Infeasible type sorts after every feasible one.
+      expect(up[up.length - 1]!.thrusterType).toBe('atmospheric');
+    });
   });
 });
