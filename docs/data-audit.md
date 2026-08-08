@@ -412,3 +412,78 @@ runs the real ship fine.
 
 Neither touches a block stat — both are corrections to the estimator's
 *aggregation and convergence*, matching the analyzer's existing peak-draw model.
+
+## Manufacturing data (M7 / v0.14.0)
+
+The build-cost analysis (`src/data/manufacturing.ts` + `src/core/engine/build-cost.ts`)
+introduces three new recipe tables — ore→ingot refining, component→ingot
+assembly, and per-block `<Components>` lists — plus refinery/assembler
+throughput presets. This is the citation log for those values.
+
+### Sources & cross-check
+
+- **Primary:** the official wiki, `spaceengineers.wiki.gg` — the *Refining*,
+  *Assembling*, and per-component pages (Steel Plate, Construction Component,
+  Motor, Computer, Reactor Component, Thruster Component, etc.), plus per-block
+  "Construction" component lists.
+- **Corroborating:** Keen's archived `Data/Blueprints.sbc` and `CubeBlocks.sbc`
+  (`github.com/KeenSoftwareHouse/SpaceEngineers`, 2019).
+
+**Cross-check result — high confidence.** Unlike thrust *force* (buffed ~17%
+post-2019), the refining ratios and assembly recipes are **identical** between
+the 2019 archive and the current wiki. Ore→ingot yields (Iron 0.7, Nickel 0.4,
+Cobalt 0.3, Silicon 0.7, Silver 0.1, Gold 0.01, Platinum 0.005), the standard
+Refinery multipliers (1.3× speed / 0.8× yield → 0.56 effective iron yield), and
+the core component recipes (Steel Plate = 21 kg Fe; Construction = 10 kg Fe;
+Metal Grid = 12 Fe / 5 Ni / 3 Co; Motor = 20 Fe / 5 Ni; Computer = 0.5 Fe /
+0.2 Si) all match. Per-block component lists were transcribed from the archive's
+`<Components>` blocks and spot-checked against the wiki. Where the two diverge,
+the **current-game value wins** (noted per-flag below).
+
+### Model
+
+- **1 ore unit = 1 kg.** Ore quantities are expressed and mined in kg; the
+  refine `yieldRatio` is ingot-kg per ore-kg.
+- **Effective ingot yield = baseYield × refinery MaterialEfficiency.** A standard
+  Refinery (0.8×) turns Iron ore at 0.7 × 0.8 = **0.56** — i.e. 21 kg of iron
+  ingot needs 37.5 kg of ore. This is the documented "Realistic" behaviour.
+- **Effective ingot cost = recipe ÷ Assembler-Efficiency world setting**
+  (×1 Realistic / ×3 / ×10). Default ×1 = full cost.
+- **Refine time = oreKg × baseTime ÷ RefineSpeed; assemble time = baseTime ÷
+  AssemblySpeed.** Refine time is the headline "time to gather" metric; assembly
+  time is secondary (a ship is refinery-bound, not assembler-bound).
+
+### Flagged / unverified values
+
+These carry a best-effort value but could **not** be confirmed to full
+certainty. Confirm against the local game's `.sbc` files if exactness matters.
+
+1. **Uranium refine ratio** — archive `0.007` (0.7%) vs current wiki `0.01`
+   (1%). Using **0.7%**. Uranium is fuel, not a component input, so this does
+   **not** affect any build-cost ore total; it exists in the table only for
+   completeness.
+2. **Stone / Gravel** — Stone refining is a multi-output recipe (Gravel + trace
+   Fe/Ni/Si). Only the **Gravel path** (`0.9`, consumed via Reactor components)
+   is modeled; the trace metals are unmodeled. Minor: Stone appears only in the
+   Reactor Component recipe.
+3. **Solar Cell recipe** — the archive lists `10 Ni / 8 Si`; solar was reworked
+   and the current wiki lists **`4 Ni / 6 Si`**. Using the current value.
+4. **Basic Refinery multipliers** — taken from the current wiki
+   (**0.65× speed / 0.7× yield**), superseding the archive's "Blast Furnace"
+   (1.6 / 0.9). Validated by the current combined iron figure (0.7 × 0.7 = 0.49).
+5. **Superconductor recipe** — using `10 Fe / 2 Au`. The current game may add
+   **~3 Co**; the cobalt term is omitted pending confirmation, so Superconductor
+   cost is a slight *under*-estimate if the Co term is real.
+6. **Assembly base times** for Metal Grid / Reactor Component / Solar Cell are
+   archive placeholders (`likely`). They affect only the secondary *assemble
+   time*, never ore totals.
+7. **Hydrogen Engine / Wind Turbine / Survival Kit component lists** — from the
+   current wiki (`likely`), not the 2019 archive (those blocks postdate it).
+8. **Survival-kit refining multipliers** are unconfirmed and therefore **not**
+   offered as a refinery preset (only the full Refinery and Basic Refinery are).
+9. **DLC / unlisted blocks** — blocks with no `<Components>` row in the dataset
+   (most lights, sensors, beacons, antennas, conveyors, landing gear,
+   logic/control blocks, and DLC-exclusive blocks) are reported by the engine as
+   **"cost unknown"**, never costed as zero. Reskin/variant blocks that are
+   stat-identical to a base block (`*SciFi`, `*Warfare2`, `SmallShipWelderReskin`,
+   `SmallBlockModularContainer`) map to the base recipe via `BLOCK_COST_ALIASES`.

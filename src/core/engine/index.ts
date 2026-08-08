@@ -15,3 +15,4 @@ export * from './estimate-to-design';
 export * from './design-to-estimate';
 export * from './fuel';
 export * from './motion';
+export * from './build-cost';

@@ -220,3 +220,13 @@ export function IconDroplet(props: IconProps): React.JSX.Element {
     </svg>
   );
 }
+
+export function IconHammer(props: IconProps): React.JSX.Element {
+  return (
+    <svg {...base(props)}>
+      <path d="M15 12l-8.4 8.4a2.1 2.1 0 0 1-3-3L12 9" />
+      <path d="M17.6 6.4 14 10l-4-4 3.6-3.6a2 2 0 0 1 2.8 0l1.2 1.2a2 2 0 0 1 0 2.8z" />
+      <path d="m9 11 4 4" />
+    </svg>
+  );
+}

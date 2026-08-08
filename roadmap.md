@@ -1,6 +1,6 @@
 # SE Assistant — Product Roadmap
 
-> **Last Updated**: 2026-08-07 (v0.13.0)
+> **Last Updated**: 2026-08-08 (v0.14.0)
 
 A Space Engineers ship & base planner: import a blueprint (`.sbc`) and get
 instant thrust-to-weight, mass, cargo, and power analysis — empty vs fully
@@ -10,10 +10,27 @@ loaded, on any vanilla planet.
 
 ## 👉 Next session starts here
 
-**Everything through Phase 2 plus M6.6 and M6.7 is DONE, committed, and pushed to
-GitHub** (`https://github.com/Pyurah/se-assistant`, branch `master`, at v0.13.0).
+**Everything through Phase 2 plus M6.6, M6.7, and the first Phase 3 slice (M7
+build cost) is DONE, committed, and pushed to GitHub**
+(`https://github.com/Pyurah/se-assistant`, branch `master`, at v0.14.0).
 Working tree is clean and all four gates pass (`typecheck` / `lint` / `test`
-(276) / `build`). Nothing is half-finished.
+(293) / `build`). Nothing is half-finished.
+
+**v0.14.0 (2026-08-08) — blueprint build cost (Phase 3 / M7, first slice).**
+Analyze now answers "what does it take to _build_ this ship?": total raw ore to
+mine (by metal), total ingots, and refine time — walking blocks → components →
+ingots → ore with exact arithmetic on the game's recipes. New pure manufacturing
+dataset (`src/data/manufacturing.ts`: refine recipes, component recipes, per-block
+`<Components>` costs, reskin aliases, refinery/assembler presets), new pure
+`buildCost` engine (+ `totalOreMass`/`totalIngotMass`, 13 worked-example tests),
+and a **Build cost** panel in the Analyze right rail with adjustable refinery /
+assembler / Assembler-Efficiency and honest "cost known for N of M block types"
+coverage (modded/unknown blocks flagged, never costed as zero). Every dataset
+value citation-logged in `docs/data-audit.md` with 9 confidence flags (cross-check
+found refining/assembly recipes unchanged since the 2019 archive — high
+confidence). Locked decisions (with the user): build cost is the first Phase 3
+slice; 1 ore = 1 kg; Assembler-Efficiency ×1 default; refine time is the headline
+resource metric.
 
 **v0.13.0 (2026-08-07) — blueprint as a base for an Estimate build (M6.7).**
 Analyze read a finished ship; Estimate sized one from scratch; the two were
@@ -142,45 +159,43 @@ compute mass from `Components.sbc`, add it with a citation in
 seen so far are in the set; heavy armor, large-grid armor, and other shape
 variants are added on demand the same way.
 
-**The next unit of work is Phase 3 — Production & Logistics (M7 + M8).** Phase
-2.5 is fully shipped: M6.5 (per-direction thruster mixing + directional TWR,
-v0.11.0), M6.6 (ranked thruster-type suggestions, v0.12.0), and M6.7 (blueprint
-as a base for an Estimate build, v0.13.0) all built on the pure `estimateToDesign`
-/ `designToEstimateSeed` bridges (a geometry-less `ShipDesign` the Analyze engine
-runs on unchanged). The M6.5 store-backed *mutable* loadout state that was
-deferred is now delivered as M6.7's `seedFromDesign` + source snapshot. Phase 3 is
-a heavier lift because it needs new game *data*.
-
-**Phase 3 — Production & Logistics (M7 + M8) is still queued** after 2.5. Note
-its data lift when the time comes: M7/M8 need NEW game data that isn't in the
-dataset yet — **component recipes, refinery/assembler conversion ratios +
-processing times, and block build-costs** (ore → ingot → component → block).
-That's a bigger research pass than Phase 2 needed: research the numbers with a
-subagent (cite in `docs/data-audit.md`, flag anything unconfirmed) → extend the
-schema/dataset → build the pure engine with worked-example tests → build the UI
-panel → bump version.
+**The next unit of work continues Phase 3 — Production & Logistics (M7 + M8).**
+Phase 2.5 is fully shipped (M6.5 v0.11.0, M6.6 v0.12.0, M6.7 v0.13.0), and Phase
+3 is under way: **M7 build cost shipped in v0.14.0** (the ore-to-build slice the
+user chose first), delivering the new manufacturing dataset the rest of Phase 3
+builds on. Remaining M7 deliverables reuse that dataset: **refinery/assembler
+throughput + optimal ratios** (a standalone "how many refiners to keep N
+assemblers fed" calculator — recipes, times, and multipliers are already in
+`manufacturing.ts`) and **conveyor throughput**. **M8 — Life Support & Combat**
+still needs NEW game data not yet in the dataset (O2/H2 generation rates vs crew,
+weapon DPS/ammo) — a fresh research pass (cite in `docs/data-audit.md`, flag
+anything unconfirmed) → dataset → pure engine + worked-example tests → UI → bump.
 
 If instead the user wants polish over new features: candidate small wins are a
 GitHub Actions CI workflow (run the four gates on push), README screenshots, or
 resolving the flagged-uncertain data values in `docs/data-audit.md` (some DLC
-SubtypeIds, drill/sensor wattages) against a live game install.
+SubtypeIds, drill/sensor wattages, the Superconductor cobalt term) against a live
+game install.
 
 ---
 
 ## Current State
 
-- **Version**: 0.13.0
+- **Version**: 0.14.0
 - **Repo**: pushed to `https://github.com/Pyurah/se-assistant` (`master`);
   commits use the GitHub no-reply email (real email scrubbed from history).
 - **Build**: passing (`pnpm build`)
-- **Tests**: passing — 276 tests across logger, audit, data-integrity, engine
+- **Tests**: passing — 293 tests across logger, audit, data-integrity, engine
   (incl. `estimateRequirements`, the `estimateToDesign` + `designToEstimateSeed`
-  bridges, the `rankThrusterTypes` ranker, the fuel/flight-time engine, and the
-  motion/stability engine), blueprint parser, number formatter,
-  stores, and UI-rendering suites
-- **Phase**: Phases 1, 1.5, and 2 all COMPLETE. M1 dataset, M2 blueprint parser,
-  M3 calc engine, M4 analysis UI, M4.5 requirement estimator, M5 fuel/flight
-  time, M6 motion/stability — all delivered. React 19 + Vite + TypeScript SPA,
+  bridges, the `rankThrusterTypes` ranker, the `buildCost` bill-of-materials
+  engine, the fuel/flight-time engine, and the motion/stability engine),
+  blueprint parser, number formatter, stores, and UI-rendering suites
+- **Phase**: Phases 1, 1.5, and 2 all COMPLETE; Phase 3 begun. M1 dataset, M2
+  blueprint parser, M3 calc engine, M4 analysis UI, M4.5 requirement estimator,
+  M5 fuel/flight time, M6 motion/stability — all delivered. Phase 3 / M7 opened
+  with the build-cost slice (v0.14.0): a manufacturing dataset (refine + component
+  recipes, per-block component costs) and a pure `buildCost` engine that walks
+  blocks → components → ingots → raw ore. React 19 + Vite + TypeScript SPA,
   `src/core` + `src/data` purity boundary (ESLint enforced), structured logging,
   append-only audit model, Vitest with enforced engine coverage thresholds,
   Tailwind v4, Zod, Zustand.
@@ -531,13 +546,28 @@ needs.
 
 ### M7 — Manufacturing
 
-**Status**: Not started
+**Status**: 🚧 In progress — build cost shipped (v0.14.0)
 
 **Deliverables:**
 
 - [ ] Refinery / assembler throughput and optimal ratios
-- [ ] Blueprint total resource cost (ore-to-build)
+- [x] Blueprint total resource cost (ore-to-build) — **v0.14.0**
 - [ ] Conveyor throughput analysis
+
+**Delivered (v0.14.0):** build-cost analysis for an imported ship. New pure
+manufacturing dataset (`src/data/manufacturing.ts`) — ore→ingot refine recipes
+(yield + base time), component→ingot recipes (ingot kg + time), per-block
+`<Components>` costs keyed by SubtypeId, reskin/variant aliases, and refinery/
+assembler throughput presets, all citation-logged in `docs/data-audit.md` with 9
+confidence flags. New pure `buildCost(design, opts)` engine (blocks → components
+→ ingots → raw ore, with the Assembler-Efficiency divisor and refinery yield/
+speed multipliers) + `totalOreMass`/`totalIngotMass` helpers, covered by 13
+worked-example tests with hand-verified reference values. New **Build cost** panel
+in the Analyze right rail: raw ore (by metal), ingots, refine time, adjustable
+refinery/assembler/efficiency, and honest "cost known for N of M block types"
+reporting (modded/unrecognized blocks flagged, never zeroed). Locked decisions
+(with the user): build cost is the first Phase 3 slice; 1 ore unit = 1 kg;
+Assembler-Efficiency ×1 default; refine time is the headline resource metric.
 
 ### M8 — Life Support & Combat
 

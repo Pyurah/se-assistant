@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.14.0] - 2026-08-08
+
+### Added
+
+- **Build cost analysis.** The Analyze view now reports what it takes to
+  _construct_ an imported ship: total **raw ore** to mine (broken down by metal),
+  total ingots, and the **refine time** to process it — computed by walking the
+  manufacturing chain in reverse (blocks → components → ingots → raw ore) with
+  exact arithmetic on the game's recipes. A new **Build cost** panel sits in the
+  Analyze dashboard's right rail.
+- **Adjustable manufacturing settings.** Toggle Refinery vs Basic Refinery,
+  Assembler vs Basic Assembler, and the world's Assembler-Efficiency (×1 / ×3 /
+  ×10) — the ore totals and times recompute live, since a Basic Refinery's lower
+  yield materially changes how much ore a ship really costs.
+- **Honest coverage reporting.** Blocks the dataset has no recipe for (modded,
+  or not-yet-transcribed vanilla blocks) are listed as "cost unknown" chips with
+  a "cost known for N of M block types" count — never silently costed as zero.
+  Reskin/variant blocks map to their base recipe.
+- New manufacturing dataset (`src/data/manufacturing.ts`): ore→ingot refine
+  recipes, component→ingot recipes, per-block component costs, and refinery/
+  assembler throughput presets — every value citation-logged in
+  [`docs/data-audit.md`](./docs/data-audit.md) with confidence flags.
+
 ## [0.13.0] - 2026-08-07
 
 ### Added

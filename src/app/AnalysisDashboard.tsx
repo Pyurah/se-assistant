@@ -19,6 +19,7 @@ import { PowerPanel } from '../ui/panels/PowerPanel';
 import { FuelPanel } from '../ui/panels/FuelPanel';
 import { MotionPanel } from '../ui/panels/MotionPanel';
 import { BlockListPanel } from '../ui/panels/BlockListPanel';
+import { BuildCostPanel } from '../ui/panels/BuildCostPanel';
 
 export function AnalysisDashboard(): React.JSX.Element {
   const design = useDesignStore((s) => s.design);
@@ -78,6 +79,7 @@ export function AnalysisDashboard(): React.JSX.Element {
         <div className="flex flex-col gap-4">
           <PlanetSelector />
           <CargoControl />
+          <BuildCostPanel />
           <BlockListPanel />
         </div>
       </main>

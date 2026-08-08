@@ -31,6 +31,11 @@ Drag in an exported `.sbc` (or load the bundled example) and get a live readout:
   and battery runtime under load.
 - **Fuel & flight time** — total hydrogen capacity, hover time and full-throttle
   time on a full tank, reactor uranium burn, solar sizing guidance.
+- **Build cost** — what it takes to _construct_ the ship: total raw ore to mine
+  (by metal), total ingots, and refine time — walking blocks → components →
+  ingots → ore with exact arithmetic on the game's recipes. Toggle refinery /
+  assembler tier and Assembler-Efficiency and the ore totals recompute; blocks
+  with no recipe are flagged "cost unknown" rather than counted as free.
 - **Motion & stability** — dampener stopping distance, center of mass,
   thrust-center alignment (off-center thrust that causes unwanted spin), and a
   gyroscope turn-rate estimate.
@@ -74,17 +79,18 @@ relationship clear.
   from the game — SE Assistant does exact arithmetic on them, cross-referenced
   to the official wiki and cited in [`docs/data-audit.md`](./docs/data-audit.md).
 - The pure calc engine is covered by **worked-example tests** with hand-verified
-  reference values (currently **276 tests**).
+  reference values (currently **293 tests**).
 - Where a value is genuinely an estimate — the gyro turn-rate (needs the ship's
   moment of inertia) or stopping distance (ignores per-axis gravity) — the UI
   says so rather than implying false precision.
 
 ## Status
 
-Version **0.13.0**. Phases 1 (core engine + blueprint import), 1.5 (requirement
+Version **0.14.0**. Phases 1 (core engine + blueprint import), 1.5 (requirement
 estimator), 2 (fuel/flight-time + motion/stability), and 2.5 (Estimate-mode
-enhancements incl. blueprint-seeded builds) are complete. See
-[`roadmap.md`](./roadmap.md) for what's next (production/logistics,
+enhancements incl. blueprint-seeded builds) are complete, and Phase 3
+(production/logistics) has begun with **build-cost analysis**. See
+[`roadmap.md`](./roadmap.md) for what's next (rest of production/logistics,
 multi-design compare, PWA offline) and [`CHANGELOG.md`](./CHANGELOG.md) for
 release history.
 
