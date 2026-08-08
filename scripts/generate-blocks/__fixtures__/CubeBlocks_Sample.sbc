@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <CubeBlocks>
+        <!-- 699 kg mass anchor + full thruster stat coverage (atmospheric envelope). -->
+        <Definition xsi:type="MyObjectBuilder_ThrustDefinition">
+            <Id>
+                <TypeId>Thrust</TypeId>
+                <SubtypeId>SmallBlockSmallAtmosphericThrust</SubtypeId>
+            </Id>
+            <DisplayName>DisplayName_Block_SmallAtmoThrust</DisplayName>
+            <CubeSize>Small</CubeSize>
+            <Size x="1" y="1" z="3" />
+            <ThrusterType>Atmospheric</ThrusterType>
+            <Components>
+                <Component Subtype="SteelPlate" Count="2" />
+                <Component Subtype="Construction" Count="20" />
+                <Component Subtype="LargeTube" Count="1" />
+                <Component Subtype="MetalGrid" Count="1" />
+                <Component Subtype="Motor" Count="18" />
+                <Component Subtype="Construction" Count="2" />
+                <Component Subtype="SteelPlate" Count="1" />
+            </Components>
+            <ForceMagnitude>96000</ForceMagnitude>
+            <MaxPowerConsumption>0.600</MaxPowerConsumption>
+            <MinPlanetaryInfluence>0.3</MinPlanetaryInfluence>
+            <MaxPlanetaryInfluence>1</MaxPlanetaryInfluence>
+            <EffectivenessAtMinInfluence>0</EffectivenessAtMinInfluence>
+            <EffectivenessAtMaxInfluence>1</EffectivenessAtMaxInfluence>
+            <Public>true</Public>
+        </Definition>
+
+        <!-- Battery: MW->W and MWh->Wh conversions. Nested CriticalComponent
+             SubtypeId must NOT be mistaken for a mass component. -->
+        <Definition xsi:type="MyObjectBuilder_BatteryBlockDefinition">
+            <Id>
+                <TypeId>BatteryBlock</TypeId>
+                <SubtypeId>LargeBlockBatteryBlock</SubtypeId>
+            </Id>
+            <DisplayName>DisplayName_Block_Battery</DisplayName>
+            <CubeSize>Large</CubeSize>
+            <Components>
+                <Component Subtype="SteelPlate" Count="20" />
+                <Component Subtype="PowerCell" Count="80">
+                    <DeconstructId>
+                        <TypeId>Ingot</TypeId>
+                        <SubtypeId>Scrap</SubtypeId>
+                    </DeconstructId>
+                </Component>
+                <Component Subtype="Computer" Count="25" />
+            </Components>
+            <MaxPowerOutput>12</MaxPowerOutput>
+            <RequiredPowerInput>12</RequiredPowerInput>
+            <MaxStoredPower>3</MaxStoredPower>
+            <Public>true</Public>
+        </Definition>
+
+        <!-- Unmapped xsi:type -> mass-only 'other'. -->
+        <Definition xsi:type="MyObjectBuilder_MergeBlockDefinition">
+            <Id>
+                <TypeId>MergeBlock</TypeId>
+                <SubtypeId>SmallShipMergeBlock</SubtypeId>
+            </Id>
+            <DisplayName>DisplayName_Block_MergeBlock</DisplayName>
+            <CubeSize>Small</CubeSize>
+            <Components>
+                <Component Subtype="SteelPlate" Count="4" />
+                <Component Subtype="Construction" Count="5" />
+            </Components>
+            <Public>true</Public>
+        </Definition>
+
+        <!-- Public=false -> skipped entirely. -->
+        <Definition xsi:type="MyObjectBuilder_ThrustDefinition">
+            <Id>
+                <TypeId>Thrust</TypeId>
+                <SubtypeId>PrototypeHiddenThruster</SubtypeId>
+            </Id>
+            <DisplayName>DisplayName_Block_Hidden</DisplayName>
+            <CubeSize>Large</CubeSize>
+            <Components>
+                <Component Subtype="SteelPlate" Count="10" />
+            </Components>
+            <ThrusterType>Ion</ThrusterType>
+            <ForceMagnitude>100000</ForceMagnitude>
+            <Public>false</Public>
+        </Definition>
+
+        <!-- Stat-bearing type missing a required field (ForceMagnitude) ->
+             downgraded to mass-only 'other' + diagnostic. -->
+        <Definition xsi:type="MyObjectBuilder_ThrustDefinition">
+            <Id>
+                <TypeId>Thrust</TypeId>
+                <SubtypeId>BrokenThrusterNoForce</SubtypeId>
+            </Id>
+            <DisplayName>DisplayName_Block_Broken</DisplayName>
+            <CubeSize>Large</CubeSize>
+            <Components>
+                <Component Subtype="SteelPlate" Count="3" />
+            </Components>
+            <ThrusterType>Ion</ThrusterType>
+            <Public>true</Public>
+        </Definition>
+
+        <!-- DLC-tagged block (Warfare2). -->
+        <Definition xsi:type="MyObjectBuilder_BatteryBlockDefinition">
+            <Id>
+                <TypeId>BatteryBlock</TypeId>
+                <SubtypeId>SmallBlockBatteryBlockWarfare2</SubtypeId>
+            </Id>
+            <DisplayName>DisplayName_Block_BatteryWarfare2</DisplayName>
+            <CubeSize>Small</CubeSize>
+            <Components>
+                <Component Subtype="SteelPlate" Count="8" />
+                <Component Subtype="PowerCell" Count="20" />
+                <Component Subtype="Computer" Count="5" />
+            </Components>
+            <MaxPowerOutput>0.2</MaxPowerOutput>
+            <RequiredPowerInput>0.2</RequiredPowerInput>
+            <MaxStoredPower>0.05</MaxStoredPower>
+            <Public>true</Public>
+            <DLC>Warfare2</DLC>
+        </Definition>
+
+        <!-- Plain <Definition> (no xsi:type), no <Public> tag -> mass-only
+             'other', treated as buildable (armor default). DisplayName key has
+             no resx entry -> falls back to the key text. -->
+        <Definition>
+            <Id>
+                <TypeId>CubeBlock</TypeId>
+                <SubtypeId>SmallHeavyBlockArmorBlock</SubtypeId>
+            </Id>
+            <DisplayName>DisplayName_Block_HeavyArmorBlock</DisplayName>
+            <CubeSize>Small</CubeSize>
+            <Components>
+                <Component Subtype="SteelPlate" Count="150" />
+                <Component Subtype="MetalGrid" Count="50" />
+            </Components>
+        </Definition>
+    </CubeBlocks>
+</Definitions>

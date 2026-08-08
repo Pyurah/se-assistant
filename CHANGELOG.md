@@ -4,6 +4,48 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.16.0] - 2026-08-08
+
+### Added
+
+- **Block dataset generator — full vanilla coverage from the game's own files.**
+  A new build-time tool (`pnpm generate:blocks`) reads the installed Space
+  Engineers definition files (`Content/Data/CubeBlocks/*.sbc`, `Components.sbc`,
+  and the localization `.resx`) and emits
+  [`src/data/generated-blocks.ts`](./src/data/generated-blocks.ts) — **1,455
+  buildable blocks** tagged `source: 'definition'`, with mass derived from each
+  block's `<Components>` list and physics stats (thrust, power, torque, battery
+  I/O and capacity) read straight from the definition. Committed to the repo so
+  CI and other contributors never need the game installed.
+- **Merged block dataset** ([`src/data/all-blocks.ts`](./src/data/all-blocks.ts)):
+  generated definitions fill gaps while curated `source: 'vanilla'` blocks **win
+  on any subtypeId conflict** — hand-verified stats are never overwritten. The
+  blueprint resolver now matches this full set, so the "Heavy Space Fighter"
+  blueprint's 26 formerly-unrecognized subtypes (heavy-armor shape family, SciFi
+  thrusters, Warfare 2 weapons, merge block, projector, air vent) resolve with
+  real mass instead of landing as `mass: 0` placeholders.
+- `pnpm generate:blocks:check` — a CI drift guard (where the game is available)
+  that regenerates in memory and diffs the committed file.
+
+### Changed
+
+- Blueprint block resolution ([`resolve-block.ts`](./src/core/blueprint/resolve-block.ts))
+  now reads the merged `BLOCKS_BY_SUBTYPE` instead of the curated-only map. The
+  estimator and other trusted-stat consumers stay curated-scoped by design.
+
+### Notes
+
+- Definition-sourced **mass and physics are trusted**. Fields the game computes
+  rather than stores literally — cargo inventory volume, hydrogen L/s burn rates,
+  drill/tool operating wattage — are intentionally omitted from generated entries
+  and remain curated-only (see [`docs/data-audit.md`](./docs/data-audit.md)).
+- Two Prototech thrusters (`ThrusterType: Prototech`, outside the vanilla
+  `atmospheric | ion | hydrogen` union) are correctly emitted as mass-only
+  `'other'` rather than fabricated thrusters.
+- Regenerating `BLOCK_COMPONENT_COSTS` (build-cost data) from the parsed
+  `<Components>` is a planned fast-follow — this release covers block
+  definitions (mass + physics) only.
+
 ## [0.15.0] - 2026-08-08
 
 ### Added
@@ -130,7 +172,7 @@ All notable changes to this project are documented here. The format follows
 - **Estimator no longer over-sizes batteries.** A small-grid mining ship
   (cockpit, 3 drills, connector, ore detector) on atmospheric thrusters was told
   it needed **4 warfare batteries**; it now needs far fewer. The estimator sized
-  power against *every* thruster direction firing at once, but opposing thrusters
+  power against _every_ thruster direction firing at once, but opposing thrusters
   (up/down, fwd/back, left/right) never fire together — the same realism the
   power-budget analyzer already applies. Peak draw (and the battery count it
   drives) now counts only the larger side of each opposing pair. In the reported
@@ -167,7 +209,7 @@ All notable changes to this project are documented here. The format follows
   game item — Ingots (Iron, Gold, Uranium, Platinum, …), Ores, or Components
   (Steel Plate, Computer, Power Cell, …) — and derives the cargo density from that
   item's exact mass and volume. This replaces the old "custom kg/L" field, which
-  was confusing because the game shows every item as a **mass** (kg) *and* a
+  was confusing because the game shows every item as a **mass** (kg) _and_ a
   **volume** (L), never a density. For anything not in the list you can still enter
   a **Mass** and **Volume** directly and the app computes the density for you.
 - **Cargo item dataset** (`src/data/cargo-items.ts`) — 44 haulable items (ingots,
@@ -343,7 +385,7 @@ All notable changes to this project are documented here. The format follows
 ### Added
 
 - **Design From Scratch — Requirement Estimator (new app mode)** — the inverse
-  of blueprint import. You can't export a blueprint until *after* a ship is
+  of blueprint import. You can't export a blueprint until _after_ a ship is
   built, so this mode lets you declare your essential gear and goals up front and
   have the app estimate the rest. A top-level segmented control in the app header
   switches between "Analyze blueprint" (existing) and "Estimate build" (new); the
@@ -379,7 +421,7 @@ All notable changes to this project are documented here. The format follows
     maneuverability segmented control, and the cargo loadout controls.
   - **Recommendations panel** (the payoff): per-direction thruster counts (UP
     emphasized), total thrusters, power-block count with a supply-vs-peak-draw
-    meter, a gyro count clearly badged as an *estimate*, resulting dry/loaded
+    meter, a gyro count clearly badged as an _estimate_, resulting dry/loaded
     mass and achieved loaded up-TWR (with a zero-g "n/a" case), prominent engine
     warnings, and a note to import the real blueprint afterward to verify. Ships
     empty, live, and infeasible/warning states.

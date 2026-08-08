@@ -1,6 +1,6 @@
 # SE Assistant — Product Roadmap
 
-> **Last Updated**: 2026-08-08 (v0.14.0)
+> **Last Updated**: 2026-08-08 (v0.16.0)
 
 A Space Engineers ship & base planner: import a blueprint (`.sbc`) and get
 instant thrust-to-weight, mass, cargo, and power analysis — empty vs fully
@@ -10,11 +10,11 @@ loaded, on any vanilla planet.
 
 ## 👉 Next session starts here
 
-**Everything through Phase 2 plus M6.6, M6.7, and the first Phase 3 slice (M7
-build cost) is DONE, committed, and pushed to GitHub**
-(`https://github.com/Pyurah/se-assistant`, branch `master`, at v0.14.0).
-Working tree is clean and all four gates pass (`typecheck` / `lint` / `test`
-(293) / `build`). Nothing is half-finished.
+**Everything through Phase 2 plus M6.6, M6.7, the first Phase 3 slice (M7 build
+cost + throughput), and the v0.16.0 full-coverage block generator is DONE,
+committed, and pushed to GitHub** (`https://github.com/Pyurah/se-assistant`,
+branch `master`, at v0.16.0). Working tree is clean and all four gates pass
+(`typecheck` / `lint` / `test` (345) / `build`). Nothing is half-finished.
 
 **v0.14.0 (2026-08-08) — blueprint build cost (Phase 3 / M7, first slice).**
 Analyze now answers "what does it take to _build_ this ship?": total raw ore to
@@ -60,7 +60,7 @@ least-added-mass variant to the axis, feeding the existing per-direction config.
 The ranking is a new pure `rankThrusterTypes` engine function (exact arithmetic
 on the existing dataset via `effectiveThrust` + `weight`), sized against the
 current build's loaded mass and surfaced through a new `suggestions` field on the
-`useEstimate` result. Locked decision (with the user): rank the three *types*
+`useEstimate` result. Locked decision (with the user): rank the three _types_
 (each as its least-added-mass variant), not every block, to keep the narrow
 config column calm. No new game data.
 
@@ -77,7 +77,7 @@ axis is flagged with a soft per-axis warning instead of blocking the whole
 estimate; a dead UP axis still hard-stops. A "Customize by direction" disclosure
 under the thruster picker exposes six selects (each "Same as default" until
 pinned). (2) **Directional TWR readout in Estimate** — a new panel runs the
-recommended build through the *same* trusted TWR engine Analyze uses, via a new
+recommended build through the _same_ trusted TWR engine Analyze uses, via a new
 pure `estimateToDesign` bridge that synthesizes a geometry-less `ShipDesign` from
 the estimate. Six-axis bars, Empty/Loaded toggle, UP emphasized, per-direction
 thruster captions when the build mixes types — answering "can I hold altitude
@@ -89,7 +89,7 @@ blueprint's loadout). No dataset values changed.
 **v0.10.2 (2026-08-07) — estimator power-sizing realism.** Two power bugs on a
 real small-grid mining ship (cockpit, 3 drills, connector, ore detector) that
 was told it needed **4 warfare batteries** for a ship half that runs fine. (1)
-The estimator sized power against *all six* thruster directions at full draw,
+The estimator sized power against _all six_ thruster directions at full draw,
 but opposing pairs never fire together — the same realism the analyzer's
 `peakDraw()` already applies (v0.10.0). Peak draw and the battery count it drives
 now count only the larger side of each opposing pair (`up + 2×lateral`); the
@@ -127,6 +127,27 @@ supplied instead of "0 W generation / brownout". Both cited in
 `docs/data-audit.md`. The store's `densityKgPerL` and the pure engine are
 unchanged — the item→density mapping lives entirely in `CargoControl.tsx`.
 
+**v0.16.0 (2026-08-08) — block dataset generator, full vanilla coverage.** The
+on-demand block-adding workflow described in the v0.9.1 note (read a SubtypeId,
+find its def, hand-add it) finally stopped scaling: a real "Heavy Space Fighter"
+import showed **26 distinct unrecognized subtypes** — the whole small-grid
+heavy-armor shape family, SciFi thrusters, Warfare 2 weapons, merge block,
+projector, air vent — all landing as `mass: 0` placeholders and corrupting its
+mass/TWR/power/cargo. Fixed at the root: a new build-time generator
+(`scripts/generate-blocks/`, `pnpm generate:blocks`) reads the game's own
+`CubeBlocks/*.sbc` + `Components.sbc` + localization and emits
+`src/data/generated-blocks.ts` — **1,455 buildable blocks** (`source:
+'definition'`), mass from each block's `<Components>`, physics stats read from
+the definition. A merge module (`src/data/all-blocks.ts`) fills gaps with the
+generated set while **curated `vanilla` blocks win on any conflict** (no
+hand-verified stat is overwritten), and the blueprint resolver now matches the
+full set — the fighter resolves completely. Committed output means CI needs no
+game install; pure parser is fixture-tested; `pnpm generate:blocks:check` guards
+drift. This delivers the backlog "`.sbc` definition-file parser" item and
+advances **M1** from curated-on-demand to full vanilla coverage. Def-absent
+fields (cargo volume, H2 L/s, drill wattage) stay curated-only; regenerating
+`BLOCK_COMPONENT_COSTS` from the parsed components is the noted fast-follow.
+
 **v0.9.2 (2026-08-07) — cockpit-relative directional thrust.** The same real DLC
 ship ("Rapier") reported **zero forward thrust** despite having two
 forward-facing thrusters. Root cause: SE defines forward/up/left by the ship's
@@ -155,7 +176,7 @@ default) was being dropped from directional TWR instead of defaulting to
 unrecognized blocks turn up from other ships, the same workflow applies — read
 the SubtypeId from `bp.sbc`, find its def file under the game's `CubeBlocks/`,
 compute mass from `Components.sbc`, add it with a citation in
-`docs/data-audit.md`. Known coverage gap: only the armor *shapes* and DLC blocks
+`docs/data-audit.md`. Known coverage gap: only the armor _shapes_ and DLC blocks
 seen so far are in the set; heavy armor, large-grid armor, and other shape
 variants are added on demand the same way.
 
@@ -172,20 +193,25 @@ weapon DPS/ammo) — a fresh research pass (cite in `docs/data-audit.md`, flag
 anything unconfirmed) → dataset → pure engine + worked-example tests → UI → bump.
 
 If instead the user wants polish over new features: candidate small wins are a
-GitHub Actions CI workflow (run the four gates on push), README screenshots, or
-resolving the flagged-uncertain data values in `docs/data-audit.md` (some DLC
-SubtypeIds, drill/sensor wattages, the Superconductor cobalt term) against a live
-game install.
+GitHub Actions CI workflow (run the four gates on push, plus `pnpm
+generate:blocks:check` on runners with the game — or skip it where the game is
+absent), README screenshots, resolving the flagged-uncertain data values in
+`docs/data-audit.md` (some DLC SubtypeIds, drill/sensor wattages, the
+Superconductor cobalt term) against a live game install, or the
+`BLOCK_COMPONENT_COSTS` regeneration fast-follow (extend the v0.16.0 generator to
+emit build-cost data from the same parsed `<Components>`).
 
 ---
 
 ## Current State
 
-- **Version**: 0.15.0
+- **Version**: 0.16.0
 - **Repo**: pushed to `https://github.com/Pyurah/se-assistant` (`master`);
   commits use the GitHub no-reply email (real email scrubbed from history).
 - **Build**: passing (`pnpm build`)
-- **Tests**: passing — 307 tests across logger, audit, data-integrity, engine
+- **Tests**: passing — 345 tests across logger, audit, data-integrity, the
+  merged-dataset invariants (`all-blocks` override + gap-fill proofs) and the
+  block-definition generator's fixture-driven parser/emitter suites, engine
   (incl. `estimateRequirements`, the `estimateToDesign` + `designToEstimateSeed`
   bridges, the `rankThrusterTypes` ranker, the `buildCost` bill-of-materials
   engine, the `manufacturingThroughput` fleet/ratio engine, the fuel/flight-time
@@ -234,8 +260,7 @@ Turn the seed dataset into full, trustworthy vanilla coverage.
       power draw (W), and planetary-influence effectiveness envelopes (12 total)
 - [x] Cargo blocks: all containers (small/large grid, small/medium/large) with
       inventory volume (L) and mass (5 total)
-- [x] Power sources: reactors (small/large × both grids), batteries (capacity Wh
-      + I/O rates), solar panels, hydrogen engines, wind turbine
+- [x] Power sources: reactors (small/large × both grids), batteries (capacity Wh + I/O rates), solar panels, hydrogen engines, wind turbine
 - [x] Other mass/power-relevant blocks needed for realistic totals (cockpits).
       Gyroscopes / common structural deferred until the engine needs them
 - [x] Every value cited/verified against the current game version (v1.210.012
@@ -252,6 +277,16 @@ hydrogen-engine / wind-turbine SubtypeIds, and Europa atmosphere density against
 local `.sbc` files. Add hydrogen-engine fuel-consumption and reactor uranium
 rate when Phase 2 fuel math needs them.
 
+**Full-coverage upgrade (v0.16.0, 2026-08-08):** M1 shipped as a _curated_
+dataset extended on demand — every ship using an un-added block showed gaps. That
+model was replaced by a build-time generator (`scripts/generate-blocks/`) that
+reads the game's own definition files and emits all **1,455 buildable blocks**
+(`source: 'definition'`), merged so curated `vanilla` values still win on
+conflict. Blueprint resolution now covers the full vanilla set — the "Heavy Space
+Fighter" import that motivated this (26 unrecognized subtypes) resolves
+completely. See the v0.16.0 note at the top of this file. Def-absent fields
+(cargo volume, H2 L/s, drill wattage) remain curated-only.
+
 ### M2 — Blueprint (`.sbc`) Import & Parser
 
 **Status**: ✅ Complete — core parser v0.3.0; UI-facing upload + audit wiring landed with M4 (v0.5.0)
@@ -261,7 +296,7 @@ Highest payoff-to-effort feature: drag-and-drop a `.sbc`, auto-populate blocks.
 **Deliverables:**
 
 - [x] Drag-and-drop / file-picker upload of an exported `bp.sbc` blueprint
-      *(delivered in M4, v0.5.0 — wired to `parseBlueprint` via the import screen)*
+      _(delivered in M4, v0.5.0 — wired to `parseBlueprint` via the import screen)_
 - [x] XML parser (`fast-xml-parser`) extracting block SubtypeIds, counts, grid
       size, and thruster orientation
 - [x] Zod validation at the parse boundary; malformed input produces a
@@ -271,8 +306,8 @@ Highest payoff-to-effort feature: drag-and-drop a `.sbc`, auto-populate blocks.
 - [x] Resolve thruster orientation to thrust direction (up/down/fwd/etc.) —
       thrust pushes opposite to the exhaust (`BlockOrientation.Forward`)
 - [x] Import recorded to the audit trail (`blueprint.import`)
-      *(delivered in M4, v0.5.0 — recorded from the store's import action with
-      source + match-rate metadata)*
+      _(delivered in M4, v0.5.0 — recorded from the store's import action with
+      source + match-rate metadata)_
 - [x] Parser unit tests with a committed `.sbc` fixture (valid + malformed +
       multi-grid + modded fallback); 16 tests
 - [x] Multi-grid (subgrid) blueprints merged, with a diagnostics report
@@ -327,7 +362,7 @@ Render the engine output with a Linear/Vercel-grade feel.
 
 ## Phase 1.5 — Design From Scratch / Requirement Estimator
 
-The inverse of blueprint import: you can't export a `.sbc` until *after* a ship
+The inverse of blueprint import: you can't export a `.sbc` until _after_ a ship
 is built, so this lets you plan the build up front. Delivered as a second
 top-level app mode alongside Analyze, sharing the same UI kit and design tokens.
 
@@ -361,7 +396,7 @@ and attitude hardware you need.
       thruster picker grouped by type with feasibility hints, battery-or-
       generator power source with runtime target, maneuverability control, cargo
 - [x] **Recommendations panel** — per-direction thruster counts (UP emphasized),
-      power count + supply-vs-draw meter, gyro count badged as an *estimate*,
+      power count + supply-vs-draw meter, gyro count badged as an _estimate_,
       resulting mass & achieved TWR (zero-g handled), prominent warnings, and an
       import-to-verify note; empty / live / infeasible states all shipped
 - [x] Estimator store + recommendations-panel render tests (33 new tests, 136
@@ -438,17 +473,17 @@ real consumer: seeding an Estimate build from an imported blueprint).
 
 The foundational plumbing plus the highest-value features it unlocks. The pure
 `estimateToDesign` bridge (a geometry-less `ShipDesign` the Analyze engine runs
-on unchanged) is the foundational piece; the store-backed *mutable* loadout state
+on unchanged) is the foundational piece; the store-backed _mutable_ loadout state
 is only worth building alongside blueprint-seeded builds, so it moved to M6.7.
 
 **Deliverables:**
 
 - [~] **Editable design model** — the pure half shipped: `estimateToDesign`
-      synthesizes a `ShipDesign` the existing Analyze engine (`twr`, `mass`,
-      `power`, …) runs on unchanged, decoupled from the parse step. The
-      *store-backed mutable loadout* half is deferred to M6.7, where seeding an
-      Estimate build from an imported blueprint and adjusting it is the consumer
-      that needs it.
+  synthesizes a `ShipDesign` the existing Analyze engine (`twr`, `mass`,
+  `power`, …) runs on unchanged, decoupled from the parse step. The
+  _store-backed mutable loadout_ half is deferred to M6.7, where seeding an
+  Estimate build from an imported blueprint and adjusting it is the consumer
+  that needs it.
 - [x] **Per-direction thruster type** — `config.thruster` generalized to
       `thrusters: Record<Direction, ThrusterBlock>` (`uniformThrusters(block)`
       keeps the single-type default unchanged). The convergence loop sizes each
@@ -458,7 +493,7 @@ is only worth building alongside blueprint-seeded builds, so it moved to M6.7.
       sides" case directly. UI: a "Customize by direction" disclosure with six
       per-axis selects (each "Same as default" until pinned).
 - [x] **Directional TWR readout in Estimate** — the estimated build feeds the
-      *same* TWR engine used in Analyze (via `estimateToDesign`) into a new panel:
+      _same_ TWR engine used in Analyze (via `estimateToDesign`) into a new panel:
       six-axis bars, Empty/Loaded toggle, UP emphasized, per-direction thruster
       captions when the build mixes types. Answers "can I stay airborne if I tilt
       fully to one side?" A round-trip test proves it reproduces the estimator's
@@ -486,7 +521,7 @@ then least added mass) with the count each would take and a short trade-off tag
 vacuum); a ✓ marks the top feasible pick. Clicking a chip pins that type's
 least-added-mass variant to the axis (feeding the M6.5 per-direction config).
 Counts are sized against the current build's loaded mass. Locked decision (with
-the user): rank the three *types*, each represented by its least-added-mass
+the user): rank the three _types_, each represented by its least-added-mass
 variant — not every one of the 7–8 blocks — so the narrow config column stays
 calm. Exact arithmetic on the existing dataset (new pure `rankThrusterTypes`),
 no new game data.
@@ -508,11 +543,11 @@ no new game data.
 
 **Not** an in-place blueprint editor. The flow is: **import a `.sbc` → seed an
 Estimate build from its block list → adjust the loadout from there → see the
-analysis update live.** The blueprint is a *starting point*, not a document you
+analysis update live.** The blueprint is a _starting point_, not a document you
 mutate; the source file is never changed. This is the "platform I load out with
 different utilities" case — take a hull you already have and try different gear on
 it. It's the reverse of the `estimateToDesign` bridge shipped in M6.5/v0.11.0
-(estimate → design): here a parsed design *seeds* the estimate inputs, and this
+(estimate → design): here a parsed design _seeds_ the estimate inputs, and this
 milestone owns the store-backed mutable design state that adjusting the loadout
 needs.
 

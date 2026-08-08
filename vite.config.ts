@@ -18,7 +18,7 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    include: ['src/**/*.{test,spec}.{ts,tsx}', 'scripts/**/*.{test,spec}.{ts,tsx}'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
@@ -30,6 +30,10 @@ export default defineConfig({
         'src/data/**/index.ts',
         'src/core/types.ts',
         'src/data/schema.ts',
+        // Generated dataset — plain serializable data, no executable logic.
+        // Its correctness is covered by the generator's parse/emit unit tests
+        // and the merge invariants in all-blocks.test.ts.
+        'src/data/generated-blocks.ts',
       ],
       thresholds: {
         // Enforced on the engine because people will trust these numbers.

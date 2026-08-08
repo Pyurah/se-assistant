@@ -29,24 +29,24 @@ archive.
 
 ## Thruster effectiveness envelopes (design constants)
 
-| Type | minInfluence | maxInfluence | effAtMin | effAtMax | Behaviour |
-|---|---|---|---|---|---|
-| Ion | 0 | 1 | 1.0 | 0.3 | Full in vacuum, 30% in dense atmo |
-| Atmospheric | 0.3 | 1 | 0.0 | 1.0 | Zero in vacuum, ramps up with air |
-| Hydrogen | — | — | 1.0 | 1.0 | Flat 100% everywhere |
+| Type        | minInfluence | maxInfluence | effAtMin | effAtMax | Behaviour                         |
+| ----------- | ------------ | ------------ | -------- | -------- | --------------------------------- |
+| Ion         | 0            | 1            | 1.0      | 0.3      | Full in vacuum, 30% in dense atmo |
+| Atmospheric | 0.3          | 1            | 0.0      | 1.0      | Zero in vacuum, ramps up with air |
+| Hydrogen    | —            | —            | 1.0      | 1.0      | Flat 100% everywhere              |
 
 ## Corrections applied vs. the original seed
 
-| Item | Seed value | Corrected value | Note |
-|---|---|---|---|
-| Large Ion Thruster (large grid) mass | 3,625 kg | **43,200 kg** | Seed was badly low |
-| Large Ion Thruster (large grid) thrust | 4,320,000 N | 4,320,000 N | Confirmed |
-| Large Reactor (large grid) mass | 12,600 kg | **73,795 kg** | Seed was badly low |
-| Large Reactor (large grid) output | 300 MW | 300 MW | Confirmed |
-| Large Battery capacity | 3 MWh | 3 MWh | Confirmed |
-| Large Battery mass | 3,762 kg | **3,845 kg** | Minor correction |
-| Pertam gravity | 1.0 g / 9.81 | **1.20 g / 11.77 m/s²** | Seed was wrong |
-| DLC enum | guessed list w/ "fields" | verified 21-entry list | No "Fields"; it's "Fieldwork" |
+| Item                                   | Seed value               | Corrected value         | Note                          |
+| -------------------------------------- | ------------------------ | ----------------------- | ----------------------------- |
+| Large Ion Thruster (large grid) mass   | 3,625 kg                 | **43,200 kg**           | Seed was badly low            |
+| Large Ion Thruster (large grid) thrust | 4,320,000 N              | 4,320,000 N             | Confirmed                     |
+| Large Reactor (large grid) mass        | 12,600 kg                | **73,795 kg**           | Seed was badly low            |
+| Large Reactor (large grid) output      | 300 MW                   | 300 MW                  | Confirmed                     |
+| Large Battery capacity                 | 3 MWh                    | 3 MWh                   | Confirmed                     |
+| Large Battery mass                     | 3,762 kg                 | **3,845 kg**            | Minor correction              |
+| Pertam gravity                         | 1.0 g / 9.81             | **1.20 g / 11.77 m/s²** | Seed was wrong                |
+| DLC enum                               | guessed list w/ "fields" | verified 21-entry list  | No "Fields"; it's "Fieldwork" |
 
 ## Flagged / unverified values
 
@@ -89,7 +89,7 @@ prefab), SEToolbox's serialization classes for the `ShipBlueprint` envelope, and
 Whiplash141's physics code for the thrust-direction rule. Confirmed:
 
 - Structure `Definitions → ShipBlueprints → ShipBlueprint → CubeGrids → CubeGrid
-  → CubeBlocks → MyObjectBuilder_CubeBlock`. The root is always `Definitions`
+→ CubeBlocks → MyObjectBuilder_CubeBlock`. The root is always `Definitions`
   (shared by all `.sbc` types); a blueprint is identified by `ShipBlueprints`.
 - Block identity is the **(xsi:type, SubtypeName)** pair; `SubtypeName` equals
   the `CubeBlocks.sbc` SubtypeId. Empty `<SubtypeName/>` is real and common
@@ -125,6 +125,7 @@ wiki, with SubtypeIds and key fields cross-checked against Keen's
 `CubeBlocks.sbc`.
 
 Confirmed authoritatively (`.sbc`):
+
 - **Gyroscope** `ForceMagnitude` (= max torque, N·m): small `SmallBlockGyro`
   448,000; large `LargeBlockGyro` 33,600,000 (exactly 75×). Power fixed and
   negligible (0.6 W / 30 W). These drive the gyro-count heuristic.
@@ -132,6 +133,7 @@ Confirmed authoritatively (`.sbc`):
   `SmallCameraBlock` / `LargeCameraBlock` (NOT `…BlockCameraBlock`).
 
 SubtypeId corrections captured in the dataset:
+
 - Drill: `SmallBlockDrill` / `LargeBlockDrill` (TypeId `Drill`, not `ShipDrill`).
 - Small connector: `ConnectorMedium` (NOT `ConnectorSmall`, which is a separate
   ejector). Large connector: `Connector`.
@@ -142,6 +144,7 @@ SubtypeId corrections captured in the dataset:
 Flagged power values (community-sourced; wiki does not list them and they're not
 in the `.sbc` — power is code-driven). Used as best-effort; verify in-game
 (place block → Info tab) if precision matters:
+
 1. **Drill / welder / grinder** — 2 kW while OPERATING, ~0 idle. We store 2 kW
    (worst case for power budgeting) and mark `variableDraw`.
 2. **Sensor** — ~100 W (near-zero; wiki lists none).
@@ -164,6 +167,7 @@ Added for the fuel/flight-time engine (`src/core/engine/fuel.ts`). All from the
 current wiki; several cross-checked against the fuel-cost tables.
 
 Confirmed:
+
 - **Hydrogen thruster fuel** (L/s at max thrust): small-grid small 80.33, small-
   grid large 385.6, large-grid small 803.34, large-grid large 4820.05 — all
   match the wiki fuel-cost table exactly (these were already in the dataset from
@@ -211,6 +215,7 @@ estimator's.
 ## Battery variants (v0.9.0)
 
 Five battery blocks, all wiki-confirmed for mass/capacity/I-O:
+
 - `SmallBlockSmallBatteryBlock` — Small Battery, small grid: 146.4 kg, **50 kWh**,
   200 kW in/out. The compact variant (was missing pre-0.9.0).
 - `SmallBlockBatteryBlock` — Battery, small grid: 1040.4 kg, 1 MWh, 4 MW.
@@ -233,16 +238,16 @@ masses; the method was validated by recomputing a known block —
 `SmallBlockSmallAtmosphericThrust` came out to exactly **699 kg**, matching the
 existing trusted value.
 
-| SubtypeId | Category | Grid | Mass (kg) | Key stats | DLC | Source file |
-|---|---|---|---|---|---|---|
-| `SmallBlockLargeFlatAtmosphericThrustDShape` | thruster (atmo) | small | 1060 | 230 kN, 1 MW | base | `CubeBlocks_Thrusters.sbc` |
-| `SmallBlockSmallAtmosphericThrustSciFi` | thruster (atmo) | small | 699 | 96 kN, 0.6 MW | Sparks of the Future | `CubeBlocks_SparksOfTheFuturePack.sbc` |
-| `SmallBlockModularContainer` | cargo | small | 463 | 3375 L (= Medium) | Contact | `CubeBlocks_ContactPack.sbc` |
-| `SmallShipWelderReskin` | welder | small | 448.4 | 2 kW | Apex Survival | `CubeBlocks_ApexSurvivalPack.sbc` |
-| `SmallShipConveyorHub` | conveyor | small | 313 | 0 W (passive) | base | `CubeBlocks_Logistics.sbc` |
-| `ConveyorTubeCurvedMedium` | conveyor | small | 365 | 0 W (passive) | base | `CubeBlocks_Logistics.sbc` |
-| `SmallBlockArmorBlock` | structural | small | 20 | mass only | base | `CubeBlocks_Armor.sbc` |
-| `SmallBlockArmorSlope` | structural | small | 20 | mass only | base | `CubeBlocks_Armor.sbc` |
+| SubtypeId                                    | Category        | Grid  | Mass (kg) | Key stats         | DLC                  | Source file                            |
+| -------------------------------------------- | --------------- | ----- | --------- | ----------------- | -------------------- | -------------------------------------- |
+| `SmallBlockLargeFlatAtmosphericThrustDShape` | thruster (atmo) | small | 1060      | 230 kN, 1 MW      | base                 | `CubeBlocks_Thrusters.sbc`             |
+| `SmallBlockSmallAtmosphericThrustSciFi`      | thruster (atmo) | small | 699       | 96 kN, 0.6 MW     | Sparks of the Future | `CubeBlocks_SparksOfTheFuturePack.sbc` |
+| `SmallBlockModularContainer`                 | cargo           | small | 463       | 3375 L (= Medium) | Contact              | `CubeBlocks_ContactPack.sbc`           |
+| `SmallShipWelderReskin`                      | welder          | small | 448.4     | 2 kW              | Apex Survival        | `CubeBlocks_ApexSurvivalPack.sbc`      |
+| `SmallShipConveyorHub`                       | conveyor        | small | 313       | 0 W (passive)     | base                 | `CubeBlocks_Logistics.sbc`             |
+| `ConveyorTubeCurvedMedium`                   | conveyor        | small | 365       | 0 W (passive)     | base                 | `CubeBlocks_Logistics.sbc`             |
+| `SmallBlockArmorBlock`                       | structural      | small | 20        | mass only         | base                 | `CubeBlocks_Armor.sbc`                 |
+| `SmallBlockArmorSlope`                       | structural      | small | 20        | mass only         | base                 | `CubeBlocks_Armor.sbc`                 |
 
 - The three reskins (`…SciFi`, `…ModularContainer`, `…WelderReskin`) are
   stat-identical to their base counterparts — only the DLC tag and model differ.
@@ -258,17 +263,17 @@ existing trusted value.
 
 The Rapier also exposed a parser bug: SE **omits** `<BlockOrientation>` entirely
 when a block sits at the default identity orientation (`Forward="Forward"`). The
-parser was treating a *missing* element as "unoriented" and dropping that thrust
+parser was treating a _missing_ element as "unoriented" and dropping that thrust
 from directional TWR. Two of the Rapier's thrusters had no orientation element
 and were being silently excluded. Fixed: a missing orientation now defaults to
 `Forward` (SE's identity), so it resolves to `backward` thrust; only an
-orientation that is *present but has an unparseable axis* is still counted as
+orientation that is _present but has an unparseable axis_ is still counted as
 unoriented. Result: the Rapier now resolves **48/48 blocks, 0 unrecognized, 0
 unoriented**.
 
 ### Cockpit-relative directional thrust (v0.9.2)
 
-The Rapier further exposed a *frame-of-reference* bug. Space Engineers defines a
+The Rapier further exposed a _frame-of-reference_ bug. Space Engineers defines a
 ship's forward / up / left by its **main cockpit's** facing, not the raw grid
 axes stored in the blueprint. The parser had been bucketing thrust by grid axes,
 so the Rapier — whose main cockpit faces `Forward="Right"`, `Up="Backward"` —
@@ -288,15 +293,15 @@ Verified against the game's own thrust overlay for the Rapier (screenshot,
 relative to "Cockpit Rapier"): **up 920 kN, forward 460 kN, back 460 kN,
 left 288 kN, right 288 kN**, and **nothing pushing down** — the four large
 D-Shape thrusters provide lift (up), which the ship balances against gravity to
-hover; SE's HUD labels that group by the direction the thrusters *face* (down),
-whereas this tool labels by the direction the ship is *pushed* (up), matching how
+hover; SE's HUD labels that group by the direction the thrusters _face_ (down),
+whereas this tool labels by the direction the ship is _pushed_ (up), matching how
 the TWR/takeoff verdict reads the up-thrust bucket. All five nonzero axes match
 the game exactly.
 
 ## Cargo item mass/volume (v0.10.0)
 
 The cargo loadout control used to ask for a single "custom kg/L" density, which
-confused users: the game shows every item as a **mass** (kg) *and* a **volume**
+confused users: the game shows every item as a **mass** (kg) _and_ a **volume**
 (L) — e.g. a steel plate is 20 kg / 3 L — not a density. v0.10.0 replaces that
 field with an item picker (plus explicit Mass + Volume inputs for anything
 custom) and derives the density the engine needs (`density = mass / volume`).
@@ -313,19 +318,20 @@ installed game's own item definitions on **SE v1.210.012 b0**:
 stored, so the two-field model stays the single source of truth. Load-bearing
 values (guarded by data-integrity tests):
 
-| Item | Mass (kg) | Volume (L) | Density (kg/L) |
-|---|---|---|---|
-| Steel Plate | 20 | 3 | 6.667 |
-| Construction Comp. | 8 | 2 | 4.000 |
-| Computer | 0.2 | 1 | 0.200 |
-| Iron Ingot | 1 | 0.127 | 7.874 |
-| Gold Ingot | 1 | 0.052 | 19.231 |
-| Uranium Ingot | 1 | 0.052 | 19.231 |
-| Platinum Ingot | 1 | 0.047 | 21.277 |
-| All raw ores (except Scrap) | 1 | 0.37 | 2.703 |
-| Scrap ore | 1 | 0.254 | 3.937 |
+| Item                        | Mass (kg) | Volume (L) | Density (kg/L) |
+| --------------------------- | --------- | ---------- | -------------- |
+| Steel Plate                 | 20        | 3          | 6.667          |
+| Construction Comp.          | 8         | 2          | 4.000          |
+| Computer                    | 0.2       | 1          | 0.200          |
+| Iron Ingot                  | 1         | 0.127      | 7.874          |
+| Gold Ingot                  | 1         | 0.052      | 19.231         |
+| Uranium Ingot               | 1         | 0.052      | 19.231         |
+| Platinum Ingot              | 1         | 0.047      | 21.277         |
+| All raw ores (except Scrap) | 1         | 0.37       | 2.703          |
+| Scrap ore                   | 1         | 0.254      | 3.937          |
 
 Notes:
+
 - **All raw ores share one density (2.703 kg/L)** — mass 1 kg, volume 0.37 L
   uniformly. Ingots differ per metal (volume shrinks on refining), so ingot
   density varies from Magnesium (1.739) to Platinum (21.277). This is why the
@@ -340,7 +346,7 @@ Notes:
 Two power-budget bugs surfaced from the real Rapier data (draw read **11.63 MW**
 against **0 W generation** on a battery-only ship that flies fine):
 
-1. **Opposing thrusters were double-counted.** `peakDraw` summed *every*
+1. **Opposing thrusters were double-counted.** `peakDraw` summed _every_
    thruster's full draw, including up-vs-down / fwd-vs-back / left-vs-right pairs
    that can never fire simultaneously. On the Rapier that roughly doubled the
    real peak and invented a brownout. Fix: bucket thruster draw by resolved
@@ -351,12 +357,12 @@ against **0 W generation** on a battery-only ship that flies fine):
 2. **Batteries weren't counted as supply.** Generation summed only reactors /
    solar / hydrogen engines / wind, so a battery-only ship reported "0 W
    generation" and a permanent brownout. Fix: `availablePower = generation +
-   batteryOutput`; a brownout is now `peakDraw > availablePower`, and a
+batteryOutput`; a brownout is now `peakDraw > availablePower`, and a
    `batteryOnly` flag drives an honest "batteries power this ship" message
    instead of a false deficit. Battery runtime is unchanged (still the deficit
    generation alone can't cover, drained from stored Wh).
 
-These are realism corrections to the *aggregation*, not to any block stat — no
+These are realism corrections to the _aggregation_, not to any block stat — no
 dataset values changed.
 
 ## Grid-aware gyro sizing (v0.10.1)
@@ -411,7 +417,7 @@ runs the real ship fine.
    cargo" warning, instead of astronomically large numbers.
 
 Neither touches a block stat — both are corrections to the estimator's
-*aggregation and convergence*, matching the analyzer's existing peak-draw model.
+_aggregation and convergence_, matching the analyzer's existing peak-draw model.
 
 ## Manufacturing data (M7 / v0.14.0)
 
@@ -422,14 +428,14 @@ throughput presets. This is the citation log for those values.
 
 ### Sources & cross-check
 
-- **Primary:** the official wiki, `spaceengineers.wiki.gg` — the *Refining*,
-  *Assembling*, and per-component pages (Steel Plate, Construction Component,
+- **Primary:** the official wiki, `spaceengineers.wiki.gg` — the _Refining_,
+  _Assembling_, and per-component pages (Steel Plate, Construction Component,
   Motor, Computer, Reactor Component, Thruster Component, etc.), plus per-block
   "Construction" component lists.
 - **Corroborating:** Keen's archived `Data/Blueprints.sbc` and `CubeBlocks.sbc`
   (`github.com/KeenSoftwareHouse/SpaceEngineers`, 2019).
 
-**Cross-check result — high confidence.** Unlike thrust *force* (buffed ~17%
+**Cross-check result — high confidence.** Unlike thrust _force_ (buffed ~17%
 post-2019), the refining ratios and assembly recipes are **identical** between
 the 2019 archive and the current wiki. Ore→ingot yields (Iron 0.7, Nickel 0.4,
 Cobalt 0.3, Silicon 0.7, Silver 0.1, Gold 0.01, Platinum 0.005), the standard
@@ -473,10 +479,10 @@ certainty. Confirm against the local game's `.sbc` files if exactness matters.
    (1.6 / 0.9). Validated by the current combined iron figure (0.7 × 0.7 = 0.49).
 5. **Superconductor recipe** — using `10 Fe / 2 Au`. The current game may add
    **~3 Co**; the cobalt term is omitted pending confirmation, so Superconductor
-   cost is a slight *under*-estimate if the Co term is real.
+   cost is a slight _under_-estimate if the Co term is real.
 6. **Assembly base times** for Metal Grid / Reactor Component / Solar Cell are
-   archive placeholders (`likely`). They affect only the secondary *assemble
-   time*, never ore totals.
+   archive placeholders (`likely`). They affect only the secondary _assemble
+   time_, never ore totals.
 7. **Hydrogen Engine / Wind Turbine / Survival Kit component lists** — from the
    current wiki (`likely`), not the 2019 archive (those blocks postdate it).
 8. **Survival-kit refining multipliers** are unconfirmed and therefore **not**
@@ -506,3 +512,68 @@ worth recording:
   not a to-the-second schedule. The **balanced ratio** (refineries per assembler)
   is simply `refineTime : assembleTime`, exact for the given recipes and machine
   tiers.
+
+## Generated block definitions (M1 full coverage / v0.16.0)
+
+The hand-curated dataset was extended on demand — one ship at a time (see the
+v0.9.1 note above) — which meant any blueprint using an un-added block showed
+gaps. A real "Heavy Space Fighter" import surfaced **26 distinct unrecognized
+subtypes** at once (the whole small-grid heavy-armor shape family, SciFi
+thrusters, Warfare 2 weapons, merge block, projector, air vent). Rather than keep
+adding blocks by hand, the full vanilla catalogue is now **generated from the
+game's own installed definition files** by `scripts/generate-blocks/` (run
+`pnpm generate:blocks`).
+
+### Source & method
+
+- **Primary source:** the installed game itself,
+  `SpaceEngineers/Content/Data/` (game build **v1.210.012 b0**):
+  - `CubeBlocks/*.sbc` — every `<Definition>` (subtype, `xsi:type`, `CubeSize`,
+    `<Public>`, `<DLC>`, `<Components>`, stat fields).
+  - `Components.sbc` — component `SubtypeId` → unit `<Mass>` (kg).
+  - `Localization/MyTexts.resx` — `DisplayName_*` key → English string.
+- **Mass** = Σ (`<Component Count>` × component mass). Validated by recomputing a
+  known block: `SmallBlockSmallAtmosphericThrust` = **699 kg** (matching the
+  trusted curated value), and `LargeBlockBatteryBlock` = **2405 kg** (nested
+  `<CriticalComponent>` correctly ignored — only `<Component>` entries count).
+- **Category** from each definition's `xsi:type`: seven stat-bearing types map to
+  our categories (thruster, battery, gyroscope, solar, wind-turbine, reactor,
+  hydrogen-engine); everything else (armor, cargo, cockpit, weapons, tools,
+  conveyors, …) becomes a mass-only `'other'` block.
+- **Unit conversions:** power MW → W (×1e6), stored energy MWh → Wh (×1e6);
+  `ForceMagnitude` is already newtons.
+- **DLC** from the single `<DLC>` tag (mapped to our `Dlc` union; absent → `base`,
+  an **unmapped tag is a hard error** so a new pack can't be silently mis-tagged).
+- **Skipped:** `<Public>false</Public>` definitions (non-buildable prototypes) and
+  any block whose components resolve to zero mass.
+
+### Output & confidence
+
+- Emitted to `src/data/generated-blocks.ts` — **1,455 blocks**, every entry
+  `source: 'definition'`, id namespaced `gen:<subtypeId>`. Committed, so CI and
+  contributors never need the game. `pnpm generate:blocks:check` guards drift.
+- **Merge contract** (`src/data/all-blocks.ts`): generated blocks **fill gaps
+  only**; hand-curated `source: 'vanilla'` blocks **win on any subtypeId
+  conflict**. No curated, wiki-cross-referenced value is overwritten.
+- **Trusted (primary):** definition-derived **mass** and **physics stats**
+  (thrust, thruster power draw + planetary-influence envelope, battery I/O and
+  capacity, gyro torque, reactor/solar/wind/hydrogen-engine output). These come
+  straight from the game's own numbers.
+- **Deliberately omitted from generated entries** (the game computes these rather
+  than storing a literal field, so they are not in the defs): cargo **inventory
+  volume**, hydrogen thruster/engine **L/s burn rates**, O2/H2 generator output
+  rate, and drill/tool **operating wattage**. These remain **curated-only** —
+  where a curated block supplies them, the override contract keeps them; a
+  generated-only block simply omits them (optional fields) rather than guessing.
+- **Known downgrades (not bugs):** `LargeBlockPrototechThruster` and
+  `SmallBlockPrototechThruster` declare `ThrusterType: Prototech`, which is
+  outside the vanilla `atmospheric | ion | hydrogen` union — they are emitted as
+  mass-only `'other'` rather than fabricated 0-thrust thrusters (a fabricated
+  thruster would corrupt TWR). Any stat-bearing definition missing a required
+  field is downgraded the same way, with a diagnostic printed by the generator.
+
+### Fast-follow (out of scope for v0.16.0)
+
+`BLOCK_COMPONENT_COSTS` (the build-cost bill-of-materials) is still hand-curated.
+The same parsed `<Components>` lists could regenerate it — a planned follow-up so
+build-cost coverage matches block coverage.

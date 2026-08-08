@@ -81,15 +81,18 @@ relationship clear.
 - Block stats (thrust, mass, power, capacity, fuel burn) are **fixed constants**
   from the game — SE Assistant does exact arithmetic on them, cross-referenced
   to the official wiki and cited in [`docs/data-audit.md`](./docs/data-audit.md).
+  Beyond the hand-curated core, the full vanilla block catalogue (**1,455
+  blocks**) is generated directly from the game's own definition files so ship
+  imports resolve every buildable block (see _Regenerating block data_ below).
 - The pure calc engine is covered by **worked-example tests** with hand-verified
-  reference values (currently **307 tests**).
+  reference values (currently **345 tests**).
 - Where a value is genuinely an estimate — the gyro turn-rate (needs the ship's
   moment of inertia) or stopping distance (ignores per-axis gravity) — the UI
   says so rather than implying false precision.
 
 ## Status
 
-Version **0.15.0**. Phases 1 (core engine + blueprint import), 1.5 (requirement
+Version **0.16.0**. Phases 1 (core engine + blueprint import), 1.5 (requirement
 estimator), 2 (fuel/flight-time + motion/stability), and 2.5 (Estimate-mode
 enhancements incl. blueprint-seeded builds) are complete, and Phase 3
 (production/logistics) is under way with **build-cost analysis** and
@@ -117,17 +120,42 @@ To analyze a ship, drag an exported `.sbc` onto the import screen — or click
 
 ## Development
 
-| Command              | Purpose                               |
-| -------------------- | ------------------------------------- |
-| `pnpm dev`           | Start the dev server                  |
-| `pnpm build`         | Type-check + production build         |
-| `pnpm preview`       | Preview the production build          |
-| `pnpm test`          | Run tests once                        |
-| `pnpm test:watch`    | Watch mode                            |
-| `pnpm test:coverage` | Coverage report                       |
-| `pnpm typecheck`     | Type-check only                       |
-| `pnpm lint`          | ESLint (includes engine purity rules) |
-| `pnpm format`        | Format with Prettier                  |
+| Command                | Purpose                                                  |
+| ---------------------- | -------------------------------------------------------- |
+| `pnpm dev`             | Start the dev server                                     |
+| `pnpm build`           | Type-check + production build                            |
+| `pnpm preview`         | Preview the production build                             |
+| `pnpm test`            | Run tests once                                           |
+| `pnpm test:watch`      | Watch mode                                               |
+| `pnpm test:coverage`   | Coverage report                                          |
+| `pnpm typecheck`       | Type-check only                                          |
+| `pnpm lint`            | ESLint (includes engine purity rules)                    |
+| `pnpm format`          | Format with Prettier                                     |
+| `pnpm generate:blocks` | Regenerate the vanilla block dataset from a game install |
+
+### Regenerating block data
+
+The vanilla block catalogue in
+[`src/data/generated-blocks.ts`](./src/data/generated-blocks.ts) is generated
+from Space Engineers' own installed definition files — it is **committed**, so
+you only need to regenerate it when the game updates or you're extending
+coverage. Requires a local Space Engineers install.
+
+```bash
+pnpm generate:blocks                     # default Steam install path
+pnpm generate:blocks --game-dir <path>   # custom install location
+pnpm generate:blocks:check               # verify the committed file is current (CI drift guard)
+```
+
+The generator reads `Content/Data/CubeBlocks/*.sbc`, `Components.sbc`, and the
+localization `.resx`, deriving each block's mass from its `<Components>` list and
+its physics stats from the definition, then writes a Prettier-formatted module of
+`source: 'definition'` blocks. These **fill gaps only**: the hand-curated
+`source: 'vanilla'` blocks always win on a subtypeId conflict, so verified stats
+are never overwritten (the merge lives in
+[`src/data/all-blocks.ts`](./src/data/all-blocks.ts)). Fields the game computes
+rather than stores literally — cargo inventory volume, hydrogen L/s burn rates,
+drill/tool wattage — are omitted from generated entries and stay curated-only.
 
 ## Configuration
 

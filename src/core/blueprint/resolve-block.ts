@@ -6,19 +6,20 @@
  * and are identified only by their `xsi:type` (e.g. `MyObjectBuilder_Reactor`).
  * Modded blocks carry subtypes we have no vanilla record of.
  *
- * The resolver maps known subtypes to the curated vanilla dataset and, for
- * anything unknown, synthesizes a minimal `source: 'blueprint'` definition so
- * the design still parses (the block contributes mass 0 / no thrust until the
- * user fills in stats — surfacing the gap rather than silently dropping it).
+ * The resolver maps known subtypes to the merged dataset (curated vanilla +
+ * generated definitions) and, for anything unknown, synthesizes a minimal
+ * `source: 'blueprint'` definition so the design still parses (the block
+ * contributes mass 0 / no thrust until the user fills in stats — surfacing the
+ * gap rather than silently dropping it).
  */
 
-import { VANILLA_BLOCKS_BY_SUBTYPE } from '../../data/blocks';
+import { BLOCKS_BY_SUBTYPE } from '../../data/all-blocks';
 import type { BlockDefinition, GridSize } from '../../data/schema';
 
 /** Outcome of resolving one blueprint block reference. */
 export interface ResolvedBlock {
   readonly definition: BlockDefinition;
-  /** True when the subtype was found in the curated vanilla dataset. */
+  /** True when the subtype was found in the merged dataset. */
   readonly matched: boolean;
 }
 
@@ -41,7 +42,7 @@ export function resolveBlock(
 ): ResolvedBlock {
   const subtype = subtypeName.trim();
   if (subtype.length > 0) {
-    const known = VANILLA_BLOCKS_BY_SUBTYPE[subtype];
+    const known = BLOCKS_BY_SUBTYPE[subtype];
     if (known) return { definition: known, matched: true };
   }
 

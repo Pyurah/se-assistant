@@ -77,6 +77,19 @@ export default tseslint.config(
     },
   },
 
+  // Build-time scripts (block-definition generator) live OUTSIDE the src/
+  // purity boundary. They run under Node with tsx, use `fs`, and print to the
+  // console — all sanctioned here. Not shipped in the app bundle.
+  {
+    files: ['scripts/**/*.ts'],
+    languageOptions: {
+      globals: globals.node,
+    },
+    rules: {
+      'no-console': 'off',
+    },
+  },
+
   // Test files: relax a few strict rules that fight with test ergonomics.
   {
     files: ['**/*.{test,spec}.{ts,tsx}', 'src/test/**/*.{ts,tsx}'],

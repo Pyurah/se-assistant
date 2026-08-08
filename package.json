@@ -1,6 +1,6 @@
 {
   "name": "se-assistant",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "private": true,
   "description": "Space Engineers ship & base planning tool — TWR, mass, power, and cargo math from blueprint imports.",
   "type": "module",
@@ -26,7 +26,9 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "generate:blocks": "tsx scripts/generate-blocks/index.ts",
+    "generate:blocks:check": "tsx scripts/generate-blocks/index.ts --check"
   },
   "dependencies": {
     "fast-xml-parser": "^4.5.0",
@@ -54,6 +56,7 @@
     "jsdom": "^25.0.1",
     "prettier": "^3.4.2",
     "tailwindcss": "^4.0.0",
+    "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.18.1",
     "vite": "^6.0.5",

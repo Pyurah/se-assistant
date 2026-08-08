@@ -11,6 +11,8 @@ export * from './dlc';
 export * from './planets';
 export * from './blocks';
 export * from './functional-blocks';
+export * from './generated-blocks';
+export * from './all-blocks';
 export * from './fuel-constants';
 export * from './cargo-items';
 export * from './manufacturing';
