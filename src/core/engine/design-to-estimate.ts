@@ -183,7 +183,7 @@ export function designToEstimateSeed(design: ShipDesign): EstimateSeed {
       }
     } else if (def.category !== 'gyroscope') {
       // Power block (battery / reactor / solar / hydrogen-engine / wind-turbine).
-      // Gyros are sized purely from mass/responsiveness — no model to seed.
+      // Gyros are sized from mass + the target turn time — no model to seed.
       const entry = powerTally.get(def.id);
       if (entry) entry.quantity += qty;
       else powerTally.set(def.id, { def, quantity: qty });

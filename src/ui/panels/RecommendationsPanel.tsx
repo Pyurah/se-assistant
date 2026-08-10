@@ -14,7 +14,8 @@
  */
 import type { Direction } from '@data';
 import { useEstimate, type ResolvedAssignment } from '../../app/hooks/use-estimate';
-import { formatCount, formatMass, formatPower, formatTwr } from '../lib/format';
+import { useEstimatorStore } from '../../app/store/estimator-store';
+import { formatCount, formatMass, formatPower, formatTurnTime, formatTwr } from '../lib/format';
 import { Panel } from '../components/Panel';
 import { Badge } from '../components/Badge';
 import { Stat } from '../components/Stat';
@@ -43,6 +44,7 @@ const DIRECTION_ROWS: readonly { dir: Direction; label: string; emphasis?: boole
 
 export function RecommendationsPanel(): React.JSX.Element {
   const result = useEstimate();
+  const targetTurnTime = useEstimatorStore((s) => s.targetTurnTime);
 
   // Guard: the hook returns null only if core blocks fail to resolve.
   if (!result) {
@@ -193,10 +195,15 @@ export function RecommendationsPanel(): React.JSX.Element {
               <Badge variant="warning">estimate</Badge>
             </div>
             <p className="text-xs text-subtle">{gyro.displayName}</p>
+            <p className="text-xs text-subtle">
+              Turns 90° in ≈{' '}
+              <span className="font-mono text-muted">{formatTurnTime(estimate.achievedTurnTime)}</span>{' '}
+              (target ≤ {formatTurnTime(targetTurnTime)})
+            </p>
           </div>
           <span
             className="font-mono text-lg font-semibold text-fg-bright"
-            title="Heuristic — true turn rate depends on the ship's geometry (moment of inertia), unknown before the build."
+            title="Estimate — the gyro count is solved to turn the ship 90° from rest within the target time, approximating the ship as a solid cube. True turn rate depends on the ship's real geometry (moment of inertia), unknown before the build."
           >
             {formatCount(estimate.gyroCount)}
           </span>

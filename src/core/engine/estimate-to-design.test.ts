@@ -62,7 +62,7 @@ function input(layout: ThrusterLayout, overrides?: Partial<ManualEstimatorInput>
       power: { kind: 'battery', block: largeBattery },
       runtimeTargetHours: 0.25,
       gyro: largeGyro,
-      responsiveness: 'normal',
+      targetTurnTime: 2.5,
     },
     ...overrides,
   };

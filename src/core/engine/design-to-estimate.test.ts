@@ -255,7 +255,7 @@ describe('designToEstimateSeed', () => {
         power: { kind: 'battery', block: largeBattery },
         runtimeTargetHours: 0.25,
         gyro: largeGyro,
-        responsiveness: 'normal',
+        targetTurnTime: 2.5,
       },
     };
     const estimate = estimateManual(input);

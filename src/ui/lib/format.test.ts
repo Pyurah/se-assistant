@@ -7,6 +7,7 @@ import {
   formatVolume,
   formatRuntime,
   formatDuration,
+  formatTurnTime,
   formatTwr,
   formatPercent,
   formatCount,
@@ -95,6 +96,20 @@ describe('formatDuration', () => {
   });
   it('renders seconds below a minute', () => {
     expect(formatDuration(42)).toBe('42 s');
+  });
+});
+
+describe('formatTurnTime', () => {
+  it('formats a small turn time to tenths of a second', () => {
+    expect(formatTurnTime(2.44)).toBe('2.4 s');
+    expect(formatTurnTime(0.75)).toBe('0.8 s');
+  });
+  it('renders Infinity (no gyros / no mass) as an em dash', () => {
+    expect(formatTurnTime(Infinity)).toBe('—');
+  });
+  it('renders a non-positive time as "0 s"', () => {
+    expect(formatTurnTime(0)).toBe('0 s');
+    expect(formatTurnTime(-1)).toBe('0 s');
   });
 });
 

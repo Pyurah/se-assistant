@@ -103,6 +103,18 @@ export function formatDuration(seconds: number): string {
 }
 
 /**
+ * Turn time (seconds) → compact string for the maneuverability readout: tenths
+ * of a second (turn times are small — a fraction of a second to a few seconds),
+ * with a trailing "s". Infinity (no gyros / no mass) becomes an em dash the
+ * caller can pair with a "can't turn" note; a non-positive time reads "0 s".
+ */
+export function formatTurnTime(seconds: number): string {
+  if (!Number.isFinite(seconds)) return '—';
+  if (seconds <= 0) return '0 s';
+  return `${trim(seconds, 1)} s`;
+}
+
+/**
  * TWR ratio → readable string. Infinity (0 g) becomes an em dash caller can
  * pair with a "no gravity" note; otherwise 2 decimals with a trailing ×.
  */

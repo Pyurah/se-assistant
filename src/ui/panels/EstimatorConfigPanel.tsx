@@ -24,7 +24,7 @@ import {
   type ThrusterBlock,
   type ThrusterType,
 } from '@data';
-import type { GoalVerdict, Responsiveness } from '@core';
+import type { GoalVerdict } from '@core';
 import {
   useEstimatorStore,
   type GoalLoadState,
@@ -37,6 +37,8 @@ import {
   formatPercent,
   formatForce,
   formatRuntime,
+  formatCount,
+  formatTurnTime,
 } from '../lib/format';
 import { Panel } from '../components/Panel';
 import { Badge, type BadgeVariant } from '../components/Badge';
@@ -65,12 +67,6 @@ const DIRECTION_ROWS: readonly { dir: Direction; label: string; emphasis?: boole
   { dir: 'right', label: 'Right' },
 ];
 
-const RESPONSIVENESS_OPTIONS = [
-  { value: 'sluggish' as const, label: 'Sluggish' },
-  { value: 'normal' as const, label: 'Normal' },
-  { value: 'nimble' as const, label: 'Nimble' },
-];
-
 const DENSITY_PRESETS: readonly { label: string; density: number }[] = [
   { label: 'Ice', density: 0.92 },
   { label: 'Components', density: 1.5 },
@@ -97,7 +93,7 @@ export function EstimatorConfigPanel(): React.JSX.Element {
   const powerKind = useEstimatorStore((s) => s.powerKind);
   const powerBlockId = useEstimatorStore((s) => s.powerBlockId);
   const runtimeTargetHours = useEstimatorStore((s) => s.runtimeTargetHours);
-  const responsiveness = useEstimatorStore((s) => s.responsiveness);
+  const targetTurnTime = useEstimatorStore((s) => s.targetTurnTime);
   const cargo = useEstimatorStore((s) => s.cargo);
 
   const setPlanet = useEstimatorStore((s) => s.setPlanet);
@@ -108,7 +104,7 @@ export function EstimatorConfigPanel(): React.JSX.Element {
   const setThrusterCount = useEstimatorStore((s) => s.setThrusterCount);
   const setPower = useEstimatorStore((s) => s.setPower);
   const setRuntimeTargetHours = useEstimatorStore((s) => s.setRuntimeTargetHours);
-  const setResponsiveness = useEstimatorStore((s) => s.setResponsiveness);
+  const setTargetTurnTime = useEstimatorStore((s) => s.setTargetTurnTime);
   const setCargoFill = useEstimatorStore((s) => s.setCargoFill);
   const setCargoDensity = useEstimatorStore((s) => s.setCargoDensity);
 
@@ -305,21 +301,34 @@ export function EstimatorConfigPanel(): React.JSX.Element {
 
         {/* Maneuverability */}
         <section className="flex flex-col gap-2">
-          <span className={fieldLabel}>
+          <label htmlFor="est-turn-time" className={fieldLabel}>
             <span className="mr-1 inline-flex align-middle text-subtle">
               <IconCompass size={13} />
             </span>
             Maneuverability
-          </span>
-          <SegmentedControl<Responsiveness>
-            name="estimator-responsiveness"
-            ariaLabel="Maneuverability target"
-            value={responsiveness}
-            options={RESPONSIVENESS_OPTIONS}
-            onChange={setResponsiveness}
-            className="w-full justify-between"
-          />
-          <p className="text-xs text-subtle">Drives the (estimated) gyro count.</p>
+          </label>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted">Turn 90° within</span>
+            <input
+              id="est-turn-time"
+              type="number"
+              min={0.25}
+              max={60}
+              step={0.25}
+              value={targetTurnTime}
+              onChange={(e) => setTargetTurnTime(Number(e.target.value))}
+              aria-label="Target time to turn 90 degrees from rest, in seconds"
+              className="h-8 w-20 rounded-md border border-border bg-bg px-2 font-mono text-sm text-fg transition-colors hover:border-border-strong focus:border-accent"
+            />
+            <span className="font-mono text-xs text-subtle">s</span>
+          </div>
+          <p className="text-xs text-subtle">
+            {result
+              ? `Sizes gyros to hit this — ${formatCount(result.estimate.gyroCount)} ${
+                  result.estimate.gyroCount === 1 ? 'gyro' : 'gyros'
+                } reaches ≈ ${formatTurnTime(result.estimate.achievedTurnTime)}.`
+              : 'Sizes the gyro count to turn the ship 90° from rest within this time.'}
+          </p>
         </section>
 
         {/* Cargo loadout */}
