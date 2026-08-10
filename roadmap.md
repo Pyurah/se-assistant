@@ -1,6 +1,6 @@
 # SE Assistant — Product Roadmap
 
-> **Last Updated**: 2026-08-08 (v0.16.0)
+> **Last Updated**: 2026-08-09 (v0.17.0)
 
 A Space Engineers ship & base planner: import a blueprint (`.sbc`) and get
 instant thrust-to-weight, mass, cargo, and power analysis — empty vs fully
@@ -11,10 +11,23 @@ loaded, on any vanilla planet.
 ## 👉 Next session starts here
 
 **Everything through Phase 2 plus M6.6, M6.7, the first Phase 3 slice (M7 build
-cost + throughput), and the v0.16.0 full-coverage block generator is DONE,
-committed, and pushed to GitHub** (`https://github.com/Pyurah/se-assistant`,
-branch `master`, at v0.16.0). Working tree is clean and all four gates pass
-(`typecheck` / `lint` / `test` (345) / `build`). Nothing is half-finished.
+cost + throughput), the v0.16.0 full-coverage block generator, and the v0.17.0
+build-cost generator is DONE, committed, and pushed to GitHub**
+(`https://github.com/Pyurah/se-assistant`, branch `master`, at v0.17.0). Working
+tree is clean and all four gates pass (`typecheck` / `lint` / `test` (369) /
+`build`). Nothing is half-finished.
+
+**v0.17.0 (2026-08-09) — build-cost generator, full vanilla cost coverage.** The
+noted fast-follow is shipped: `pnpm generate:costs` maps every block's parsed
+`<Components>` list to our component model and emits
+`src/data/generated-block-costs.ts` — recipes for all **1,455 blocks (0 skipped)**.
+The Build-cost panel now covers the whole catalogue (the reported "Jasen's Miner"
+went from 11/21 to 21/21 costed). Added 11 components (7 Prototech + ZoneChip + 3
+plushies) and a salvage-ingot model (`PrototechScrap` = 0-ore pseudo-ingot).
+Repointing the engine surfaced ~18 curated cost rows that lagged the current game,
+so the cost merge **inverts the block merge: generated wins** (curated kept only as
+fallback for un-emitted SubtypeIds). See `docs/data-audit.md` for the divergence
+table and the ADR 0002 addendum.
 
 **v0.14.0 (2026-08-08) — blueprint build cost (Phase 3 / M7, first slice).**
 Analyze now answers "what does it take to _build_ this ship?": total raw ore to
@@ -194,24 +207,24 @@ anything unconfirmed) → dataset → pure engine + worked-example tests → UI 
 
 If instead the user wants polish over new features: candidate small wins are a
 GitHub Actions CI workflow (run the four gates on push, plus `pnpm
-generate:blocks:check` on runners with the game — or skip it where the game is
-absent), README screenshots, resolving the flagged-uncertain data values in
-`docs/data-audit.md` (some DLC SubtypeIds, drill/sensor wattages, the
-Superconductor cobalt term) against a live game install, or the
-`BLOCK_COMPONENT_COSTS` regeneration fast-follow (extend the v0.16.0 generator to
-emit build-cost data from the same parsed `<Components>`).
+generate:blocks:check` / `pnpm generate:costs:check` on runners with the game — or
+skip them where the game is absent), README screenshots, or resolving the
+flagged-uncertain data values in `docs/data-audit.md` (some DLC SubtypeIds,
+drill/sensor wattages, the Superconductor cobalt term) against a live game install.
+The `BLOCK_COMPONENT_COSTS` regeneration fast-follow is **done** (v0.17.0).
 
 ---
 
 ## Current State
 
-- **Version**: 0.16.0
+- **Version**: 0.17.0
 - **Repo**: pushed to `https://github.com/Pyurah/se-assistant` (`master`);
   commits use the GitHub no-reply email (real email scrubbed from history).
 - **Build**: passing (`pnpm build`)
-- **Tests**: passing — 345 tests across logger, audit, data-integrity, the
-  merged-dataset invariants (`all-blocks` override + gap-fill proofs) and the
-  block-definition generator's fixture-driven parser/emitter suites, engine
+- **Tests**: passing — 369 tests across logger, audit, data-integrity, the
+  merged-dataset invariants (`all-blocks` + `all-block-costs` override/gap-fill
+  proofs) and the block + cost generators' fixture-driven parser/emitter/map
+  suites, engine
   (incl. `estimateRequirements`, the `estimateToDesign` + `designToEstimateSeed`
   bridges, the `rankThrusterTypes` ranker, the `buildCost` bill-of-materials
   engine, the `manufacturingThroughput` fleet/ratio engine, the fuel/flight-time
@@ -619,6 +632,20 @@ shared `Stepper` component drives the fleet steppers; panel render tests extende
 (4 → 7). Bottleneck-bound pipeline model documented as an explicit simplification
 in `docs/data-audit.md`. Conveyor throughput (the third M7 deliverable) remains
 open — it needs a fresh data pass (transfer rates, port sizes).
+
+**Delivered (v0.17.0):** full vanilla build-cost coverage via a second generator
+(`scripts/generate-costs/`, `pnpm generate:costs`) that maps each block's parsed
+`<Components>` list to our `ComponentId` model and emits
+`src/data/generated-block-costs.ts` — recipes for all **1,455 blocks, 0 skipped, 0
+unmapped**. Added 11 components (7 Prototech + ZoneChip + 3 plushies) with recipes
+from `Blueprints.sbc`, plus a salvage-ingot model (`PrototechScrap` = 0-ore
+pseudo-ingot; `REFINE_RECIPES` → `Partial`). The merged `all-block-costs.ts` makes
+**generated recipes authoritative** (curated kept only as fallback for un-emitted
+SubtypeIds) after running the generator revealed ~18 curated rows lagged the
+current game — the reversal + divergence table are in `docs/data-audit.md` and the
+ADR 0002 addendum. Fixed the girder component SubtypeId and the small welder/grinder
+recipes along the way. New salvage worked-example tests + `all-block-costs.test.ts`
+merge invariants. The reported "Jasen's Miner" import now reads 21/21 costed.
 
 ### M8 — Life Support & Combat
 

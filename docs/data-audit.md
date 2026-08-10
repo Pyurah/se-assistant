@@ -577,3 +577,88 @@ game's own installed definition files** by `scripts/generate-blocks/` (run
 `BLOCK_COMPONENT_COSTS` (the build-cost bill-of-materials) is still hand-curated.
 The same parsed `<Components>` lists could regenerate it — a planned follow-up so
 build-cost coverage matches block coverage.
+
+## Generated block costs (v0.17.0)
+
+The fast-follow above is delivered. `scripts/generate-costs/` (`pnpm generate:costs`)
+reads the same `CubeBlocks/*.sbc` + `Components.sbc`, maps each block's
+`<Components>` list back to our `ComponentId` model, and emits
+`src/data/generated-block-costs.ts` — recipes for **1,455 blocks, 0 skipped, 0
+unmapped**. `src/data/all-block-costs.ts` merges them with the curated set.
+
+### Source & method
+
+- **Files:** `Content/Data/CubeBlocks/*.sbc` (per-block `<Components>`) and
+  `Content/Data/Blueprints.sbc` (the 11 new component → ingot recipes), Space
+  Engineers **v1.210.012 b0**.
+- **Parse:** `componentCountsFromComponents` reads only each `<Component>`'s
+  `@_Subtype` / `@_Count`, summing duplicate subtypes (finishing components fold
+  in) and ignoring the nested `<DeconstructId>`. Same reader validated for mass in
+  v0.16.0.
+- **Honesty rule:** a block is emitted only if **every** component maps to a known
+  `ComponentId`. Any unmapped component → the whole block is skipped and stays
+  "cost unknown" — never a partial, confidently-wrong recipe. The 11 new
+  components were added specifically so 0 vanilla blocks skip.
+
+### New components (from `Blueprints.sbc`, per 1 unit)
+
+| ComponentId | SubtypeId | Ingots (kg) | Time (s) |
+| --- | --- | --- | --- |
+| `prototech-panel` | `PrototechPanel` | iron 35, nickel 7, cobalt 3, magnesium 4 | 4 |
+| `prototech-capacitor` | `PrototechCapacitor` | iron 12, silicon 4, silver 3, gold 6, scrap 1.5 | 16 |
+| `prototech-propulsion-unit` | `PrototechPropulsionUnit` | iron 60, cobalt 24, gold 6, platinum 3, scrap 1.25 | 14 |
+| `prototech-machinery` | `PrototechMachinery` | iron 45, nickel 12, silicon 7, gold 3, scrap 1.15 | 12 |
+| `prototech-circuitry` | `PrototechCircuitry` | iron 5, silicon 8, gold 2, platinum 1.5, scrap 1.75 | 11 |
+| `prototech-cooling-unit` | `PrototechCoolingUnit` | iron 80, gold 12, platinum 3.25, scrap 2.5 | 9 |
+| `prototech-frame` | `PrototechFrame` | — (salvage-only) | 1 |
+| `zone-chip` | `ZoneChip` | — (economy-only) | 1 |
+| `engineer-plushie` | `EngineerPlushie` | — (novelty) | 1 |
+| `engineer-plushie-se2` | `EngineerPlushieSE2` | — (novelty) | 1 |
+| `sabiroid-plushie` | `SabiroidPlushie` | — (novelty) | 1 |
+
+### Salvage model
+
+`PrototechScrap` is a **salvage-only pseudo-ingot** — ground from endgame Prototech
+blocks, never mined or refined. It joins the `Metal` union with **no**
+`REFINE_RECIPES` entry (the map is now `Partial`), so under
+`noUncheckedIndexedAccess` the build-cost engine is forced to skip it when totaling
+ore: scrap counts toward ingot mass and shows on its own "salvaged, not mined" UI
+line, but adds **0 ore** and **0 refine time**. `PrototechFrame`, `ZoneChip`, and
+the three plushies are **no-mineable-input** salvage/economy/novelty components
+(empty `ingots: {}`): their blocks become "known" and correctly cost 0 ore.
+
+### Merge contract: **generated wins** (reversal from the block-definition merge)
+
+Unlike `all-blocks.ts` (where curated wiki-verified *mass/physics* win), the cost
+merge makes **generated recipes authoritative** and keeps curated rows only as a
+fallback for SubtypeIds the generator does not emit. Reason: repointing the engine
+at the generated recipes revealed ~18 of the 51 curated `BLOCK_COMPONENT_COSTS`
+rows disagreed with the installed v1.210.012 files. The game files are the
+trustworthy source for a version-pinned tool. Divergences found:
+
+| Block | Curated | Game files (`CubeBlocks.sbc`) | Nature |
+| --- | --- | --- | --- |
+| `SmallShipWelder` | +`large-tube: 1` | (none) | **curated error** (large variant was correct) — curated fixed to match |
+| `SmallShipGrinder` | +`large-tube: 1` | (none) | **curated error** — curated fixed to match |
+| `LargeRefinery` | no `metal-grid` | `metal-grid: 20` | rebalance / omission |
+| `LargeAssembler` | computer 80, construction 40, display 4, steel 150 | computer 160, construction 80, display 10, +`metal-grid: 10`, steel 140 | rebalance |
+| `LargeBlockCockpit` | +`bulletproof-glass: 10` | (none) | rebalance |
+| `LargeBlockBatteryBlock` | `power-cell: 120` | `power-cell: 80` | rebalance |
+| `LargeBlockSolarPanel` | `solar-cell: 64`, +`large-tube` | `solar-cell: 32`, +girder 12, +glass 4 | solar rework |
+| `SmallBlockSolarPanel` | `solar-cell: 16` | `solar-cell: 8` | solar rework |
+| `LargeBlockWindTurbine` | `interior-plate: 20` | `interior-plate: 40` | rebalance |
+| `LargeBlockDrill` | +`small-tube: 24` | (none) | rebalance |
+| atmospheric thrusters (×4) | motor counts | lower motor counts (e.g. small-large 144→90) | rebalance |
+| `SmallHydrogenTank`, `OxygenTankSmall` | archived counts | halved/adjusted | rebalance |
+
+Curated-only fallback rows (generator emits a different SubtypeId, so no conflict):
+`LargeBlockHydrogenEngine` / `SmallBlockHydrogenEngine` (game: `LargeHydrogenEngine`
+/ `SmallHydrogenEngine`) and `OxygenGenerator` (game: no matching public large
+variant). These stay curated-sourced.
+
+### Fixed
+
+- **Girder component SubtypeId** `GirderComponent` → `Girder`. The wrong id meant
+  girder-using blocks (small solar panel, wind turbine) failed to map and stayed
+  "cost unknown"; corrected against `Components.sbc`.
+

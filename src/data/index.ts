@@ -13,6 +13,8 @@ export * from './blocks';
 export * from './functional-blocks';
 export * from './generated-blocks';
 export * from './all-blocks';
+export * from './generated-block-costs';
+export * from './all-block-costs';
 export * from './fuel-constants';
 export * from './cargo-items';
 export * from './manufacturing';

@@ -84,15 +84,17 @@ relationship clear.
   Beyond the hand-curated core, the full vanilla block catalogue (**1,455
   blocks**) is generated directly from the game's own definition files so ship
   imports resolve every buildable block (see _Regenerating block data_ below).
+  Build-cost recipes for all 1,455 blocks are generated the same way, so an
+  imported ship's bill of materials covers the whole catalogue too.
 - The pure calc engine is covered by **worked-example tests** with hand-verified
-  reference values (currently **345 tests**).
+  reference values (currently **369 tests**).
 - Where a value is genuinely an estimate — the gyro turn-rate (needs the ship's
   moment of inertia) or stopping distance (ignores per-axis gravity) — the UI
   says so rather than implying false precision.
 
 ## Status
 
-Version **0.16.0**. Phases 1 (core engine + blueprint import), 1.5 (requirement
+Version **0.17.0**. Phases 1 (core engine + blueprint import), 1.5 (requirement
 estimator), 2 (fuel/flight-time + motion/stability), and 2.5 (Estimate-mode
 enhancements incl. blueprint-seeded builds) are complete, and Phase 3
 (production/logistics) is under way with **build-cost analysis** and
@@ -132,6 +134,7 @@ To analyze a ship, drag an exported `.sbc` onto the import screen — or click
 | `pnpm lint`            | ESLint (includes engine purity rules)                    |
 | `pnpm format`          | Format with Prettier                                     |
 | `pnpm generate:blocks` | Regenerate the vanilla block dataset from a game install |
+| `pnpm generate:costs`  | Regenerate the vanilla build-cost recipes from a game install |
 
 ### Regenerating block data
 
@@ -156,6 +159,27 @@ are never overwritten (the merge lives in
 [`src/data/all-blocks.ts`](./src/data/all-blocks.ts)). Fields the game computes
 rather than stores literally — cargo inventory volume, hydrogen L/s burn rates,
 drill/tool wattage — are omitted from generated entries and stay curated-only.
+
+A companion generator produces the **build-cost recipes** the same way:
+
+```bash
+pnpm generate:costs                      # default Steam install path
+pnpm generate:costs --game-dir <path>    # custom install location
+pnpm generate:costs:check                # verify the committed file is current (CI drift guard)
+```
+
+It maps each block's `<Components>` list back to our component model and writes
+[`src/data/generated-block-costs.ts`](./src/data/generated-block-costs.ts) (recipes
+for all 1,455 blocks). A block is emitted only if **every** component maps — an
+unmapped component leaves the block "cost unknown" rather than producing a partial
+recipe. Unlike block definitions, the **cost merge lets generated recipes win**
+(they come straight from the current version's files, which proved more accurate
+than the older hand-curated numbers); the curated set is kept only as a fallback
+for the few blocks whose game SubtypeId the generator doesn't emit. The merge lives
+in [`src/data/all-block-costs.ts`](./src/data/all-block-costs.ts). Salvage-only
+materials (Prototech Scrap) are modeled honestly — they count toward ingot mass but
+contribute zero mined ore. See [`docs/data-audit.md`](./docs/data-audit.md) for the
+recipe citations and the curated-vs-game divergence table.
 
 ## Configuration
 

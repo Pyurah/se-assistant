@@ -4,6 +4,59 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.17.0] - 2026-08-09
+
+### Added
+
+- **Build-cost generator — full vanilla cost coverage from the game's own files.**
+  A new build-time tool (`pnpm generate:costs`) reads the installed Space
+  Engineers definition files (`Content/Data/CubeBlocks/*.sbc` + `Components.sbc`),
+  maps each block's `<Components>` list to our component model, and emits
+  [`src/data/generated-block-costs.ts`](./src/data/generated-block-costs.ts) —
+  **build recipes for all 1,455 buildable blocks** (0 skipped, 0 unmapped). The
+  Build-cost panel now covers the entire vanilla catalogue: "Jasen's Miner" reads
+  **21 of 21 block types** instead of 11 of 21. New game versions are a
+  regenerate, not a hand-transcription session.
+- **Merged cost dataset** ([`src/data/all-block-costs.ts`](./src/data/all-block-costs.ts)):
+  generated recipes are authoritative and **win on any subtypeId conflict**; the
+  hand-curated `BLOCK_COMPONENT_COSTS` is retained only as a fallback for the few
+  blocks whose game SubtypeId the generator does not emit (e.g. the hydrogen
+  engines / oxygen generator, which the archived data named differently).
+- **11 new components** — 7 Prototech (`PrototechFrame`, `PrototechPanel`,
+  `PrototechCapacitor`, `PrototechPropulsionUnit`, `PrototechMachinery`,
+  `PrototechCircuitry`, `PrototechCoolingUnit`) + `ZoneChip` + 3 plushies — with
+  recipes from `Blueprints.sbc`. Prototech blocks (jump drive, reactor, thruster,
+  battery, drill, gyro, assembler, O2 gen) now self-cost.
+- **Salvage-ingot model.** `PrototechScrap` is a salvage-only pseudo-ingot: it is
+  ground from endgame Prototech blocks, never mined. It counts toward ingot mass
+  and shows on its own "salvaged, not mined" line, but contributes **zero ore**
+  and zero refine time. `PrototechFrame`, `ZoneChip`, and the plushies are
+  no-mineable-input salvage/novelty components (0 ore).
+- `pnpm generate:costs:check` — a CI drift guard (where the game is available)
+  that regenerates in memory and diffs the committed file.
+
+### Changed
+
+- **Build-cost data is now game-file-authoritative.** Repointing the engine at
+  the generated recipes surfaced ~18 curated rows that lagged the current game
+  (rebalanced solar-panel, battery, and atmospheric-thruster costs; a missing
+  `metal-grid` on the refinery; a `bulletproof-glass` on the large cockpit the
+  current files omit). The generated values now win — see the reversal noted in
+  [ADR 0002](./docs/adr/0002-generated-block-dataset.md) and the divergence table
+  in [`docs/data-audit.md`](./docs/data-audit.md).
+- `REFINE_RECIPES` is now `Partial<Record<Metal, RefineRecipe>>` — salvage ingots
+  (`prototech-scrap`) have no refine recipe, and the type system enforces that the
+  ore-totals pass skips them rather than fabricating un-mineable ore.
+
+### Fixed
+
+- **Girder component SubtypeId** (`GirderComponent` → `Girder`) — the wrong id
+  meant girder-using blocks (small solar panel, wind turbine) could not resolve
+  their build cost. Restores their coverage.
+- **Small welder / grinder recipes** carried a spurious `large-tube: 1` not in the
+  current game files (the large variants were already correct) — corrected to
+  match `CubeBlocks.sbc`.
+
 ## [0.16.0] - 2026-08-08
 
 ### Added

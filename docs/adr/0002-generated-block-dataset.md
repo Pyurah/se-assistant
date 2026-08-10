@@ -94,3 +94,37 @@ correctness is verified in CI without the game.
   is smaller, validated, and CI-friendly.
 - **Put the generator in `src/`.** Rejected — violates the ADR 0001 purity
   boundary (`fs`, `console`).
+
+## Addendum — 2026-08-09 (v0.17.0): build-cost generator + "generated wins" for costs
+
+The fast-follow owed above ("Follow-up owed") is **delivered**. A second
+generator (`scripts/generate-costs/`, `pnpm generate:costs`) maps every block's
+parsed `<Components>` list back to our `ComponentId` model and emits
+`src/data/generated-block-costs.ts` — recipes for all **1,455** buildable blocks
+(0 skipped, 0 unmapped). Build-cost coverage now matches block coverage; the
+reported "Jasen's Miner" import went from 11/21 to 21/21 costed block types.
+
+Two decisions from the original ADR are **inverted for build-cost data**, on
+evidence that only appeared once the generator ran against the real files:
+
+1. **Costs: generated wins, not curated.** Repointing the engine at the generated
+   recipes revealed that ~18 of the 51 hand-curated `BLOCK_COMPONENT_COSTS` rows
+   disagreed with the installed v1.210.012 files — not extraction noise but a mix
+   of a genuine transcription error (a stray `large-tube` on the small
+   welder/grinder), a missing `metal-grid` on the refinery, and rebalances the
+   archived/wiki source predated (solar panel, battery, atmospheric thrusters,
+   large cockpit). For a version-pinned tool the `CubeBlocks.sbc` recipe is the
+   authoritative one, so `all-block-costs.ts` merges **generated last (wins)** and
+   keeps curated rows only as a **fallback** for the few subtypeIds the generator
+   does not emit (the hydrogen engines / oxygen generator use different SubtypeIds
+   in the archived data). This is the opposite of the block-*definition* merge,
+   where curated mass/physics were wiki-verified and remain trusted — the two
+   merges have different provenance, so they resolve conflicts in opposite
+   directions. The full divergence table is in `docs/data-audit.md`.
+
+2. **A new pseudo-ingot models salvage honestly.** `PrototechScrap` is ground from
+   endgame blocks, never mined. Rather than fabricate ore for it, `prototech-scrap`
+   joins the `Metal` union with **no** `REFINE_RECIPES` entry (the map became
+   `Partial`), so it flows through the ingot layer and its own UI line but adds
+   zero ore — the type system enforces the skip in `build-cost.ts`.
+

@@ -194,6 +194,33 @@ export function massFromComponents(
   return total;
 }
 
+/**
+ * Count each component a definition is built from, keyed by game component
+ * SubtypeId. This is the raw bill-of-materials behind the build-cost table —
+ * the same `<Components>` list {@link massFromComponents} reads, but preserving
+ * counts instead of collapsing to mass.
+ *
+ * Reads only the `@_Subtype` / `@_Count` attributes; nested
+ * `<DeconstructId><SubtypeId>` children (the item you get when you grind the
+ * block, not a build input) are deliberately ignored. Duplicate subtypes — the
+ * finishing components the game lists twice — are summed into one entry.
+ */
+export function componentCountsFromComponents(def: RawDefinition): Map<string, number> {
+  const components = toArray(def.Components?.Component) as Array<{
+    '@_Subtype'?: string;
+    '@_Count'?: unknown;
+  }>;
+  const counts = new Map<string, number>();
+  for (const c of components) {
+    const subtype = c['@_Subtype'];
+    const count = num(c['@_Count']) ?? 0;
+    if (typeof subtype === 'string' && count > 0) {
+      counts.set(subtype, (counts.get(subtype) ?? 0) + count);
+    }
+  }
+  return counts;
+}
+
 /** Grid cells occupied (x·y·z), when the `<Size>` element is present. */
 function cellCountFromSize(def: RawDefinition): number | undefined {
   const s = def.Size;

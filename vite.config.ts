@@ -30,10 +30,11 @@ export default defineConfig({
         'src/data/**/index.ts',
         'src/core/types.ts',
         'src/data/schema.ts',
-        // Generated dataset — plain serializable data, no executable logic.
-        // Its correctness is covered by the generator's parse/emit unit tests
-        // and the merge invariants in all-blocks.test.ts.
+        // Generated datasets — plain serializable data, no executable logic.
+        // Correctness is covered by the generators' parse/emit/map unit tests
+        // and the merge invariants in all-blocks.test.ts / all-block-costs.test.ts.
         'src/data/generated-blocks.ts',
+        'src/data/generated-block-costs.ts',
       ],
       thresholds: {
         // Enforced on the engine because people will trust these numbers.

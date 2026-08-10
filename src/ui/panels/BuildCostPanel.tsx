@@ -44,6 +44,9 @@ const METAL_ORDER: readonly Metal[] = [
   'magnesium',
   'uranium',
   'stone',
+  // Salvage-only pseudo-ingot — contributes 0 ore, so it never appears in the
+  // ore bar. Present here only to keep the Record<Metal, …> maps total.
+  'prototech-scrap',
 ];
 
 const METAL_COLOR: Record<Metal, string> = {
@@ -57,6 +60,7 @@ const METAL_COLOR: Record<Metal, string> = {
   magnesium: 'bg-[oklch(0.7_0.13_40)]',
   uranium: 'bg-[oklch(0.72_0.16_145)]',
   stone: 'bg-[oklch(0.58_0.03_80)]',
+  'prototech-scrap': 'bg-[oklch(0.55_0.08_310)]',
 };
 
 const EFFICIENCY_OPTIONS = [
@@ -113,6 +117,9 @@ export function BuildCostPanel(): React.JSX.Element | null {
   const totalOre = totalOreMass(cost);
   const totalIngots = totalIngotMass(cost);
   const allUnknown = cost.knownBlockTypes === 0;
+  // Prototech Scrap is salvaged from endgame blocks, never mined — it counts
+  // toward ingot mass but adds 0 ore, so it earns its own honest footnote.
+  const scrapKg = cost.ingots['prototech-scrap'] ?? 0;
 
   return (
     <Panel
@@ -141,6 +148,14 @@ export function BuildCostPanel(): React.JSX.Element | null {
               <StackedBar segments={oreSegments} format={formatMass} />
             ) : (
               <p className="text-sm text-subtle">No ore-bearing components.</p>
+            )}
+
+            {scrapKg > 0 && (
+              <p className="text-xs text-subtle">
+                Includes{' '}
+                <span className="font-mono text-muted">{formatMass(scrapKg)}</span> of
+                Prototech Scrap — salvaged from Prototech blocks, not mined (0 ore).
+              </p>
             )}
           </>
         )}

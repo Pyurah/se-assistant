@@ -28,7 +28,17 @@
  * PURE DATA — no React, no DOM. Safe to import from the engine.
  */
 
-/** A refinable metal / ore family; the key linking ore → ingot → component. */
+/**
+ * A metal / ore family, the key linking ore → ingot → component.
+ *
+ * Every member except `prototech-scrap` is a *refinable* metal with a
+ * `REFINE_RECIPES` entry (ore → ingot). `prototech-scrap` is a **salvage-only
+ * pseudo-ingot**: it is ground from endgame Prototech blocks, never mined or
+ * refined, so it has NO refine recipe and contributes ZERO ore to a build cost.
+ * The type stays in the `Metal` union so it can flow through the ingot layer
+ * (and show on its own "salvaged, not mined" line), but the deliberately
+ * `Partial` `REFINE_RECIPES` map is what enforces "no ore for scrap".
+ */
 export type Metal =
   | 'iron'
   | 'nickel'
@@ -39,7 +49,8 @@ export type Metal =
   | 'gold'
   | 'platinum'
   | 'uranium'
-  | 'stone';
+  | 'stone'
+  | 'prototech-scrap';
 
 /** Human-facing metal names (ingot form) for UI display. */
 export const METAL_LABELS: Readonly<Record<Metal, string>> = {
@@ -53,6 +64,7 @@ export const METAL_LABELS: Readonly<Record<Metal, string>> = {
   platinum: 'Platinum',
   uranium: 'Uranium',
   stone: 'Stone',
+  'prototech-scrap': 'Prototech Scrap',
 };
 
 /**
@@ -78,8 +90,14 @@ export interface RefineRecipe {
  * - `stone` — really a multi-output recipe (Gravel + trace Fe/Ni/Si). We model
  *   only the Gravel path (the one a build cost consumes, via Reactor
  *   components) at the archived ~0.9 primary result. Trace metals unmodeled.
+ *
+ * The map is deliberately `Partial`: `prototech-scrap` is salvage-only and has
+ * NO refine recipe. Under `noUncheckedIndexedAccess`, `REFINE_RECIPES[metal]`
+ * is therefore `RefineRecipe | undefined`, forcing the build-cost engine to
+ * skip un-refinable (salvage) ingots when it totals ore — the type system, not
+ * a runtime convention, guarantees scrap never fabricates mineable ore.
  */
-export const REFINE_RECIPES: Readonly<Record<Metal, RefineRecipe>> = {
+export const REFINE_RECIPES: Readonly<Partial<Record<Metal, RefineRecipe>>> = {
   iron: { metal: 'iron', yieldRatio: 0.7, baseTimeSeconds: 0.05 },
   nickel: { metal: 'nickel', yieldRatio: 0.4, baseTimeSeconds: 2 },
   cobalt: { metal: 'cobalt', yieldRatio: 0.3, baseTimeSeconds: 4 },
@@ -115,7 +133,20 @@ export type ComponentId =
   | 'power-cell'
   | 'superconductor'
   | 'explosives'
-  | 'canvas';
+  | 'canvas'
+  // ── Prototech (Automatons / endgame) ─────────────────────────────────────
+  | 'prototech-frame'
+  | 'prototech-panel'
+  | 'prototech-capacitor'
+  | 'prototech-propulsion-unit'
+  | 'prototech-machinery'
+  | 'prototech-circuitry'
+  | 'prototech-cooling-unit'
+  // ── Economy / novelty (non-craftable) ────────────────────────────────────
+  | 'zone-chip'
+  | 'engineer-plushie'
+  | 'engineer-plushie-se2'
+  | 'sabiroid-plushie';
 
 /** A component's assembly recipe: ingot cost (kg) and base assemble time. */
 export interface ComponentRecipe {
@@ -141,7 +172,7 @@ export const COMPONENT_RECIPES: Readonly<Record<ComponentId, ComponentRecipe>> =
   'steel-plate': { id: 'steel-plate', displayName: 'Steel Plate', subtypeId: 'SteelPlate', ingots: { iron: 21 }, baseTimeSeconds: 1 },
   construction: { id: 'construction', displayName: 'Construction Comp.', subtypeId: 'Construction', ingots: { iron: 10 }, baseTimeSeconds: 4 },
   'interior-plate': { id: 'interior-plate', displayName: 'Interior Plate', subtypeId: 'InteriorPlate', ingots: { iron: 3.5 }, baseTimeSeconds: 1 },
-  girder: { id: 'girder', displayName: 'Girder', subtypeId: 'GirderComponent', ingots: { iron: 7 }, baseTimeSeconds: 1 },
+  girder: { id: 'girder', displayName: 'Girder', subtypeId: 'Girder', ingots: { iron: 7 }, baseTimeSeconds: 1 },
   'metal-grid': { id: 'metal-grid', displayName: 'Metal Grid', subtypeId: 'MetalGrid', ingots: { iron: 12, nickel: 5, cobalt: 3 }, baseTimeSeconds: 2 },
   'small-tube': { id: 'small-tube', displayName: 'Small Tube', subtypeId: 'SmallTube', ingots: { iron: 5 }, baseTimeSeconds: 1 },
   'large-tube': { id: 'large-tube', displayName: 'Large Tube', subtypeId: 'LargeTube', ingots: { iron: 30 }, baseTimeSeconds: 1 },
@@ -160,6 +191,24 @@ export const COMPONENT_RECIPES: Readonly<Record<ComponentId, ComponentRecipe>> =
   superconductor: { id: 'superconductor', displayName: 'Superconductor', subtypeId: 'Superconductor', ingots: { iron: 10, gold: 2 }, baseTimeSeconds: 8 },
   explosives: { id: 'explosives', displayName: 'Explosives', subtypeId: 'Explosives', ingots: { silicon: 0.5, magnesium: 2 }, baseTimeSeconds: 10 },
   canvas: { id: 'canvas', displayName: 'Canvas', subtypeId: 'Canvas', ingots: { iron: 2, silicon: 35 }, baseTimeSeconds: 4 },
+
+  // ── Prototech (Automatons pack) ──────────────────────────────────────────
+  // Recipes from Content/Data/Blueprints.sbc (v1.210.012 b0); see docs/data-audit.md.
+  // PrototechPanel is fully craftable from mined ingots. The other five mix mined
+  // ingots with PrototechScrap — a salvage-only pseudo-ingot (no ore, see Metal).
+  'prototech-frame': { id: 'prototech-frame', displayName: 'Prototech Frame', subtypeId: 'PrototechFrame', ingots: {}, baseTimeSeconds: 1 }, // salvage-only (prereq is itself)
+  'prototech-panel': { id: 'prototech-panel', displayName: 'Prototech Panel', subtypeId: 'PrototechPanel', ingots: { iron: 35, nickel: 7, cobalt: 3, magnesium: 4 }, baseTimeSeconds: 4 },
+  'prototech-capacitor': { id: 'prototech-capacitor', displayName: 'Prototech Capacitor', subtypeId: 'PrototechCapacitor', ingots: { iron: 12, silicon: 4, silver: 3, gold: 6, 'prototech-scrap': 1.5 }, baseTimeSeconds: 16 },
+  'prototech-propulsion-unit': { id: 'prototech-propulsion-unit', displayName: 'Prototech Propulsion Unit', subtypeId: 'PrototechPropulsionUnit', ingots: { iron: 60, cobalt: 24, gold: 6, platinum: 3, 'prototech-scrap': 1.25 }, baseTimeSeconds: 14 },
+  'prototech-machinery': { id: 'prototech-machinery', displayName: 'Prototech Machinery', subtypeId: 'PrototechMachinery', ingots: { iron: 45, nickel: 12, silicon: 7, gold: 3, 'prototech-scrap': 1.15 }, baseTimeSeconds: 12 },
+  'prototech-circuitry': { id: 'prototech-circuitry', displayName: 'Prototech Circuitry', subtypeId: 'PrototechCircuitry', ingots: { iron: 5, silicon: 8, gold: 2, platinum: 1.5, 'prototech-scrap': 1.75 }, baseTimeSeconds: 11 },
+  'prototech-cooling-unit': { id: 'prototech-cooling-unit', displayName: 'Prototech Cooling Unit', subtypeId: 'PrototechCoolingUnit', ingots: { iron: 80, gold: 12, platinum: 3.25, 'prototech-scrap': 2.5 }, baseTimeSeconds: 9 },
+
+  // ── Economy / novelty (non-craftable: no mineable input) ─────────────────
+  'zone-chip': { id: 'zone-chip', displayName: 'Zone Chip', subtypeId: 'ZoneChip', ingots: {}, baseTimeSeconds: 1 }, // economy item (safe-zone), not assembled
+  'engineer-plushie': { id: 'engineer-plushie', displayName: 'Engineer Plushie', subtypeId: 'EngineerPlushie', ingots: {}, baseTimeSeconds: 1 }, // novelty, no ingot cost
+  'engineer-plushie-se2': { id: 'engineer-plushie-se2', displayName: 'Engineer Plushie (SE2)', subtypeId: 'EngineerPlushieSE2', ingots: {}, baseTimeSeconds: 1 }, // novelty, no ingot cost
+  'sabiroid-plushie': { id: 'sabiroid-plushie', displayName: 'Sabiroid Plushie', subtypeId: 'SabiroidPlushie', ingots: {}, baseTimeSeconds: 1 }, // novelty, no ingot cost
 };
 
 /** A block's component build cost: how many of each component it takes. */
@@ -230,9 +279,9 @@ export const BLOCK_COMPONENT_COSTS: Readonly<Record<string, BlockComponentCost>>
   LargeBlockDrill: { 'steel-plate': 300, construction: 40, 'small-tube': 24, 'large-tube': 12, motor: 5, computer: 5 },
   SmallBlockDrill: { 'steel-plate': 32, construction: 30, 'large-tube': 4, motor: 1, computer: 1 },
   LargeShipWelder: { 'steel-plate': 20, construction: 30, 'large-tube': 1, motor: 2, computer: 2 },
-  SmallShipWelder: { 'steel-plate': 12, construction: 17, 'small-tube': 6, 'large-tube': 1, motor: 2, computer: 2 },
+  SmallShipWelder: { 'steel-plate': 12, construction: 17, 'small-tube': 6, motor: 2, computer: 2 },
   LargeShipGrinder: { 'steel-plate': 20, construction: 30, 'large-tube': 1, motor: 4, computer: 2 },
-  SmallShipGrinder: { 'steel-plate': 12, construction: 17, 'small-tube': 4, 'large-tube': 1, motor: 4, computer: 2 },
+  SmallShipGrinder: { 'steel-plate': 12, construction: 17, 'small-tube': 4, motor: 4, computer: 2 },
 
   // ── Connector ─────────────────────────────────────────────────────────────
   Connector: { 'steel-plate': 150, construction: 40, 'small-tube': 12, motor: 8, computer: 20 },

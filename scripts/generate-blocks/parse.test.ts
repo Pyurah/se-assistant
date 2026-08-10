@@ -9,6 +9,7 @@ import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   buildBlock,
+  componentCountsFromComponents,
   dlcFromTag,
   isPublic,
   massFromComponents,
@@ -75,6 +76,28 @@ describe('massFromComponents', () => {
   it('ignores nested non-component SubtypeIds (battery CriticalComponent)', () => {
     // SteelPlate 20*20=400 + PowerCell 25*80=2000 + Computer 0.2*25=5 = 2405.
     expect(massFromComponents(bySubtype('LargeBlockBatteryBlock'), componentMasses)).toBe(2405);
+  });
+});
+
+describe('componentCountsFromComponents', () => {
+  it('sums duplicate finishing components into one entry', () => {
+    // The atmospheric thruster lists SteelPlate (2 + 1) and Construction (20 + 2).
+    const counts = componentCountsFromComponents(bySubtype('SmallBlockSmallAtmosphericThrust'));
+    expect(counts.get('SteelPlate')).toBe(3);
+    expect(counts.get('Construction')).toBe(22);
+    expect(counts.get('LargeTube')).toBe(1);
+    expect(counts.get('MetalGrid')).toBe(1);
+    expect(counts.get('Motor')).toBe(18);
+  });
+
+  it('reads @_Count as build input, ignoring nested <DeconstructId><SubtypeId>', () => {
+    // The battery's PowerCell carries a nested DeconstructId (Scrap) — a grind
+    // output, not a build input. Only the 80 PowerCell build count is recorded.
+    const counts = componentCountsFromComponents(bySubtype('LargeBlockBatteryBlock'));
+    expect(counts.get('PowerCell')).toBe(80);
+    expect(counts.get('SteelPlate')).toBe(20);
+    expect(counts.get('Computer')).toBe(25);
+    expect(counts.has('Scrap')).toBe(false);
   });
 });
 

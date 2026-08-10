@@ -25,7 +25,6 @@
 
 import type { ShipDesign } from '../types';
 import {
-  BLOCK_COMPONENT_COSTS,
   BLOCK_COST_ALIASES,
   COMPONENT_RECIPES,
   REFINE_RECIPES,
@@ -38,6 +37,7 @@ import {
   type RefineryPreset,
   type AssemblerPreset,
 } from '../../data/manufacturing';
+import { ALL_BLOCK_COSTS } from '../../data/all-block-costs';
 
 /** Tunable manufacturing settings; every field defaults to the Realistic 1× world. */
 export interface BuildCostOptions {
@@ -80,10 +80,7 @@ export interface BuildCost {
 
 /** Resolve a block's component recipe, following reskin/variant aliases. */
 function recipeFor(subtypeId: string): BlockComponentCost | undefined {
-  return (
-    BLOCK_COMPONENT_COSTS[subtypeId] ??
-    BLOCK_COMPONENT_COSTS[BLOCK_COST_ALIASES[subtypeId] ?? '']
-  );
+  return ALL_BLOCK_COSTS[subtypeId] ?? ALL_BLOCK_COSTS[BLOCK_COST_ALIASES[subtypeId] ?? ''];
 }
 
 /**
@@ -145,6 +142,12 @@ function ingotTotals(
 /**
  * Refine ingot totals back to raw ore (kg) and accumulate total refine time,
  * both governed by the chosen refinery's yield/speed multipliers.
+ *
+ * Salvage ingots (`prototech-scrap`) have no `REFINE_RECIPES` entry — they are
+ * ground from endgame blocks, never mined. Such ingots are SKIPPED here: they
+ * still count toward ingot mass (they are real materials the build consumes),
+ * but they contribute zero ore and zero refine time. A consumer can surface the
+ * skipped salvage ingot on its own "salvaged, not mined" line.
  */
 function oreTotals(
   ingots: Partial<Record<Metal, number>>,
@@ -155,6 +158,7 @@ function oreTotals(
 
   for (const [metal, ingotKg] of Object.entries(ingots) as [Metal, number][]) {
     const recipe = REFINE_RECIPES[metal];
+    if (!recipe) continue; // salvage-only ingot (no ore path) — never fabricate ore
     const effectiveYield = recipe.yieldRatio * refinery.materialEfficiency;
     const oreKg = ingotKg / effectiveYield;
     ore[metal] = (ore[metal] ?? 0) + oreKg;
