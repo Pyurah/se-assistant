@@ -8,6 +8,8 @@ import {
   totalIngotMass,
   totalOreMass,
   hasUnknownBlocks,
+  componentBill,
+  totalComponentCount,
 } from './build-cost';
 
 /**
@@ -236,5 +238,66 @@ describe('buildCost — Prototech & salvage (generated coverage)', () => {
     // "Known" — it leaves the unknown list even though it costs no ore.
     expect(cost.unknownBlocks).toHaveLength(0);
     expect(cost.knownBlockTypes).toBe(1);
+  });
+});
+
+describe('componentBill / totalComponentCount', () => {
+  it('lists every component with its count, labeled and subtyped', () => {
+    // LargeBlockCockpit: interior-plate 20, construction 20, motor 2, computer 100, display 10.
+    const cost = buildCost(design([{ definition: block('LargeBlockCockpit'), quantity: 1 }]));
+    const bill = componentBill(cost);
+
+    const byId = Object.fromEntries(bill.map((i) => [i.id, i]));
+    expect(byId['computer']).toMatchObject({
+      displayName: 'Computer',
+      subtypeId: 'Computer',
+      count: 100,
+    });
+    expect(byId['interior-plate']!.count).toBe(20);
+    expect(byId['motor']!.count).toBe(2);
+    // Exactly the five components the recipe uses — no zero-count noise.
+    expect(bill).toHaveLength(5);
+  });
+
+  it('orders the bill by count descending, ties broken by name', () => {
+    const cost = buildCost(design([{ definition: block('LargeBlockCockpit'), quantity: 1 }]));
+    const counts = componentBill(cost).map((i) => i.count);
+    // 100 (computer) > 20/20 (construction/interior-plate) > 10 (display) > 2 (motor).
+    expect(counts).toEqual([100, 20, 20, 10, 2]);
+
+    // The two 20s are ordered alphabetically: Construction Comp. before Interior Plate.
+    const names = componentBill(cost)
+      .filter((i) => i.count === 20)
+      .map((i) => i.displayName);
+    expect(names).toEqual(['Construction Comp.', 'Interior Plate']);
+  });
+
+  it('sums counts across many blocks and stays in sync with the total', () => {
+    // 2 small armor (1 steel-plate each) + 1 large armor (25) = 27 steel-plate.
+    const cost = buildCost(
+      design([
+        { definition: block('SmallBlockArmorBlock'), quantity: 2 },
+        { definition: block('LargeBlockArmorBlock'), quantity: 1 },
+      ]),
+    );
+    const bill = componentBill(cost);
+    expect(bill).toEqual([
+      { id: 'steel-plate', displayName: 'Steel Plate', subtypeId: 'SteelPlate', count: 27 },
+    ]);
+    expect(totalComponentCount(cost)).toBe(27);
+  });
+
+  it('totalComponentCount sums every component type', () => {
+    // Cockpit: 20 + 20 + 2 + 100 + 10 = 152 individual components.
+    const cost = buildCost(design([{ definition: block('LargeBlockCockpit'), quantity: 1 }]));
+    expect(totalComponentCount(cost)).toBe(152);
+  });
+
+  it('is empty for an all-unknown design', () => {
+    const cost = buildCost(
+      design([{ definition: block('TotallyUnknownThing', { source: 'blueprint' }), quantity: 3 }]),
+    );
+    expect(componentBill(cost)).toEqual([]);
+    expect(totalComponentCount(cost)).toBe(0);
   });
 });

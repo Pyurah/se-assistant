@@ -95,6 +95,23 @@ describe('BuildCostPanel rendering', () => {
     expect(after).not.toBe(before);
   });
 
+  it('lists the components to assemble with counts for a real ship', async () => {
+    await state().importBlueprint(EXAMPLE_BLUEPRINT_XML, 'example.sbc');
+    render(<BuildCostPanel />);
+    // The assembler bill of materials — the parts a builder pre-stages.
+    expect(screen.getByText(/components to assemble/i)).toBeInTheDocument();
+    // Steel Plate is in essentially every ship's bill; it should be listed.
+    expect(screen.getByText('Steel Plate')).toBeInTheDocument();
+    // Counts render as "×N" — at least one must be present.
+    expect(screen.getAllByText(/^×[\d,]+$/).length).toBeGreaterThan(0);
+  });
+
+  it('omits the components list when every block is unknown', async () => {
+    await state().importBlueprint(ALL_MODDED_BLUEPRINT, 'modded.sbc');
+    render(<BuildCostPanel />);
+    expect(screen.queryByText(/components to assemble/i)).not.toBeInTheDocument();
+  });
+
   it('renders nothing when no design is loaded', () => {
     const { container } = render(<BuildCostPanel />);
     expect(container).toBeEmptyDOMElement();

@@ -207,3 +207,37 @@ export function totalOreMass(cost: BuildCost): number {
 export function hasUnknownBlocks(cost: BuildCost): boolean {
   return cost.unknownBlocks.length > 0;
 }
+
+/** One line of the assembler bill of materials: a component and how many to make. */
+export interface ComponentBillItem {
+  readonly id: ComponentId;
+  /** Human-facing name (e.g. "Steel Plate"). */
+  readonly displayName: string;
+  /** The game's component SubtypeId — the name shown in the assembler queue. */
+  readonly subtypeId: string;
+  /** How many to assemble across the whole ship. */
+  readonly count: number;
+}
+
+/**
+ * The assembler bill of materials: every component the ship needs, ordered so a
+ * builder can pre-stage the assembler and the welders never stall waiting on a
+ * missing part. Sorted by count descending (the parts you need most, first),
+ * ties broken by display name for a stable, readable order.
+ *
+ * Reads the already-computed `cost.components` totals — pure, no recomputation.
+ * Counts are integers (block recipes are whole components × whole block counts).
+ */
+export function componentBill(cost: BuildCost): readonly ComponentBillItem[] {
+  return (Object.entries(cost.components) as [ComponentId, number][])
+    .map(([id, count]) => {
+      const recipe = COMPONENT_RECIPES[id];
+      return { id, displayName: recipe.displayName, subtypeId: recipe.subtypeId, count };
+    })
+    .sort((a, b) => b.count - a.count || a.displayName.localeCompare(b.displayName));
+}
+
+/** Total number of individual components to assemble across the whole ship. */
+export function totalComponentCount(cost: BuildCost): number {
+  return Object.values(cost.components).reduce((sum, n) => sum + (n ?? 0), 0);
+}

@@ -32,13 +32,14 @@ Drag in an exported `.sbc` (or load the bundled example) and get a live readout:
 - **Fuel & flight time** — total hydrogen capacity, hover time and full-throttle
   time on a full tank, reactor uranium burn, solar sizing guidance.
 - **Build cost** — what it takes to _construct_ the ship: total raw ore to mine
-  (by metal), total ingots, and refine time — walking blocks → components →
-  ingots → ore with exact arithmetic on the game's recipes. Toggle refinery /
-  assembler tier and Assembler-Efficiency and the ore totals recompute; blocks
-  with no recipe are flagged "cost unknown" rather than counted as free. A
-  **throughput** readout turns that into wall-clock build time for a chosen
-  refinery/assembler fleet, flags the bottleneck stage, and suggests the fleet
-  ratio that keeps neither stage idle.
+  (by metal), total ingots, the **full component breakdown** (every part and how
+  many, so you can pre-stage an assembler queue and the welders never stall), and
+  refine time — walking blocks → components → ingots → ore with exact arithmetic
+  on the game's recipes. Toggle refinery / assembler tier and Assembler-Efficiency
+  and the ore totals recompute; blocks with no recipe are flagged "cost unknown"
+  rather than counted as free. A **throughput** readout turns that into wall-clock
+  build time for a chosen refinery/assembler fleet, flags the bottleneck stage,
+  and suggests the fleet ratio that keeps neither stage idle.
 - **Motion & stability** — dampener stopping distance, center of mass,
   thrust-center alignment (off-center thrust that causes unwanted spin), and a
   gyroscope turn-rate estimate.
@@ -87,14 +88,14 @@ relationship clear.
   Build-cost recipes for all 1,455 blocks are generated the same way, so an
   imported ship's bill of materials covers the whole catalogue too.
 - The pure calc engine is covered by **worked-example tests** with hand-verified
-  reference values (currently **369 tests**).
+  reference values (currently **376 tests**).
 - Where a value is genuinely an estimate — the gyro turn-rate (needs the ship's
   moment of inertia) or stopping distance (ignores per-axis gravity) — the UI
   says so rather than implying false precision.
 
 ## Status
 
-Version **0.17.0**. Phases 1 (core engine + blueprint import), 1.5 (requirement
+Version **0.18.0**. Phases 1 (core engine + blueprint import), 1.5 (requirement
 estimator), 2 (fuel/flight-time + motion/stability), and 2.5 (Estimate-mode
 enhancements incl. blueprint-seeded builds) are complete, and Phase 3
 (production/logistics) is under way with **build-cost analysis** and

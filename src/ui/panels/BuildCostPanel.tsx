@@ -21,7 +21,7 @@ import {
   METAL_LABELS,
   type Metal,
 } from '@data';
-import { totalOreMass, totalIngotMass, manufacturingThroughput } from '@core';
+import { totalOreMass, totalIngotMass, manufacturingThroughput, componentBill, totalComponentCount } from '@core';
 import { useBuildCost } from '../../app/hooks/use-build-cost';
 import { formatMass, formatDuration, formatCount } from '../lib/format';
 import { Panel } from '../components/Panel';
@@ -120,6 +120,10 @@ export function BuildCostPanel(): React.JSX.Element | null {
   // Prototech Scrap is salvaged from endgame blocks, never mined — it counts
   // toward ingot mass but adds 0 ore, so it earns its own honest footnote.
   const scrapKg = cost.ingots['prototech-scrap'] ?? 0;
+  // The assembler bill: every component to pre-stage so the welders never stall
+  // waiting on a missing part. Ordered biggest-count-first by the pure engine.
+  const bill = componentBill(cost);
+  const totalComponents = totalComponentCount(cost);
 
   return (
     <Panel
@@ -156,6 +160,37 @@ export function BuildCostPanel(): React.JSX.Element | null {
                 <span className="font-mono text-muted">{formatMass(scrapKg)}</span> of
                 Prototech Scrap — salvaged from Prototech blocks, not mined (0 ore).
               </p>
+            )}
+
+            {bill.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-[11px] font-medium tracking-wide text-subtle uppercase">
+                    Components to assemble
+                  </span>
+                  <span className="text-xs text-muted">
+                    <span className="font-mono text-fg">{formatCount(totalComponents)}</span> total
+                  </span>
+                </div>
+                <ul className="flex flex-col divide-y divide-border/60">
+                  {bill.map((item) => (
+                    <li
+                      key={item.id}
+                      className="flex items-center justify-between gap-3 py-1"
+                      title={`${item.displayName} (${item.subtypeId})`}
+                    >
+                      <span className="truncate text-sm text-fg">{item.displayName}</span>
+                      <span className="font-mono text-sm tabular-nums text-fg-bright">
+                        ×{formatCount(item.count)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-subtle">
+                  Queue these in an assembler before welding so the build never stalls
+                  waiting on a part.
+                </p>
+              </div>
             )}
           </>
         )}

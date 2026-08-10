@@ -1,6 +1,6 @@
 # SE Assistant — Product Roadmap
 
-> **Last Updated**: 2026-08-09 (v0.17.0)
+> **Last Updated**: 2026-08-10 (v0.18.0)
 
 A Space Engineers ship & base planner: import a blueprint (`.sbc`) and get
 instant thrust-to-weight, mass, cargo, and power analysis — empty vs fully
@@ -13,9 +13,19 @@ loaded, on any vanilla planet.
 **Everything through Phase 2 plus M6.6, M6.7, the first Phase 3 slice (M7 build
 cost + throughput), the v0.16.0 full-coverage block generator, and the v0.17.0
 build-cost generator is DONE, committed, and pushed to GitHub**
-(`https://github.com/Pyurah/se-assistant`, branch `master`, at v0.17.0). Working
-tree is clean and all four gates pass (`typecheck` / `lint` / `test` (369) /
+(`https://github.com/Pyurah/se-assistant`, branch `master`, at v0.18.0). Working
+tree is clean and all four gates pass (`typecheck` / `lint` / `test` (376) /
 `build`). Nothing is half-finished.
+
+**v0.18.0 (2026-08-10) — component breakdown in the Build-cost panel.** The
+panel showed raw ore and refine time but not the components themselves — yet
+that is exactly what a builder pre-stages so the welders never stall waiting on a
+missing part. It now lists **every component and how many**, ordered
+biggest-count-first, with a "N total" headline. The per-component totals were
+already computed by `buildCost` (the `cost.components` map); this surfaces them
+via two pure helpers, `componentBill(cost)` + `totalComponentCount(cost)`, with
+worked-example tests for ordering, tie-breaking, and cross-block summing. No new
+game data — pure display of already-trustworthy numbers.
 
 **v0.17.0 (2026-08-09) — build-cost generator, full vanilla cost coverage.** The
 noted fast-follow is shipped: `pnpm generate:costs` maps every block's parsed
@@ -217,11 +227,11 @@ The `BLOCK_COMPONENT_COSTS` regeneration fast-follow is **done** (v0.17.0).
 
 ## Current State
 
-- **Version**: 0.17.0
+- **Version**: 0.18.0
 - **Repo**: pushed to `https://github.com/Pyurah/se-assistant` (`master`);
   commits use the GitHub no-reply email (real email scrubbed from history).
 - **Build**: passing (`pnpm build`)
-- **Tests**: passing — 369 tests across logger, audit, data-integrity, the
+- **Tests**: passing — 376 tests across logger, audit, data-integrity, the
   merged-dataset invariants (`all-blocks` + `all-block-costs` override/gap-fill
   proofs) and the block + cost generators' fixture-driven parser/emitter/map
   suites, engine
@@ -646,6 +656,15 @@ current game — the reversal + divergence table are in `docs/data-audit.md` and
 ADR 0002 addendum. Fixed the girder component SubtypeId and the small welder/grinder
 recipes along the way. New salvage worked-example tests + `all-block-costs.test.ts`
 merge invariants. The reported "Jasen's Miner" import now reads 21/21 costed.
+
+**Delivered (v0.18.0):** the Build-cost panel now surfaces the **component
+breakdown** — every component the ship needs and how many, ordered
+biggest-count-first, with a running total — so a builder can pre-stage an
+assembler queue and the welders never stall waiting on a part. The per-component
+totals were already computed by `buildCost` (`cost.components`); v0.18.0 adds two
+pure engine helpers to surface them honestly (`componentBill`,
+`totalComponentCount`) with worked-example tests, plus the panel section and its
+render tests. No new game data.
 
 ### M8 — Life Support & Combat
 
