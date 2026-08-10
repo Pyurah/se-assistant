@@ -10,8 +10,11 @@ import type {
 } from '../../data/schema';
 import {
   estimateRequirements,
+  estimateManual,
   uniformThrusters,
   type EstimatorInput,
+  type ManualEstimatorInput,
+  type ThrusterLayout,
   type FixedBlockSpec,
 } from './estimate';
 
@@ -511,3 +514,168 @@ describe('estimateRequirements — per-direction thruster mixing', () => {
     expect(est.warnings.some((w) => /LEFT/i.test(w))).toBe(true);
   });
 });
+
+// ── Manual estimator (estimateManual) ────────────────────────────────────────
+// The user assigns thrusters per direction by hand; the app sizes only power +
+// gyros against the resulting build. Counts are taken verbatim from the layout
+// (no TWR fixed point), mass/draw sum over each direction's stack (mixed types
+// allowed), and support systems are still sized whether or not thrusters lift.
+describe('estimateManual', () => {
+  /** An empty per-direction layout (no thrusters assigned anywhere). */
+  const emptyLayout = (): ThrusterLayout => ({
+    up: [],
+    down: [],
+    forward: [],
+    backward: [],
+    left: [],
+    right: [],
+  });
+
+  /** Layout with a single (type × count) on every direction. */
+  const uniformLayout = (block: ThrusterBlock, count: number): ThrusterLayout => ({
+    up: [{ definition: block, count }],
+    down: [{ definition: block, count }],
+    forward: [{ definition: block, count }],
+    backward: [{ definition: block, count }],
+    left: [{ definition: block, count }],
+    right: [{ definition: block, count }],
+  });
+
+  function manualInput(
+    layout: ThrusterLayout,
+    overrides?: Partial<ManualEstimatorInput>,
+  ): ManualEstimatorInput {
+    return {
+      fixedBlocks: miningEssentials,
+      planet: earthlike,
+      cargo: { fillFraction: 1.0, densityKgPerL: 2.0 },
+      gridSize: 'large',
+      config: {
+        thrusterLayout: layout,
+        power: { kind: 'battery', block: largeBattery },
+        runtimeTargetHours: 0.25,
+        gyro: largeGyro,
+        responsiveness: 'normal',
+      },
+      ...overrides,
+    };
+  }
+
+  it('takes thruster counts verbatim from the layout and sizes power + gyros', () => {
+    const est = estimateManual(manualInput(uniformLayout(hydroLarge, 8)));
+    expect(est.thrusters.up).toBe(8);
+    expect(est.thrusters.left).toBe(8);
+    expect(est.totalThrusters).toBe(48); // 8 × 6 directions
+    expect(est.powerCount).toBeGreaterThan(0);
+    expect(est.gyroCount).toBeGreaterThan(0);
+    expect(est.iterations).toBe(1); // no thruster fixed point
+  });
+
+  it('computes achieved up-TWR from the assigned UP thrusters (worked)', () => {
+    const layout = emptyLayout();
+    layout.up = [{ definition: hydroLarge, count: 10 }];
+    const est = estimateManual(manualInput(layout, { cargo: { fillFraction: 0, densityKgPerL: 2 } }));
+    // Achieved up-TWR = 10 × 7.2 MN / (loadedMass × 9.81). Recompute from settled mass.
+    const upThrust = 10 * hydroLarge.maxThrust;
+    const expected = upThrust / (est.loadedMass * earthlike.surfaceGravity);
+    expect(est.achievedUpTwr).toBeCloseTo(expected, 6);
+    expect(est.thrusters.down).toBe(0);
+  });
+
+  it('sums count and mass across MULTIPLE thruster types in one direction', () => {
+    // UP = 4 large hydrogen + 6 large atmospheric.
+    const layout = emptyLayout();
+    layout.up = [
+      { definition: hydroLarge, count: 4 },
+      { definition: atmoLarge, count: 6 },
+    ];
+    const est = estimateManual(manualInput(layout, { cargo: { fillFraction: 0, densityKgPerL: 2 } }));
+    expect(est.thrusters.up).toBe(10); // 4 + 6
+    // Dry mass includes both thruster types' mass.
+    const thrusterMass = 4 * hydroLarge.mass + 6 * atmoLarge.mass;
+    const essentialsMass = 4 * 6741 + 2 * 2593.6 + 508;
+    expect(est.dryMass).toBeGreaterThanOrEqual(thrusterMass + essentialsMass);
+  });
+
+  it('sizes power + gyros even with NO thrusters assigned (base draw + attitude)', () => {
+    const est = estimateManual(manualInput(emptyLayout()));
+    expect(est.totalThrusters).toBe(0);
+    expect(est.achievedUpTwr).toBe(0);
+    expect(est.powerCount).toBeGreaterThan(0);
+    expect(est.gyroCount).toBeGreaterThan(0);
+    expect(est.warnings.some((w) => /UP axis/i.test(w))).toBe(true);
+  });
+
+  it('peak draw counts only the larger side of each opposing thruster pair', () => {
+    // atmospheric everywhere (real watts) but MORE up than down so the up side wins.
+    const layout: ThrusterLayout = {
+      up: [{ definition: atmoLarge, count: 6 }],
+      down: [{ definition: atmoLarge, count: 2 }],
+      forward: [{ definition: atmoLarge, count: 3 }],
+      backward: [{ definition: atmoLarge, count: 3 }],
+      left: [{ definition: atmoLarge, count: 1 }],
+      right: [{ definition: atmoLarge, count: 4 }],
+    };
+    const est = estimateManual(manualInput(layout));
+    const d = atmoLarge.maxPowerDraw;
+    const peakThrusters = Math.max(6, 2) * d + Math.max(3, 3) * d + Math.max(1, 4) * d;
+    const essentialsDraw = 4 * 2000; // 4 drills @ 2 kW (cargo/cockpit draw 0)
+    const expected = essentialsDraw + peakThrusters + est.gyroCount * largeGyro.powerDraw;
+    expect(est.peakDraw).toBe(expected);
+  });
+
+  it('peak draw is watts-aware across mixed types in opposing directions', () => {
+    // ion on UP (high watts, few blocks) vs atmospheric on DOWN (low watts): the
+    // peak side is whichever draws more watts, not whichever has more blocks.
+    const layout = emptyLayout();
+    layout.up = [{ definition: ionLarge, count: 2 }];
+    layout.down = [{ definition: atmoLarge, count: 5 }];
+    const est = estimateManual(manualInput(layout));
+    const upWatts = 2 * ionLarge.maxPowerDraw;
+    const downWatts = 5 * atmoLarge.maxPowerDraw;
+    const axisPeak = Math.max(upWatts, downWatts);
+    const essentialsDraw = 4 * 2000;
+    const expected = essentialsDraw + axisPeak + est.gyroCount * largeGyro.powerDraw;
+    expect(est.peakDraw).toBe(expected);
+  });
+
+  it('sizes more batteries for a longer runtime target', () => {
+    const layout = uniformLayout(atmoLarge, 4); // atmospheric draws real watts
+    const short = estimateManual(
+      manualInput(layout, { config: { ...manualInput(layout).config, runtimeTargetHours: 0.25 } }),
+    );
+    const long = estimateManual(
+      manualInput(layout, { config: { ...manualInput(layout).config, runtimeTargetHours: 4 } }),
+    );
+    expect(long.powerCount).toBeGreaterThan(short.powerCount);
+  });
+
+  it('recommends more gyros for a nimble ship than a sluggish one', () => {
+    const layout = uniformLayout(hydroLarge, 6);
+    const sluggish = estimateManual(
+      manualInput(layout, { config: { ...manualInput(layout).config, responsiveness: 'sluggish' } }),
+    );
+    const nimble = estimateManual(
+      manualInput(layout, { config: { ...manualInput(layout).config, responsiveness: 'nimble' } }),
+    );
+    expect(nimble.gyroCount).toBeGreaterThan(sluggish.gyroCount);
+  });
+
+  it('warns (advisory) when an assigned type is dead in the environment but still counts it', () => {
+    // Atmospheric UP in space: no thrust, but the blocks still add mass + draw.
+    const layout = emptyLayout();
+    layout.up = [{ definition: atmoLarge, count: 4 }];
+    const est = estimateManual(manualInput(layout, { planet: space }));
+    expect(est.thrusters.up).toBe(4); // counted verbatim (user's choice)
+    expect(est.achievedUpTwr).toBe(0); // but no thrust in vacuum
+    expect(est.warnings.some((w) => /no thrust/i.test(w))).toBe(true);
+  });
+
+  it('reports achieved up-TWR as Infinity in space when UP has vacuum-capable thrust', () => {
+    const layout = emptyLayout();
+    layout.up = [{ definition: hydroLarge, count: 4 }];
+    const est = estimateManual(manualInput(layout, { planet: space }));
+    expect(est.achievedUpTwr).toBe(Infinity); // no weight to divide by
+  });
+});
+

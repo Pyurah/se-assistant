@@ -11,6 +11,7 @@ export * from './twr';
 export * from './power';
 export * from './recommend';
 export * from './estimate';
+export * from './estimate-goal';
 export * from './estimate-to-design';
 export * from './design-to-estimate';
 export * from './fuel';
