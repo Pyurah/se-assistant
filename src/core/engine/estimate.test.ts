@@ -100,7 +100,7 @@ describe('estimateManual', () => {
         power: { kind: 'battery', block: largeBattery },
         runtimeTargetHours: 0.25,
         gyro: largeGyro,
-        responsiveness: 'normal',
+        targetTurnTime: 2.5,
       },
       ...overrides,
     };
@@ -195,15 +195,48 @@ describe('estimateManual', () => {
     expect(long.powerCount).toBeGreaterThan(short.powerCount);
   });
 
-  it('recommends more gyros for a nimble ship than a sluggish one', () => {
+  it('sizes more gyros for a tighter target turn time', () => {
     const layout = uniformLayout(hydroLarge, 6);
-    const sluggish = estimateManual(
-      manualInput(layout, { config: { ...manualInput(layout).config, responsiveness: 'sluggish' } }),
+    const slow = estimateManual(
+      manualInput(layout, { config: { ...manualInput(layout).config, targetTurnTime: 6.0 } }),
     );
-    const nimble = estimateManual(
-      manualInput(layout, { config: { ...manualInput(layout).config, responsiveness: 'nimble' } }),
+    const fast = estimateManual(
+      manualInput(layout, { config: { ...manualInput(layout).config, targetTurnTime: 0.75 } }),
     );
-    expect(nimble.gyroCount).toBeGreaterThan(sluggish.gyroCount);
+    expect(fast.gyroCount).toBeGreaterThan(slow.gyroCount);
+  });
+
+  it('sizes gyros so the achieved 90° turn time meets the target (worked)', () => {
+    // No thrusters, so mass/side come only from essentials + the sized support.
+    // The gyro count is solved from the solid-cube turn model: side = ∛(count)·2.5,
+    // I = ⅙·m·side², α_needed = π/T², torque_needed = α·I, gyros = ⌈torque/33.6MN⌉.
+    const est = estimateManual(
+      manualInput(emptyLayout(), {
+        cargo: { fillFraction: 0, densityKgPerL: 2 },
+        config: { ...manualInput(emptyLayout()).config, targetTurnTime: 3.0 },
+      }),
+    );
+    expect(est.gyroCount).toBeGreaterThan(0);
+    // Recompute the achieved turn time from the settled build and confirm it (a)
+    // matches the reported value and (b) meets the 3 s target the count solved for.
+    const cell = 2.5;
+    const blockCount = 4 + 2 + 1 + est.powerCount + est.gyroCount; // essentials + support
+    const side = Math.cbrt(blockCount) * cell;
+    const inertia = (1 / 6) * est.loadedMass * side * side;
+    const accel = (est.gyroCount * largeGyro.maxTorque) / inertia;
+    const turnTime = Math.sqrt(Math.PI / accel);
+    expect(est.achievedTurnTime).toBeCloseTo(turnTime, 6);
+    expect(est.achievedTurnTime).toBeLessThanOrEqual(3.0);
+  });
+
+  it('reports achievedTurnTime as Infinity when the target is non-positive (no gyros)', () => {
+    const est = estimateManual(
+      manualInput(uniformLayout(hydroLarge, 4), {
+        config: { ...manualInput(uniformLayout(hydroLarge, 4)).config, targetTurnTime: 0 },
+      }),
+    );
+    expect(est.gyroCount).toBe(0);
+    expect(est.achievedTurnTime).toBe(Infinity);
   });
 
   it('warns (advisory) when an assigned type is dead in the environment but still counts it', () => {

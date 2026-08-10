@@ -19,8 +19,9 @@
  * ---------
  * Power sizing is exact arithmetic (sum of draws, runtime capacity). Gyro count
  * is a HEURISTIC — true turn rate needs the ship's moment of inertia (its
- * geometry), unknown before the build — so it's a torque-per-mass target,
- * clearly labeled an estimate.
+ * geometry), unknown before the build. We approximate the ship as a solid cube
+ * (the same model `motion.ts` uses) and solve for the fewest gyros that turn it
+ * 90° within the user's target time, reporting the achieved turn time alongside.
  */
 
 import type { PlanetPreset, ThrusterBlock, Direction, GridSize } from '../../data/schema';
@@ -34,49 +35,12 @@ import type {
 import { GRID_CELL_SIZE_M } from '../../data/fuel-constants';
 import { effectiveThrust } from './thruster';
 import { weight, DIRECTIONS } from './twr';
-
-/** How responsive the ship should feel — drives the gyro torque-per-mass target. */
-export type Responsiveness = 'sluggish' | 'normal' | 'nimble';
-
-/**
- * Target gyro torque (N·m) per kg of loaded mass, by responsiveness, for a
- * LARGE-grid ship.
- *
- * Calibrated so one large-grid gyro (33.6 MN·m) handles roughly:
- *   sluggish ≈ 1 per 400 t,  normal ≈ 1 per 200 t,  nimble ≈ 1 per 100 t.
- * i.e. torque/kg = gyroForce / massPerGyro → 33.6e6/4e5 = 84, /2e5 = 168, /1e5 = 336.
- * This is a linear torque-per-mass heuristic; true turn rate depends on the
- * ship's moment of inertia (geometry), so the count is an ESTIMATE, not exact.
- */
-const GYRO_TORQUE_PER_KG_LARGE: Record<Responsiveness, number> = {
-  sluggish: 84,
-  normal: 168,
-  nimble: 336,
-};
-
-/**
- * Torque-per-kg must scale with grid size, because the torque a ship *needs* is
- * governed by its moment of inertia I = k·m·s² (a solid-box model — the same
- * one `motion.ts` uses), where `s` is the ship's characteristic size. Two ships
- * of equal mass but different grids have wildly different `s`: a large-grid cube
- * is built from 2.5 m cells, a small-grid one from 0.5 m cells, so for the same
- * block count the small ship is 5× smaller per axis and its moment of inertia
- * per kg is (0.5/2.5)² = 1/25 of the large ship's. It therefore needs ~1/25 the
- * torque-per-kg for the same responsiveness.
- *
- * Without this, the large-grid calibration above was applied to small-grid
- * ships and then divided by the 75×-weaker small gyro (448 kN·m vs 33.6 MN·m) —
- * a compounding over-count that recommended 3 gyros for a ~6 t utility ship real
- * builds fly on 1–2.
- *
- * We scale by (cell_size / large_cell_size)² so the large-grid row is unchanged
- * (ratio 1) and the small-grid target drops to 1/25, matching real small-grid
- * builds where a single gyro spins a light ship briskly.
- */
-function gyroTorquePerKg(responsiveness: Responsiveness, gridSize: GridSize): number {
-  const cellRatio = GRID_CELL_SIZE_M[gridSize] / GRID_CELL_SIZE_M.large;
-  return GYRO_TORQUE_PER_KG_LARGE[responsiveness] * cellRatio * cellRatio;
-}
+import {
+  characteristicSide,
+  solidCubeInertia,
+  quarterTurnTime,
+  angularAccelForQuarterTurnTime,
+} from './motion';
 
 /** A block the user has committed to (the "essentials"), with a count. */
 export interface FixedBlockSpec {
@@ -91,15 +55,17 @@ export type PowerChoice =
 
 /**
  * The subset of estimator config that {@link sizeSupport}, {@link sizePower} and
- * {@link sizeGyros} need — power source, runtime target, gyro model, and desired
- * responsiveness. {@link ManualEstimatorConfig} satisfies it structurally, so the
- * support-sizing helpers stay decoupled from the full manual config.
+ * {@link sizeGyros} need — power source, runtime target, gyro model, and the
+ * target turn time the gyro count is solved against. {@link ManualEstimatorConfig}
+ * satisfies it structurally, so the support-sizing helpers stay decoupled from
+ * the full manual config.
  */
 export interface SupportConfig {
   readonly power: PowerChoice;
   readonly runtimeTargetHours: number;
   readonly gyro: GyroscopeBlock;
-  readonly responsiveness: Responsiveness;
+  /** Target time to turn the ship 90° from rest, seconds — drives the gyro count. */
+  readonly targetTurnTime: number;
 }
 
 /** One thruster type + count assigned to a single direction. */
@@ -130,8 +96,8 @@ export interface ManualEstimatorConfig {
   readonly runtimeTargetHours: number;
   /** The gyroscope model to size the count of. */
   readonly gyro: GyroscopeBlock;
-  /** Desired maneuverability, driving the gyro estimate. */
-  readonly responsiveness: Responsiveness;
+  /** Target time to turn 90° from rest, seconds — the gyro count is solved to meet it. */
+  readonly targetTurnTime: number;
 }
 
 export interface ManualEstimatorInput {
@@ -156,6 +122,13 @@ export interface Estimate {
   readonly powerCount: number;
   /** Recommended gyro count (heuristic estimate). */
   readonly gyroCount: number;
+  /**
+   * Achieved time to turn the ship 90° from rest with the recommended gyros, at
+   * the settled loaded mass, seconds. `Infinity` if there are no gyros or no
+   * mass. Compare against the config's `targetTurnTime` — the gyro count is the
+   * fewest that gets this at or below the target.
+   */
+  readonly achievedTurnTime: number;
   /** Resulting dry mass (fixed + recommended blocks), kg. */
   readonly dryMass: number;
   /** Resulting loaded mass (dry + cargo payload), kg. */
@@ -238,11 +211,48 @@ function sizePower(config: SupportConfig, peakDraw: number, perPowerSupply: numb
   return count;
 }
 
-/** Heuristic gyro count for a loaded mass (torque-per-mass target, see gyroTorquePerKg). */
-function sizeGyros(config: SupportConfig, loadedMass: number): number {
-  const torqueNeeded =
-    gyroTorquePerKg(config.responsiveness, config.gyro.gridSize) * loadedMass;
-  return config.gyro.maxTorque > 0 ? Math.ceil(torqueNeeded / config.gyro.maxTorque) : 0;
+/**
+ * Fewest gyros to turn a ship of `loadedMass` (kg) and `blockCount` cells (on a
+ * grid of `cell` metres) 90° from rest within `config.targetTurnTime` seconds.
+ *
+ * Inverts the solid-cube turn model `motion.ts` uses: side `s = ∛(blockCount)·cell`,
+ * inertia `I = ⅙·m·s²`, required `α = π/T²`, required torque `τ = α·I`, count =
+ * `ceil(τ / gyro.maxTorque)`. A non-positive target (impossible to turn instantly)
+ * or a torque-less gyro yields 0 — the achieved turn time then reads `Infinity`,
+ * honestly signalling the target can't be met rather than propagating `Infinity`
+ * into the count.
+ */
+function sizeGyros(
+  config: SupportConfig,
+  loadedMass: number,
+  blockCount: number,
+  cell: number,
+): number {
+  if (config.targetTurnTime <= 0 || config.gyro.maxTorque <= 0) return 0;
+  const side = characteristicSide(blockCount, cell);
+  const inertia = solidCubeInertia(loadedMass, side);
+  const requiredAccel = angularAccelForQuarterTurnTime(config.targetTurnTime);
+  const torqueNeeded = requiredAccel * inertia;
+  return Math.ceil(torqueNeeded / config.gyro.maxTorque);
+}
+
+/**
+ * Achieved time (s) to turn 90° from rest with `gyroCount` gyros on a ship of
+ * `loadedMass` and `blockCount` cells — the forward direction of {@link sizeGyros},
+ * used to report what the sized gyros actually deliver. `Infinity` when there is
+ * no gyro torque or no mass to turn.
+ */
+function achievedTurnTimeFor(
+  config: SupportConfig,
+  gyroCount: number,
+  loadedMass: number,
+  blockCount: number,
+  cell: number,
+): number {
+  const totalTorque = gyroCount * config.gyro.maxTorque;
+  const inertia = solidCubeInertia(loadedMass, characteristicSide(blockCount, cell));
+  const angularAccel = inertia > 0 ? totalTorque / inertia : 0;
+  return quarterTurnTime(angularAccel);
 }
 
 /**
@@ -253,10 +263,12 @@ function sizeGyros(config: SupportConfig, loadedMass: number): number {
  * The thruster contribution is passed as two precomputed scalars —
  * `thrusterMass` (total kg of all thrusters) and `peakThrusterWatts` (the
  * opposing-pair peak draw) — so this helper is agnostic to *how* the thrusters
- * were chosen: the legacy auto-solver's dead/diverged fallback and the manual
- * estimator both feed it. The ship's base systems still draw power and the hull
- * still needs attitude control independent of the thrusters, so power and gyros
- * are always sized rather than zeroed when thrusters are absent.
+ * were chosen. Gyro sizing also needs the ship's block count and grid cell size
+ * (they set the moment-of-inertia the turn-time target is solved against);
+ * `baseBlockCount` (essentials + thrusters) plus the sized power/gyro counts give
+ * the total cell count each pass. The ship's base systems still draw power and
+ * the hull still needs attitude control independent of the thrusters, so power
+ * and gyros are always sized rather than zeroed when thrusters are absent.
  */
 function sizeSupport(
   config: SupportConfig,
@@ -266,6 +278,8 @@ function sizeSupport(
   baseDraw: number,
   cargoPayload: number,
   perPowerSupply: number,
+  baseBlockCount: number,
+  cell: number,
 ): { powerCount: number; gyroCount: number } {
   let powerCount = 0;
   let gyroCount = 0;
@@ -273,9 +287,10 @@ function sizeSupport(
     const dryMass =
       baseMass + thrusterMass + powerCount * config.power.block.mass + gyroCount * config.gyro.mass;
     const loadedMass = dryMass + cargoPayload;
+    const blockCount = baseBlockCount + powerCount + gyroCount;
     const peakDraw = baseDraw + peakThrusterWatts + gyroCount * config.gyro.powerDraw;
     const newPowerCount = sizePower(config, peakDraw, perPowerSupply);
-    const newGyroCount = sizeGyros(config, loadedMass);
+    const newGyroCount = sizeGyros(config, loadedMass, blockCount, cell);
     if (newPowerCount === powerCount && newGyroCount === gyroCount) break;
     powerCount = newPowerCount;
     gyroCount = newGyroCount;
@@ -292,12 +307,11 @@ function perPowerSupplyOf(config: SupportConfig): number {
  * Manual estimator: the user assigns thrusters per direction by hand and the app
  * sizes only the *support* systems (power + gyros) against the resulting build.
  *
- * Unlike {@link estimateRequirements}, there is no thruster fixed point — the
- * thruster mass and peak electrical draw are known the moment the user's layout
- * is fixed. Power and gyros still couple through mass, so those iterate to a
- * fixed point via {@link sizeSupport}. Warnings are advisory only (the user is
- * in control): an empty UP axis, or a direction whose assigned thruster type
- * produces no thrust in this environment.
+ * There is no thruster fixed point — the thruster mass and peak electrical draw
+ * are known the moment the user's layout is fixed. Power and gyros still couple
+ * through mass, so those iterate to a fixed point via {@link sizeSupport}.
+ * Warnings are advisory only (the user is in control): an empty UP axis, or a
+ * direction whose assigned thruster type produces no thrust in this environment.
  */
 export function estimateManual(input: ManualEstimatorInput): Estimate {
   const { fixedBlocks, planet, cargo, config } = input;
@@ -361,6 +375,15 @@ export function estimateManual(input: ManualEstimatorInput): Estimate {
   };
   const peakThrusterWatts = peakThrusterDraw(unitCounts, drawByDir);
 
+  const totalThrusters = DIRECTIONS.reduce((s, d) => s + countByDir[d], 0);
+  // Cells the gyro turn-time target is solved against: essentials + thrusters
+  // (sizeSupport adds the power/gyro counts it sizes each pass). No geometry
+  // exists yet, so the estimate uses the same cube approximation motion.ts falls
+  // back to; the synthesized design's turn time therefore matches this readout.
+  const essentialsCount = fixedBlocks.reduce((s, b) => s + b.quantity, 0);
+  const baseBlockCount = essentialsCount + totalThrusters;
+  const cell = GRID_CELL_SIZE_M[input.gridSize];
+
   const perPowerSupply = perPowerSupplyOf(config);
   const { powerCount, gyroCount } = sizeSupport(
     config,
@@ -370,21 +393,30 @@ export function estimateManual(input: ManualEstimatorInput): Estimate {
     baseDraw,
     cargoPayload,
     perPowerSupply,
+    baseBlockCount,
+    cell,
   );
 
-  const totalThrusters = DIRECTIONS.reduce((s, d) => s + countByDir[d], 0);
   const dryMass =
     baseMass + thrusterMass + powerCount * config.power.block.mass + gyroCount * config.gyro.mass;
   const loadedMass = dryMass + cargoPayload;
   const w = weight(loadedMass, planet.surfaceGravity);
   const achievedUpTwr = w === 0 ? (thrustByDir.up > 0 ? Infinity : 0) : thrustByDir.up / w;
   const peakDraw = baseDraw + peakThrusterWatts + gyroCount * config.gyro.powerDraw;
+  const achievedTurnTime = achievedTurnTimeFor(
+    config,
+    gyroCount,
+    loadedMass,
+    baseBlockCount + powerCount + gyroCount,
+    cell,
+  );
 
   return {
     thrusters: countByDir,
     totalThrusters,
     powerCount,
     gyroCount,
+    achievedTurnTime,
     dryMass,
     loadedMass,
     achievedUpTwr,

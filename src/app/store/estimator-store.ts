@@ -27,7 +27,6 @@ import {
   InMemoryAuditStore,
   designToEstimateSeed,
   type CargoLoadout,
-  type Responsiveness,
   type ShipDesign,
   type SkippedSeedBlock,
 } from '@core';
@@ -92,7 +91,8 @@ export interface EstimatorState {
   powerKind: PowerKind;
   powerBlockId: string;
   runtimeTargetHours: number;
-  responsiveness: Responsiveness;
+  /** Target time to turn the ship 90° from rest, seconds — drives the gyro count. */
+  targetTurnTime: number;
 
   /**
    * The design this build was seeded from, kept as an immutable snapshot so the
@@ -124,7 +124,8 @@ export interface EstimatorState {
   setGoalLoadState: (state: GoalLoadState) => void;
   setPower: (kind: PowerKind, blockId: string) => void;
   setRuntimeTargetHours: (hours: number) => void;
-  setResponsiveness: (responsiveness: Responsiveness) => void;
+  /** Set the target 90°-turn time (seconds), clamped to a sane [0.25, 60] range. */
+  setTargetTurnTime: (seconds: number) => void;
   /**
    * Seed the whole build from an imported design in one atomic update: grid,
    * essentials (real counts), the real per-direction thruster layout, and the
@@ -171,6 +172,16 @@ const DEFAULT_GRID: GridSize = 'large';
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
 const atLeast = (v: number, min: number): number => (Number.isFinite(v) ? Math.max(min, v) : min);
 
+/** Default target time to turn the ship 90° from rest (seconds). */
+const DEFAULT_TARGET_TURN_TIME = 2.5;
+/** Bounds on the turn-time target: fast enough to be meaningful, slow enough to be real. */
+const TURN_TIME_MIN = 0.25;
+const TURN_TIME_MAX = 60;
+const clampTurnTime = (v: number): number =>
+  Number.isFinite(v)
+    ? Math.min(TURN_TIME_MAX, Math.max(TURN_TIME_MIN, v))
+    : DEFAULT_TARGET_TURN_TIME;
+
 /** An empty per-direction thruster-stacks map. */
 export function emptyStacks(): ThrusterStacks {
   return { up: [], down: [], forward: [], backward: [], left: [], right: [] };
@@ -206,7 +217,7 @@ export const useEstimatorStore = create<EstimatorState>((set, get) => ({
   powerKind: 'battery',
   powerBlockId: GRID_DEFAULTS[DEFAULT_GRID].batteryId,
   runtimeTargetHours: 0.5,
-  responsiveness: 'normal',
+  targetTurnTime: DEFAULT_TARGET_TURN_TIME,
 
   sourceDesign: null,
   sourceName: null,
@@ -327,7 +338,7 @@ export const useEstimatorStore = create<EstimatorState>((set, get) => ({
 
   setRuntimeTargetHours: (hours) => set({ runtimeTargetHours: atLeast(hours, 0) }),
 
-  setResponsiveness: (responsiveness) => set({ responsiveness }),
+  setTargetTurnTime: (seconds) => set({ targetTurnTime: clampTurnTime(seconds) }),
 
   seedFromDesign: (design, sourceName) => {
     const correlationId = createCorrelationId();
@@ -404,7 +415,7 @@ export const useEstimatorStore = create<EstimatorState>((set, get) => ({
       powerKind: 'battery',
       powerBlockId: GRID_DEFAULTS[DEFAULT_GRID].batteryId,
       runtimeTargetHours: 0.5,
-      responsiveness: 'normal',
+      targetTurnTime: DEFAULT_TARGET_TURN_TIME,
       sourceDesign: null,
       sourceName: null,
       lastSeedSkipped: [],

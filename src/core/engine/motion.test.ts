@@ -9,6 +9,10 @@ import {
   thrustCenterAlignment,
   turnRateEstimate,
   hasGeometry,
+  characteristicSide,
+  solidCubeInertia,
+  quarterTurnTime,
+  angularAccelForQuarterTurnTime,
 } from './motion';
 
 const space = PLANET_PRESETS_BY_ID['space']!;
@@ -250,6 +254,42 @@ describe('turn rate estimate', () => {
     const t = turnRateEstimate(ship);
     expect(t.totalTorque).toBe(2 * 33_600_000);
     expect(t.angularAcceleration).toBeGreaterThan(0);
+  });
+});
+
+describe('turn-physics helpers', () => {
+  it('characteristicSide is ∛(blockCount) · cell and clamps to one cell', () => {
+    // 8 large-grid cells (2.5 m) → ∛8 = 2 → 5 m.
+    expect(characteristicSide(8, 2.5)).toBeCloseTo(5, 12);
+    // Degenerate counts clamp to at least one cell.
+    expect(characteristicSide(0, 2.5)).toBeCloseTo(2.5, 12);
+    expect(characteristicSide(-3, 0.5)).toBeCloseTo(0.5, 12);
+  });
+
+  it('solidCubeInertia is (1/6) m s²', () => {
+    // 6000 kg, 5 m side → (1/6)·6000·25 = 25000 kg·m².
+    expect(solidCubeInertia(6000, 5)).toBeCloseTo(25_000, 9);
+    expect(solidCubeInertia(0, 5)).toBe(0);
+  });
+
+  it('quarterTurnTime is √(π/α), Infinity for no acceleration', () => {
+    // α = π rad/s² → t = √(π/π) = 1 s.
+    expect(quarterTurnTime(Math.PI)).toBeCloseTo(1, 12);
+    expect(quarterTurnTime(0)).toBe(Infinity);
+    expect(quarterTurnTime(-1)).toBe(Infinity);
+  });
+
+  it('angularAccelForQuarterTurnTime is π/t², Infinity for non-positive time', () => {
+    // t = 1 s → α = π rad/s².
+    expect(angularAccelForQuarterTurnTime(1)).toBeCloseTo(Math.PI, 12);
+    expect(angularAccelForQuarterTurnTime(0)).toBe(Infinity);
+    expect(angularAccelForQuarterTurnTime(-2)).toBe(Infinity);
+  });
+
+  it('quarterTurnTime and angularAccelForQuarterTurnTime round-trip', () => {
+    for (const T of [0.5, 1, 2.5, 4, 10]) {
+      expect(quarterTurnTime(angularAccelForQuarterTurnTime(T))).toBeCloseTo(T, 12);
+    }
   });
 });
 

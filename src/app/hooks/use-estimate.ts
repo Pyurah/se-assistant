@@ -221,7 +221,7 @@ export function useEstimate(): EstimateResult | null {
   const powerKind = useEstimatorStore((s) => s.powerKind);
   const powerBlockId = useEstimatorStore((s) => s.powerBlockId);
   const runtimeTargetHours = useEstimatorStore((s) => s.runtimeTargetHours);
-  const responsiveness = useEstimatorStore((s) => s.responsiveness);
+  const targetTurnTime = useEstimatorStore((s) => s.targetTurnTime);
 
   return useMemo(() => {
     const defaults = GRID_DEFAULTS[gridSize];
@@ -295,7 +295,7 @@ export function useEstimate(): EstimateResult | null {
       power,
       runtimeTargetHours,
       gyro,
-      responsiveness,
+      targetTurnTime,
     };
 
     const planet = resolvePlanet(planetId);
@@ -376,6 +376,6 @@ export function useEstimate(): EstimateResult | null {
     powerKind,
     powerBlockId,
     runtimeTargetHours,
-    responsiveness,
+    targetTurnTime,
   ]);
 }

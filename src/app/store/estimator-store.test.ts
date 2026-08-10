@@ -224,6 +224,61 @@ describe('estimator store', () => {
     });
   });
 
+  describe('target turn time (maneuverability)', () => {
+    it('defaults to 2.5 s', () => {
+      expect(state().targetTurnTime).toBe(2.5);
+    });
+
+    it('setTargetTurnTime sets a value in range', () => {
+      state().setTargetTurnTime(1.5);
+      expect(state().targetTurnTime).toBe(1.5);
+    });
+
+    it('clamps below the 0.25 s floor', () => {
+      state().setTargetTurnTime(0.05);
+      expect(state().targetTurnTime).toBe(0.25);
+    });
+
+    it('clamps above the 60 s ceiling', () => {
+      state().setTargetTurnTime(120);
+      expect(state().targetTurnTime).toBe(60);
+    });
+
+    it('falls back to the 2.5 s default for a non-finite value', () => {
+      state().setTargetTurnTime(Number.NaN);
+      expect(state().targetTurnTime).toBe(2.5);
+      state().setTargetTurnTime(Number.POSITIVE_INFINITY);
+      expect(state().targetTurnTime).toBe(2.5);
+    });
+
+    it('reset restores the 2.5 s default', () => {
+      state().setTargetTurnTime(10);
+      state().reset();
+      expect(state().targetTurnTime).toBe(2.5);
+    });
+
+    it('is a UI target: seedFromDesign leaves it untouched', () => {
+      state().setTargetTurnTime(4);
+      state().seedFromDesign(
+        seedDesign([{ definition: atmoLarge, quantity: 8, thrustDirection: 'up' }]),
+        'ship.sbc',
+      );
+      expect(state().targetTurnTime).toBe(4);
+    });
+
+    it('is a UI target: changing it never flips isAdjustedFromSource', () => {
+      state().seedFromDesign(
+        seedDesign([
+          { definition: cockpit, quantity: 1 },
+          { definition: atmoLarge, quantity: 8, thrustDirection: 'up' },
+        ]),
+        'ship.sbc',
+      );
+      state().setTargetTurnTime(0.5);
+      expect(isAdjustedFromSource(state())).toBe(false);
+    });
+  });
+
   describe('resolves ids into a live Estimate via useEstimate', () => {
     it('is empty before any essentials or thrusters are added', () => {
       const { result } = renderHook(() => useEstimate());

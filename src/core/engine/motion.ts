@@ -165,6 +165,44 @@ export function thrustCenterAlignment(design: ShipDesign): AlignmentResult[] | n
   return results;
 }
 
+/**
+ * Characteristic side length (m) of a ship approximated as a uniform-density
+ * cube of `blockCount` cells. `s = ∛(blockCount) · cell`. Used when exact
+ * geometry (block positions) is unavailable — e.g. the estimator's synthesized
+ * designs. Clamped to at least one cell so a degenerate build has a real size.
+ */
+export function characteristicSide(blockCount: number, cell: number): number {
+  return Math.cbrt(Math.max(1, blockCount)) * cell;
+}
+
+/**
+ * Moment of inertia (kg·m²) of a solid cube of mass `m` and side `s` about a
+ * face axis: `I = (1/6) m s²`. The same approximation the turn-rate estimate
+ * uses — good for relative comparisons, not exact for real geometry.
+ */
+export function solidCubeInertia(mass: number, side: number): number {
+  return (1 / 6) * mass * side * side;
+}
+
+/**
+ * Time (s) to rotate a quarter turn (90°, π/2 rad) from rest under a constant
+ * angular acceleration `α`, from θ = ½αt² ⇒ t = √(π/α). `Infinity` when there
+ * is no angular acceleration (the ship never completes the turn).
+ */
+export function quarterTurnTime(angularAccel: number): number {
+  return angularAccel > 0 ? Math.sqrt((2 * (Math.PI / 2)) / angularAccel) : Infinity;
+}
+
+/**
+ * The angular acceleration (rad/s²) required to complete a quarter turn (90°)
+ * from rest within `seconds` — the inverse of {@link quarterTurnTime}, from
+ * t = √(π/α) ⇒ α = π/t². `Infinity` for a non-positive time target (no finite
+ * torque can turn instantly).
+ */
+export function angularAccelForQuarterTurnTime(seconds: number): number {
+  return seconds > 0 ? (2 * (Math.PI / 2)) / (seconds * seconds) : Infinity;
+}
+
 export interface TurnRateEstimate {
   /** Total gyro torque available, N·m. */
   readonly totalTorque: number;
@@ -209,18 +247,16 @@ export function turnRateEstimate(design: ShipDesign): TurnRateEstimate {
     const extent = Math.max(max.x - min.x, max.y - min.y, max.z - min.z) + 1; // +1 cell
     side = extent * cell;
   } else {
-    // Fallback: assume ~1 t per large-grid cell of steel to guess a cube of
-    // block count, then a side. This is very rough (labeled an estimate).
+    // Fallback: approximate the ship as a cube of `blockCount` cells (no geometry
+    // available, e.g. the estimator's synthesized designs).
     const blockCount = design.blocks.reduce((s, b) => s + b.quantity, 0);
-    side = Math.cbrt(Math.max(1, blockCount)) * cell;
+    side = characteristicSide(blockCount, cell);
   }
 
   // Solid cube about a face axis: I = (1/6) m s².
-  const momentOfInertia = (1 / 6) * mass * side * side;
+  const momentOfInertia = solidCubeInertia(mass, side);
   const angularAcceleration = momentOfInertia > 0 ? totalTorque / momentOfInertia : 0;
-  // t for a quarter turn from rest under constant angular accel: θ = ½αt².
-  const timeToQuarterTurn =
-    angularAcceleration > 0 ? Math.sqrt((2 * (Math.PI / 2)) / angularAcceleration) : Infinity;
+  const timeToQuarterTurn = quarterTurnTime(angularAcceleration);
 
   return { totalTorque, momentOfInertia, angularAcceleration, timeToQuarterTurn };
 }
