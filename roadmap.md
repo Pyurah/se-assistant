@@ -1,6 +1,6 @@
 # SE Assistant — Product Roadmap
 
-> **Last Updated**: 2026-08-10 (v0.23.0)
+> **Last Updated**: 2026-08-10 (v0.24.0)
 
 A Space Engineers ship & base planner: import a blueprint (`.sbc`) and get
 instant thrust-to-weight, mass, cargo, and power analysis — empty vs fully
@@ -14,7 +14,25 @@ loaded, on any vanilla planet.
 M7 (build cost + throughput + conveyor audit) and M8 (life support + combat) — is
 DONE, committed, and pushed to GitHub** (`https://github.com/Pyurah/se-assistant`,
 branch `master`, at v0.23.0). Working tree is clean and all four gates pass
-(`typecheck` / `lint` / `test` (489) / `build`). Nothing is half-finished.
+(`typecheck` / `lint` / `test` (505) / `build`). Nothing is half-finished.
+
+**v0.24.0 (2026-08-10) — Refinery & assembler upgrade modules in Build cost.**
+The Build-cost panel now models the real in-game upgrade modules, closing a gap
+where a player running Yield modules saw an ore total overstated by up to 2×. You
+install **Yield** and **Speed** modules on the refinery (its 4 ports shared between
+the two, UI-capped at `yield + speed ≤ 4`) and **Speed** modules on the assembler
+(8 ports); the ore total and refine/assemble time update live. Yield modules apply
+the game-verified effectiveness curve `[1.0, 1.19, 1.41, 1.68, 2.0]` (100→200 %),
+so a maxed refinery halves the ore to mine; Speed modules apply `1 + N` (2×…5×).
+Two pure `@data` helpers (`applyRefineryModules` / `applyAssemblerModules`) fold
+module counts into an effective `RefineryPreset`/`AssemblerPreset` that the
+existing `buildCost` engine consumes unchanged — the engine already multiplied ore
+by `materialEfficiency`, so the fix was surfacing the modules, not new math. The
+`hasModulePorts` flag disables module controls for the Basic Refinery/Assembler.
+The **"Assembler efficiency"** control is relabeled **"(world)"** with a note that
+it's the survival world setting (×1/×3/×10 ingot divisor), not a block module —
+ending the conflation the user reported. +`manufacturing.test.ts` + an end-to-end
+`buildCost` yield-halves-ore case (505 total).
 
 **v0.23.0 (2026-08-10) — Maneuverability is a measurable target, not a preset.**
 Estimate-mode gyro sizing dropped the vague **Sluggish / Normal / Nimble** control

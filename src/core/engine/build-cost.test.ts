@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { VANILLA_BLOCKS_BY_ID } from '../../data/blocks';
-import { REFINERY_PRESETS, ASSEMBLER_PRESETS } from '../../data/manufacturing';
+import { REFINERY_PRESETS, ASSEMBLER_PRESETS, applyRefineryModules } from '../../data/manufacturing';
 import type { BlockDefinition } from '../../data/schema';
 import type { ShipDesign, DesignBlock } from '../types';
 import {
@@ -42,6 +42,7 @@ function design(blocks: DesignBlock[]): ShipDesign {
 }
 
 const basicRefinery = REFINERY_PRESETS.find((r) => r.id === 'basic-refinery')!;
+const standardRefinery = REFINERY_PRESETS.find((r) => r.id === 'refinery')!;
 const basicAssembler = ASSEMBLER_PRESETS.find((a) => a.id === 'basic-assembler')!;
 
 describe('buildCost', () => {
@@ -109,6 +110,21 @@ describe('buildCost', () => {
     expect(basic.ore.iron).toBeCloseTo(21 / 0.49, 6);
     expect(basic.ore.iron!).toBeGreaterThan(std.ore.iron!);
     expect(basic.refineTimeSeconds).toBeGreaterThan(std.refineTimeSeconds);
+  });
+
+  it('refinery Yield modules lower the ore total (4 modules ≈ half the ore)', () => {
+    const d = design([{ definition: block('SmallBlockArmorBlock'), quantity: 1 }]);
+    // Un-upgraded standard refinery: iron yield 0.7 × 0.8 = 0.56 → 21 / 0.56 = 37.5 kg.
+    const plain = buildCost(d, { refinery: standardRefinery });
+    expect(plain.ore.iron).toBeCloseTo(37.5, 6);
+
+    // 4 Yield modules double material efficiency (0.8 → 1.6): iron yield 0.7 × 1.6
+    // = 1.12 → 21 / 1.12 = 18.75 kg — exactly half the un-upgraded ore.
+    const maxYield = buildCost(d, {
+      refinery: applyRefineryModules(standardRefinery, { yield: 4, speed: 0 }),
+    });
+    expect(maxYield.ore.iron).toBeCloseTo(18.75, 6);
+    expect(maxYield.ore.iron!).toBeCloseTo(plain.ore.iron! / 2, 6);
   });
 
   it('computes refine + assemble time from the chosen speeds', () => {

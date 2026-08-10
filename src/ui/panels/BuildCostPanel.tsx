@@ -18,6 +18,12 @@ import {
   ASSEMBLER_PRESETS,
   DEFAULT_REFINERY,
   DEFAULT_ASSEMBLER,
+  REFINERY_MODULE_SLOTS,
+  ASSEMBLER_MODULE_SLOTS,
+  applyRefineryModules,
+  applyAssemblerModules,
+  speedModuleMultiplier,
+  YIELD_MODULE_EFFECTIVENESS,
   METAL_LABELS,
   type Metal,
 } from '@data';
@@ -82,15 +88,36 @@ function formatRatio(ratio: number): string {
   return ratio.toLocaleString('en-US', { maximumFractionDigits: 1 });
 }
 
+/** Yield multiplier as a ≤2-decimal string ("1.41", "2", "1"). */
+function formatYield(mult: number): string {
+  return mult.toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
+
 export function BuildCostPanel(): React.JSX.Element | null {
   const [refineryId, setRefineryId] = useState(DEFAULT_REFINERY.id);
   const [assemblerId, setAssemblerId] = useState(DEFAULT_ASSEMBLER.id);
   const [efficiency, setEfficiency] = useState('1');
   const [refineryCount, setRefineryCount] = useState(1);
   const [assemblerCount, setAssemblerCount] = useState(1);
+  // Upgrade-module counts. The refinery's Yield + Speed modules share its 4
+  // ports; the assembler accepts Speed modules only (Yield has no effect there).
+  const [refineryYield, setRefineryYield] = useState(0);
+  const [refinerySpeed, setRefinerySpeed] = useState(0);
+  const [assemblerSpeed, setAssemblerSpeed] = useState(0);
 
-  const refinery = REFINERY_PRESETS.find((r) => r.id === refineryId) ?? DEFAULT_REFINERY;
-  const assembler = ASSEMBLER_PRESETS.find((a) => a.id === assemblerId) ?? DEFAULT_ASSEMBLER;
+  const refineryPreset = REFINERY_PRESETS.find((r) => r.id === refineryId) ?? DEFAULT_REFINERY;
+  const assemblerPreset = ASSEMBLER_PRESETS.find((a) => a.id === assemblerId) ?? DEFAULT_ASSEMBLER;
+
+  // Effective presets with upgrade modules folded into the throughput multipliers,
+  // so the existing engine sees a single preset and needs no module awareness.
+  const refinery = useMemo(
+    () => applyRefineryModules(refineryPreset, { yield: refineryYield, speed: refinerySpeed }),
+    [refineryPreset, refineryYield, refinerySpeed],
+  );
+  const assembler = useMemo(
+    () => applyAssemblerModules(assemblerPreset, { speed: assemblerSpeed }),
+    [assemblerPreset, assemblerSpeed],
+  );
 
   const cost = useBuildCost({
     refinery,
@@ -209,6 +236,59 @@ export function BuildCostPanel(): React.JSX.Element | null {
               onChange={setRefineryId}
             />
           </div>
+
+          {/* Refinery upgrade modules — Yield + Speed share the 4 ports. */}
+          {refineryPreset.hasModulePorts ? (
+            <div className="flex flex-col gap-2 rounded-lg border border-border/60 bg-surface/60 px-3 py-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-col">
+                  <span className="text-xs text-fg">Yield modules</span>
+                  <span className="text-[11px] text-subtle">
+                    →{' '}
+                    <span className="font-mono text-muted">
+                      ×{formatYield(YIELD_MODULE_EFFECTIVENESS[refineryYield] ?? 1)}
+                    </span>{' '}
+                    ingot yield
+                  </span>
+                </div>
+                <Stepper
+                  ariaLabel="refinery yield modules"
+                  value={refineryYield}
+                  onChange={setRefineryYield}
+                  min={0}
+                  max={REFINERY_MODULE_SLOTS - refinerySpeed}
+                />
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-col">
+                  <span className="text-xs text-fg">Speed modules</span>
+                  <span className="text-[11px] text-subtle">
+                    →{' '}
+                    <span className="font-mono text-muted">
+                      {speedModuleMultiplier(refinerySpeed)}×
+                    </span>{' '}
+                    refine speed
+                  </span>
+                </div>
+                <Stepper
+                  ariaLabel="refinery speed modules"
+                  value={refinerySpeed}
+                  onChange={setRefinerySpeed}
+                  min={0}
+                  max={REFINERY_MODULE_SLOTS - refineryYield}
+                />
+              </div>
+              <p className="text-[11px] text-subtle">
+                {REFINERY_MODULE_SLOTS} shared ports — Yield + Speed together can't exceed{' '}
+                {REFINERY_MODULE_SLOTS}.
+              </p>
+            </div>
+          ) : (
+            <p className="text-[11px] text-subtle">
+              The Basic Refinery has no upgrade-module ports.
+            </p>
+          )}
+
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-[11px] font-medium tracking-wide text-subtle uppercase">
               Assembler
@@ -221,9 +301,40 @@ export function BuildCostPanel(): React.JSX.Element | null {
               onChange={setAssemblerId}
             />
           </div>
+
+          {/* Assembler upgrade modules — Speed only (Yield has no assembler effect). */}
+          {assemblerPreset.hasModulePorts ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 bg-surface/60 px-3 py-2.5">
+              <div className="flex flex-col">
+                <span className="text-xs text-fg">Speed modules</span>
+                <span className="text-[11px] text-subtle">
+                  →{' '}
+                  <span className="font-mono text-muted">
+                    {speedModuleMultiplier(assemblerSpeed)}×
+                  </span>{' '}
+                  assemble speed
+                </span>
+              </div>
+              <Stepper
+                ariaLabel="assembler speed modules"
+                value={assemblerSpeed}
+                onChange={setAssemblerSpeed}
+                min={0}
+                max={ASSEMBLER_MODULE_SLOTS}
+              />
+            </div>
+          ) : (
+            <p className="text-[11px] text-subtle">
+              The Basic Assembler has no upgrade-module ports.
+            </p>
+          )}
+
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-[11px] font-medium tracking-wide text-subtle uppercase">
-              Assembler efficiency
+            <span
+              className="text-[11px] font-medium tracking-wide text-subtle uppercase"
+              title="Survival world setting (Realistic ×1 / ×3 / ×10) — divides ingot cost. Not a block module."
+            >
+              Assembler efficiency (world)
             </span>
             <SegmentedControl
               name="build-cost-efficiency"
@@ -233,6 +344,10 @@ export function BuildCostPanel(): React.JSX.Element | null {
               onChange={setEfficiency}
             />
           </div>
+          <p className="text-[11px] text-subtle">
+            World survival setting (Realistic ×1 / ×3 / ×10) — divides ingot cost. Not a
+            block module.
+          </p>
         </div>
 
         {/* Throughput & fleet — how long the build takes on N refineries / M

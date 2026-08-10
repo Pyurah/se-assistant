@@ -4,6 +4,34 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.24.0] - 2026-08-10
+
+### Added
+
+- **Refinery & assembler upgrade modules in the Build-cost panel.** You can now
+  install **Yield** and **Speed** modules on the refinery (its 4 ports are shared
+  between the two) and **Speed** modules on the assembler (8 ports), and the ore
+  total and refine/assemble time update to match. Yield modules apply the
+  game-verified effectiveness curve (100 / 119 / 141 / 168 / 200 % for 0–4
+  modules), so a maxed-out refinery halves the ore you need to mine; Speed modules
+  apply the 1 + N speed multiplier (2× … 5×). Module controls disable for the
+  Basic Refinery / Basic Assembler, which have no upgrade ports.
+- Pure `@data` helpers `applyRefineryModules` / `applyAssemblerModules` that fold
+  module counts into an effective `RefineryPreset` / `AssemblerPreset`, plus the
+  `YIELD_MODULE_EFFECTIVENESS` curve, `speedModuleMultiplier`, and the
+  `REFINERY_MODULE_SLOTS` / `ASSEMBLER_MODULE_SLOTS` port counts (with
+  worked-example tests, including an end-to-end `buildCost` case proving 4 Yield
+  modules halve the ore).
+
+### Changed
+
+- The Build-cost **"Assembler efficiency"** control is relabeled **"Assembler
+  efficiency (world)"** with an explicit note that it's the survival world setting
+  (Realistic ×1 / ×3 / ×10) that divides ingot cost — not a block module — to end
+  the conflation with the new per-block Speed module.
+- `RefineryPreset` / `AssemblerPreset` gained a `hasModulePorts` flag (true for the
+  full-size Refinery / Assembler, false for the Basic variants).
+
 ## [0.23.0] - 2026-08-10
 
 ### Changed

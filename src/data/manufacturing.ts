@@ -323,6 +323,11 @@ export interface RefineryPreset {
   readonly refineSpeed: number;
   /** Multiplies ingot yield. */
   readonly materialEfficiency: number;
+  /**
+   * Whether the block has upgrade-module ports. The Basic Refinery has none, so
+   * Yield/Speed modules do not apply to it (see {@link applyRefineryModules}).
+   */
+  readonly hasModulePorts: boolean;
 }
 
 /** An assembler block's throughput multiplier. */
@@ -331,6 +336,11 @@ export interface AssemblerPreset {
   readonly displayName: string;
   /** Divides assemble time (higher = faster). */
   readonly assemblySpeed: number;
+  /**
+   * Whether the block has upgrade-module ports. The Basic Assembler has none,
+   * so Speed modules do not apply to it (see {@link applyAssemblerModules}).
+   */
+  readonly hasModulePorts: boolean;
 }
 
 /**
@@ -341,14 +351,14 @@ export interface AssemblerPreset {
  * (unconfirmed multipliers — see the audit doc).
  */
 export const REFINERY_PRESETS: readonly RefineryPreset[] = [
-  { id: 'refinery', displayName: 'Refinery', refineSpeed: 1.3, materialEfficiency: 0.8 },
-  { id: 'basic-refinery', displayName: 'Basic Refinery', refineSpeed: 0.65, materialEfficiency: 0.7 },
+  { id: 'refinery', displayName: 'Refinery', refineSpeed: 1.3, materialEfficiency: 0.8, hasModulePorts: true },
+  { id: 'basic-refinery', displayName: 'Basic Refinery', refineSpeed: 0.65, materialEfficiency: 0.7, hasModulePorts: false },
 ];
 
 /** Assembler presets. Standard (1.0) exact [ARCHIVE]; Basic (0.5) current wiki. */
 export const ASSEMBLER_PRESETS: readonly AssemblerPreset[] = [
-  { id: 'assembler', displayName: 'Assembler', assemblySpeed: 1.0 },
-  { id: 'basic-assembler', displayName: 'Basic Assembler', assemblySpeed: 0.5 },
+  { id: 'assembler', displayName: 'Assembler', assemblySpeed: 1.0, hasModulePorts: true },
+  { id: 'basic-assembler', displayName: 'Basic Assembler', assemblySpeed: 0.5, hasModulePorts: false },
 ];
 
 /** Sensible defaults: a standard Refinery + Assembler at the Realistic setting. */
@@ -357,11 +367,13 @@ export const DEFAULT_REFINERY: RefineryPreset = {
   displayName: 'Refinery',
   refineSpeed: 1.3,
   materialEfficiency: 0.8,
+  hasModulePorts: true,
 };
 export const DEFAULT_ASSEMBLER: AssemblerPreset = {
   id: 'assembler',
   displayName: 'Assembler',
   assemblySpeed: 1.0,
+  hasModulePorts: true,
 };
 
 /**
@@ -369,3 +381,89 @@ export const DEFAULT_ASSEMBLER: AssemblerPreset = {
  * DIVIDES the ingot cost of every component. Default x1 = full cost as listed.
  */
 export const DEFAULT_ASSEMBLER_EFFICIENCY = 1;
+
+// ── Upgrade modules (Yield / Speed) ──────────────────────────────────────────
+//
+// Refinery/assembler upgrade modules attach to the block's ports and multiply
+// its throughput. Values verified against the current game (spaceengineers.wiki.gg,
+// "Yield Module" / "Speed Module"):
+//   - A full-size Refinery has 4 upgrade ports, SHARED between Yield and Speed
+//     (so yield + speed ≤ 4). A full-size Assembler has 8 ports.
+//   - The Basic Refinery / Basic Assembler have NO ports (`hasModulePorts:false`).
+//   - Yield Modules affect REFINERIES ONLY — they have no effect on assemblers.
+//
+// The slot-sharing cap (yield + speed ≤ refinery ports) is enforced by the UI
+// that owns the module counts, not by the pure helpers below — the helpers only
+// clamp each input to its own module maximum.
+
+/** Upgrade-module port count on a full-size Refinery (Yield + Speed share these). */
+export const REFINERY_MODULE_SLOTS = 4;
+
+/** Upgrade-module port count on a full-size Assembler (Speed only, for cost). */
+export const ASSEMBLER_MODULE_SLOTS = 8;
+
+/**
+ * Refinery ingot-yield multiplier by installed Yield Module count (index = count).
+ * Verified curve: 0→100%, 1→119%, 2→141%, 3→168%, 4→200% effectiveness. Four
+ * Yield Modules double a refinery's ingot output (its maximum). Multiplies the
+ * refinery's base `materialEfficiency`.
+ */
+export const YIELD_MODULE_EFFECTIVENESS: readonly number[] = [1.0, 1.19, 1.41, 1.68, 2.0];
+
+/**
+ * Production-speed multiplier from `count` Speed Modules: `1 + count`. Verified
+ * curve: 1→2×, 2→3×, 3→4×, 4→5× (each module "acts like one extra machine").
+ * Applies to both refineries (multiplies `refineSpeed`) and assemblers
+ * (multiplies `assemblySpeed`). Negative counts are treated as zero.
+ */
+export function speedModuleMultiplier(count: number): number {
+  return 1 + Math.max(0, Math.floor(count));
+}
+
+/** Clamp a module count to `[0, max]` (integer). */
+function clampModuleCount(count: number, max: number): number {
+  if (!Number.isFinite(count)) return 0;
+  return Math.min(max, Math.max(0, Math.floor(count)));
+}
+
+/**
+ * Compose an effective {@link RefineryPreset} with `yield`/`speed` upgrade
+ * modules applied: `materialEfficiency × YIELD_MODULE_EFFECTIVENESS[yield]` and
+ * `refineSpeed × speedModuleMultiplier(speed)`. Each count is clamped to
+ * `[0, REFINERY_MODULE_SLOTS]` independently — the caller (UI) is responsible
+ * for the shared-slot cap `yield + speed ≤ REFINERY_MODULE_SLOTS`. A refinery
+ * with no ports (Basic) is returned unchanged.
+ */
+export function applyRefineryModules(
+  preset: RefineryPreset,
+  modules: { readonly yield: number; readonly speed: number },
+): RefineryPreset {
+  if (!preset.hasModulePorts) return preset;
+  const yieldCount = clampModuleCount(modules.yield, REFINERY_MODULE_SLOTS);
+  const speedCount = clampModuleCount(modules.speed, REFINERY_MODULE_SLOTS);
+  const yieldMult = YIELD_MODULE_EFFECTIVENESS[yieldCount] ?? 1;
+  return {
+    ...preset,
+    materialEfficiency: preset.materialEfficiency * yieldMult,
+    refineSpeed: preset.refineSpeed * speedModuleMultiplier(speedCount),
+  };
+}
+
+/**
+ * Compose an effective {@link AssemblerPreset} with `speed` upgrade modules
+ * applied: `assemblySpeed × speedModuleMultiplier(speed)`, `speed` clamped to
+ * `[0, ASSEMBLER_MODULE_SLOTS]`. Assemblers accept only Speed modules (Yield
+ * modules have no assembler effect). An assembler with no ports (Basic) is
+ * returned unchanged.
+ */
+export function applyAssemblerModules(
+  preset: AssemblerPreset,
+  modules: { readonly speed: number },
+): AssemblerPreset {
+  if (!preset.hasModulePorts) return preset;
+  const speedCount = clampModuleCount(modules.speed, ASSEMBLER_MODULE_SLOTS);
+  return {
+    ...preset,
+    assemblySpeed: preset.assemblySpeed * speedModuleMultiplier(speedCount),
+  };
+}
