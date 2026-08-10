@@ -30,6 +30,7 @@ const largeGyro = VANILLA_BLOCKS_BY_ID['large-gyroscope'] as GyroscopeBlock;
 // Analyze view factors in, but that the estimator seed used to wrongly drop.
 const genArmor = BLOCKS_BY_ID['gen:SmallHeavyBlockArmorBlock'] as BlockDefinition;
 const genSciFiThruster = BLOCKS_BY_ID['gen:SmallBlockSmallThrustSciFi'] as ThrusterBlock;
+const genSciFiThrusterLarge = BLOCKS_BY_ID['gen:SmallBlockLargeThrustSciFi'] as ThrusterBlock;
 
 /** A modded/unrecognized block, as the parser emits for unknown subtypes. */
 const moddedBlock: BlockDefinition = {
@@ -101,25 +102,29 @@ describe('designToEstimateSeed', () => {
     expect(seed.fixedBlocks).toEqual([{ id: largeCargo.id, quantity: 5 }]);
   });
 
-  it('picks the most-numerous thruster as the dominant config choice', () => {
+  it('picks the biggest total-thrust contributor as the dominant thruster, not the most numerous', () => {
     const seed = designToEstimateSeed(
       design([
         { definition: atmoSmall, quantity: 10, thrustDirection: 'up' },
         { definition: atmoLarge, quantity: 4, thrustDirection: 'up' },
       ]),
     );
-    // Small atmospheric is more numerous → dominant, even though large has more thrust.
-    expect(seed.thrusterId).toBe(atmoSmall.id);
+    // atmoSmall is more numerous (10 vs 4) but atmoLarge contributes far more
+    // total thrust (4 × 6.48 MN = 25.9 MN vs 10 × 648 kN = 6.48 MN), so it wins.
+    // This is the main-drive-vs-maneuvering-thrusters case: size the build around
+    // the engines doing the actual propulsion, not the numerous small RCS ones.
+    expect(seed.thrusterId).toBe(atmoLarge.id);
   });
 
-  it('breaks a thruster count tie by higher single-block thrust', () => {
+  it('breaks a thrust-contribution tie by id', () => {
     const seed = designToEstimateSeed(
       design([
-        { definition: atmoSmall, quantity: 4, thrustDirection: 'up' },
-        { definition: atmoLarge, quantity: 4, thrustDirection: 'up' },
+        // Equal total thrust: 1 × 6.48 MN == 10 × 648 kN. Tie → lower id wins.
+        { definition: atmoLarge, quantity: 1, thrustDirection: 'up' },
+        { definition: atmoSmall, quantity: 10, thrustDirection: 'up' },
       ]),
     );
-    // Equal counts → the bigger engine (higher maxThrust) wins.
+    // 'large-large-...' < 'large-small-...' lexically, so atmoLarge is chosen.
     expect(seed.thrusterId).toBe(atmoLarge.id);
   });
 
@@ -251,5 +256,24 @@ describe('designToEstimateSeed', () => {
       ]),
     );
     expect(seed.thrusterId).toBe(atmoLarge.id);
+  });
+
+  it('picks the main-drive thruster over numerous maneuvering thrusters (Heavy Space Fighter regression)', () => {
+    // The real bug: a small-grid fighter carries MANY small maneuvering/RCS
+    // thrusters (28 × 14.4 kN = 403 kN total) plus FEWER large main-drive
+    // thrusters (23 × 172.8 kN = 3.97 MN total). Selecting by count picked the
+    // small thruster, so the estimator tried to build the whole ship out of RCS,
+    // needed thousands, blew the sanity cap, and returned an all-zero build. The
+    // main drive contributes ~10× the total thrust and must be the seed choice.
+    const seed = designToEstimateSeed(
+      design(
+        [
+          { definition: genSciFiThruster, quantity: 28, thrustDirection: 'left' },
+          { definition: genSciFiThrusterLarge, quantity: 23, thrustDirection: 'forward' },
+        ],
+        { gridSize: 'small' },
+      ),
+    );
+    expect(seed.thrusterId).toBe(genSciFiThrusterLarge.id);
   });
 });

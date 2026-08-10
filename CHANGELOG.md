@@ -4,6 +4,35 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.21.2] - 2026-08-10
+
+### Fixed
+
+- **A blueprint-seeded Estimate build no longer sizes zero of everything.** After
+  the v0.21.1 fix carried every block over, an imported Heavy Space Fighter in
+  **Space** still recommended **0 thrusters, 0 gyroscopes, and 0 batteries** — the
+  directional-acceleration readout showed "n/a", changing maneuverability did
+  nothing, and power read "0× Warfare Battery". Two independent bugs:
+  - **The seed picked the wrong thruster.** `designToEstimateSeed` chose the
+    _most numerous_ thruster as the build's dominant type, so a fighter's 28 small
+    maneuvering thrusters (14.4 kN each, 0.40 MN total) beat its 23 large main-drive
+    thrusters (172.8 kN each, 3.97 MN total). The estimator then tried to propel a
+    137-tonne ship on maneuvering thrusters, needed thousands, blew the sanity cap,
+    and gave up. Dominance is now scored by **total thrust contributed**
+    (count × per-block thrust), so the main drive — the blocks doing ~90% of the
+    propulsion — is what the build is sized around.
+  - **An infeasible thruster choice zeroed power and gyros too.** Both estimator
+    hard-stops (UP-axis thruster dead in the environment; thruster count diverges
+    past the sanity cap) returned zero thrusters *and* zero batteries *and* zero
+    gyros. But a ship's base systems still draw power and its hull still needs
+    attitude control regardless of whether the thrusters hit their TWR target — so
+    power and gyros are now sized against the (zero) thruster count via a shared
+    `sizeSupportOnly` fixed-point pass instead of being zeroed alongside the
+    thrusters.
+
+  Net effect: the Heavy Space Fighter now estimates a real build in Space
+  (77 thrusters, 27 batteries, 3 gyros, no warnings) instead of all zeros.
+
 ## [0.21.1] - 2026-08-10
 
 ### Fixed

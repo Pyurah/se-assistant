@@ -115,14 +115,14 @@ until the build has the relevant hardware.
   Build-cost recipes for all 1,455 blocks are generated the same way, so an
   imported ship's bill of materials covers the whole catalogue too.
 - The pure calc engine is covered by **worked-example tests** with hand-verified
-  reference values (currently **449 tests**).
+  reference values (currently **466 tests**).
 - Where a value is genuinely an estimate — the gyro turn-rate (needs the ship's
   moment of inertia) or stopping distance (ignores per-axis gravity) — the UI
   says so rather than implying false precision.
 
 ## Status
 
-Version **0.21.1**. Phases 1 (core engine + blueprint import), 1.5 (requirement
+Version **0.21.2**. Phases 1 (core engine + blueprint import), 1.5 (requirement
 estimator), 2 (fuel/flight-time + motion/stability), and 2.5 (Estimate-mode
 enhancements incl. blueprint-seeded builds) are complete, and **Phase 3's first
 block is done**: production/logistics (build cost, manufacturing throughput,

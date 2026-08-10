@@ -1,6 +1,6 @@
 # SE Assistant — Product Roadmap
 
-> **Last Updated**: 2026-08-10 (v0.21.1)
+> **Last Updated**: 2026-08-10 (v0.21.2)
 
 A Space Engineers ship & base planner: import a blueprint (`.sbc`) and get
 instant thrust-to-weight, mass, cargo, and power analysis — empty vs fully
@@ -13,8 +13,26 @@ loaded, on any vanilla planet.
 **Everything through Phase 2 plus M6.6, M6.7, and all of Phase 3's first block —
 M7 (build cost + throughput + conveyor audit) and M8 (life support + combat) — is
 DONE, committed, and pushed to GitHub** (`https://github.com/Pyurah/se-assistant`,
-branch `master`, at v0.21.1). Working tree is clean and all four gates pass
-(`typecheck` / `lint` / `test` (465) / `build`). Nothing is half-finished.
+branch `master`, at v0.21.2). Working tree is clean and all four gates pass
+(`typecheck` / `lint` / `test` (466) / `build`). Nothing is half-finished.
+
+**v0.21.2 (2026-08-10) — A blueprint-seeded Estimate build no longer sizes zero
+of everything.** After v0.21.1 carried every block over, an imported Heavy Space
+Fighter in **Space** still recommended **0 thrusters, 0 gyroscopes, and 0
+batteries** — directional acceleration read "n/a", changing maneuverability did
+nothing, power read "0× Warfare Battery". Two independent bugs. (1) The seed
+picked the _most numerous_ thruster as dominant, so the fighter's 28 small
+maneuvering thrusters (0.40 MN total) beat its 23 large main-drive thrusters
+(3.97 MN total); the estimator then tried to fly a 137 t ship on RCS, needed
+thousands, blew the sanity cap, and gave up. `designToEstimateSeed` now scores
+thruster dominance by **total thrust contributed** (count × per-block thrust), so
+the main drive wins. (2) Both estimator hard-stops (dead UP axis; diverging count)
+returned zero thrusters *and* zero power *and* zero gyros — but base draw and
+attitude control don't depend on the thrusters lifting, so power + gyros are now
+sized against the zero thruster count via a shared `sizeSupportOnly` fixed-point
+pass. Net: the fighter now estimates a real Space build (77 thrusters, 27
+batteries, 3 gyros, no warnings). +1 seed regression test, existing infeasibility
+tests updated to assert power/gyros survive (466 total).
 
 **v0.21.1 (2026-08-10) — Blueprint seeds no longer drop generated blocks in
 Estimate mode.** Importing a real blueprint into Estimate mode reported most of a
@@ -303,11 +321,11 @@ fast-follow is **done** (v0.17.0).
 
 ## Current State
 
-- **Version**: 0.21.1
+- **Version**: 0.21.2
 - **Repo**: pushed to `https://github.com/Pyurah/se-assistant` (`master`);
   commits use the GitHub no-reply email (real email scrubbed from history).
 - **Build**: passing (`pnpm build`)
-- **Tests**: passing — 465 tests across logger, audit, data-integrity, the
+- **Tests**: passing — 466 tests across logger, audit, data-integrity, the
   merged-dataset invariants (`all-blocks` + `all-block-costs` override/gap-fill
   proofs) and the block + cost generators' fixture-driven parser/emitter/map
   suites, engine

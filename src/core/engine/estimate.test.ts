@@ -124,6 +124,9 @@ describe('estimateRequirements', () => {
     const est = estimateRequirements(baseInput({ planet: space, config: { ...baseInput().config, thrusters: uniformThrusters(atmoLarge) } }));
     expect(est.warnings.length).toBeGreaterThan(0);
     expect(est.totalThrusters).toBe(0);
+    // Power and gyros are independent of the thrusters lifting — still sized.
+    expect(est.powerCount).toBeGreaterThan(0);
+    expect(est.gyroCount).toBeGreaterThan(0);
   });
 
   it('sizes thrusters in space by reading target TWR as target g-acceleration', () => {
@@ -403,7 +406,10 @@ describe('estimateRequirements — realistic peak-draw power sizing', () => {
     expect(est.warnings.length).toBeGreaterThan(0);
     expect(est.warnings.some((w) => /can't lift/i.test(w))).toBe(true);
     expect(est.totalThrusters).toBe(0);
-    expect(est.powerCount).toBe(0);
+    // Thrusters can't lift, but the ship's base systems still draw power and the
+    // hull still needs attitude control — so power and gyros are still sized.
+    expect(est.powerCount).toBeGreaterThan(0);
+    expect(est.gyroCount).toBeGreaterThan(0);
     // Numbers stay finite and sane.
     expect(Number.isFinite(est.loadedMass)).toBe(true);
   });
@@ -486,6 +492,8 @@ describe('estimateRequirements — per-direction thruster mixing', () => {
     );
     expect(est.warnings.some((w) => /can't lift/i.test(w))).toBe(true);
     expect(est.totalThrusters).toBe(0);
+    // The hull still needs attitude control — gyros are sized despite no lift.
+    expect(est.gyroCount).toBeGreaterThan(0);
   });
 
   it('sizes the rest but flags a dead LATERAL axis without stopping the estimate', () => {

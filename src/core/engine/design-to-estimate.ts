@@ -80,31 +80,36 @@ function powerKindOf(def: BlockDefinition): SeedPowerKind {
   return def.category === 'battery' ? 'battery' : 'producer';
 }
 
-/** A single-block thrust used only as a dominance tiebreaker (0 for non-thrusters). */
+/** A single-block thrust used to weight thruster dominance (0 for non-thrusters). */
 function thrustOf(def: BlockDefinition): number {
   return def.category === 'thruster' ? def.maxThrust : 0;
 }
 
 /**
- * Pick the "dominant" definition from a tally: the most numerous, breaking ties
- * by higher per-block thrust (bigger engine wins), then by id for determinism.
+ * Pick the "dominant" definition from a tally by a caller-supplied score (higher
+ * wins), breaking ties by id for determinism.
+ *
+ * Thrusters are scored by TOTAL thrust contributed (count × per-block thrust),
+ * not by count: a ship often carries many tiny maneuvering/RCS thrusters plus a
+ * few large main-drive ones, and the main drive — the blocks doing the actual
+ * propulsion work — is what the estimator should size the build around. Seeding
+ * from the numerous-but-weak type would try to build the whole ship out of
+ * maneuvering thrusters and size thousands of them. Power blocks are scored by
+ * count (the more-numerous kind is the primary source).
  */
 function pickDominant(
   tally: ReadonlyMap<string, { def: BlockDefinition; quantity: number }>,
+  score: (def: BlockDefinition, quantity: number) => number,
 ): BlockDefinition | null {
   let best: { def: BlockDefinition; quantity: number } | null = null;
+  let bestScore = -Infinity;
   for (const entry of tally.values()) {
-    if (best === null) {
+    const s = score(entry.def, entry.quantity);
+    const better = best === null || s > bestScore || (s === bestScore && entry.def.id < best.def.id);
+    if (better) {
       best = entry;
-      continue;
+      bestScore = s;
     }
-    const better =
-      entry.quantity > best.quantity ||
-      (entry.quantity === best.quantity && thrustOf(entry.def) > thrustOf(best.def)) ||
-      (entry.quantity === best.quantity &&
-        thrustOf(entry.def) === thrustOf(best.def) &&
-        entry.def.id < best.def.id);
-    if (better) best = entry;
   }
   return best?.def ?? null;
 }
@@ -160,8 +165,11 @@ export function designToEstimateSeed(design: ShipDesign): EstimateSeed {
     }
   }
 
-  const dominantThruster = pickDominant(thrusterTally);
-  const dominantPower = pickDominant(powerTally);
+  // Thrusters: dominant = biggest total thrust contributor (count × per-block
+  // thrust) — the main drive, not the numerous-but-weak maneuvering thrusters.
+  const dominantThruster = pickDominant(thrusterTally, (def, qty) => thrustOf(def) * qty);
+  // Power: dominant = the more-numerous kind (the primary source).
+  const dominantPower = pickDominant(powerTally, (_def, qty) => qty);
 
   return {
     gridSize: design.gridSize,
