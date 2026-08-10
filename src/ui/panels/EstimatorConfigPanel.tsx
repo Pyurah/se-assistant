@@ -1,15 +1,18 @@
 /**
- * EstimatorConfigPanel — the goals & hardware choices that drive the estimate.
+ * EstimatorConfigPanel — the manual thruster-assignment workbench.
  *
- * Everything here is an INPUT the engine sizes against: the environment, the
- * target TWR, the thruster model to count, the power source (battery or a
- * producer), the maneuverability target, and the cargo loadout that defines the
- * "loaded" mass. Thrusters are grouped by type with an inline note that
- * atmospheric dies in vacuum and ion is weak in air — the estimate's own
- * warnings confirm an infeasible pick, but this steers the user first.
+ * This is the heart of the manual estimator: for each of the six directions the
+ * user sets a goal (TWR on a planet, a g-multiple of acceleration in space) and
+ * assigns thrusters — mixing types freely (e.g. atmospheric lift + ion sides) —
+ * until an inline gauge + verdict shows they've reached, exceeded, or fallen
+ * short of that goal. The engine sizes only power + gyros against the resulting
+ * fixed thruster set; it never picks thrusters for the user here.
  *
- * All controls are labeled and keyboard-operable; changes flow to the estimator
- * store and recompute the recommendation live.
+ * The remaining sections (Environment, Power, Maneuverability, Cargo) are the
+ * inputs that define the *mass* the goals are checked against. A load-state
+ * toggle (empty vs loaded, default loaded = worst case) decides which mass the
+ * verdicts use, and it drives the same store slice the TWR panel reads, so the
+ * two always agree. All controls are labeled and keyboard-operable.
  */
 import { useMemo } from 'react';
 import {
@@ -21,14 +24,27 @@ import {
   type ThrusterBlock,
   type ThrusterType,
 } from '@data';
-import type { Responsiveness, ThrusterTypeSuggestion } from '@core';
-import { useEstimatorStore, type PowerKind } from '../../app/store/estimator-store';
-import { resolvePlanet, useEstimate } from '../../app/hooks/use-estimate';
-import { formatGravity, formatPercent, formatForce, formatRuntime, formatCount } from '../lib/format';
+import type { GoalVerdict, Responsiveness } from '@core';
+import {
+  useEstimatorStore,
+  type GoalLoadState,
+  type PowerKind,
+} from '../../app/store/estimator-store';
+import { resolvePlanet, useEstimate, type ResolvedAssignment } from '../../app/hooks/use-estimate';
+import {
+  formatAccel,
+  formatGravity,
+  formatPercent,
+  formatForce,
+  formatRuntime,
+} from '../lib/format';
 import { Panel } from '../components/Panel';
-import { Badge } from '../components/Badge';
+import { Badge, type BadgeVariant } from '../components/Badge';
 import { SegmentedControl } from '../components/SegmentedControl';
-import { IconGauge, IconGlobe, IconBolt, IconCompass, IconBox } from '../components/icons';
+import { Stepper } from '../components/Stepper';
+import { Button } from '../components/Button';
+import { TwrBar } from '../components/TwrBar';
+import { IconGauge, IconGlobe, IconBolt, IconCompass, IconBox, IconTrash } from '../components/icons';
 import { cn } from '../lib/cn';
 
 const THRUSTER_TYPE_LABELS: Record<ThrusterType, string> = {
@@ -39,16 +55,9 @@ const THRUSTER_TYPE_LABELS: Record<ThrusterType, string> = {
 
 const THRUSTER_TYPE_ORDER: readonly ThrusterType[] = ['hydrogen', 'ion', 'atmospheric'];
 
-/** Compact type label for the per-direction ranking chips. */
-const THRUSTER_TYPE_SHORT: Record<ThrusterType, string> = {
-  hydrogen: 'Hydrogen',
-  ion: 'Ion',
-  atmospheric: 'Atmospheric',
-};
-
-/** Per-direction rows for the "customize by direction" disclosure (UP first). */
-const DIRECTION_ROWS: readonly { dir: Direction; label: string }[] = [
-  { dir: 'up', label: 'Up (lift)' },
+/** Per-direction rows for the assignment surface (UP first — the lift axis). */
+const DIRECTION_ROWS: readonly { dir: Direction; label: string; emphasis?: boolean }[] = [
+  { dir: 'up', label: 'Up (lift)', emphasis: true },
   { dir: 'down', label: 'Down' },
   { dir: 'forward', label: 'Forward' },
   { dir: 'backward', label: 'Backward' },
@@ -70,6 +79,12 @@ const DENSITY_PRESETS: readonly { label: string; density: number }[] = [
   { label: 'Uranium', density: 7.6 },
 ];
 
+const VERDICT_META: Record<GoalVerdict['status'], { label: string; variant: BadgeVariant }> = {
+  exceeded: { label: 'Exceeded', variant: 'success' },
+  reached: { label: 'Reached', variant: 'success' },
+  short: { label: 'Short', variant: 'warning' },
+};
+
 const fieldLabel = 'text-[11px] font-medium tracking-wide text-subtle uppercase';
 const selectClass =
   'h-9 w-full rounded-md border border-border bg-bg px-3 text-sm text-fg transition-colors hover:border-border-strong focus:border-accent';
@@ -77,10 +92,8 @@ const selectClass =
 export function EstimatorConfigPanel(): React.JSX.Element {
   const gridSize = useEstimatorStore((s) => s.gridSize);
   const planetId = useEstimatorStore((s) => s.planetId);
-  const targetTwr = useEstimatorStore((s) => s.targetTwr);
-  const lateralThrustFraction = useEstimatorStore((s) => s.lateralThrustFraction);
-  const thrusterId = useEstimatorStore((s) => s.thrusterId);
-  const thrusterOverrides = useEstimatorStore((s) => s.thrusterOverrides);
+  const directionGoals = useEstimatorStore((s) => s.directionGoals);
+  const goalLoadState = useEstimatorStore((s) => s.goalLoadState);
   const powerKind = useEstimatorStore((s) => s.powerKind);
   const powerBlockId = useEstimatorStore((s) => s.powerBlockId);
   const runtimeTargetHours = useEstimatorStore((s) => s.runtimeTargetHours);
@@ -88,10 +101,11 @@ export function EstimatorConfigPanel(): React.JSX.Element {
   const cargo = useEstimatorStore((s) => s.cargo);
 
   const setPlanet = useEstimatorStore((s) => s.setPlanet);
-  const setTargetTwr = useEstimatorStore((s) => s.setTargetTwr);
-  const setLateralThrustFraction = useEstimatorStore((s) => s.setLateralThrustFraction);
-  const setThruster = useEstimatorStore((s) => s.setThruster);
-  const setDirectionalThruster = useEstimatorStore((s) => s.setDirectionalThruster);
+  const setDirectionGoal = useEstimatorStore((s) => s.setDirectionGoal);
+  const setGoalLoadState = useEstimatorStore((s) => s.setGoalLoadState);
+  const addThruster = useEstimatorStore((s) => s.addThruster);
+  const removeThruster = useEstimatorStore((s) => s.removeThruster);
+  const setThrusterCount = useEstimatorStore((s) => s.setThrusterCount);
   const setPower = useEstimatorStore((s) => s.setPower);
   const setRuntimeTargetHours = useEstimatorStore((s) => s.setRuntimeTargetHours);
   const setResponsiveness = useEstimatorStore((s) => s.setResponsiveness);
@@ -99,13 +113,13 @@ export function EstimatorConfigPanel(): React.JSX.Element {
   const setCargoDensity = useEstimatorStore((s) => s.setCargoDensity);
 
   const planet = resolvePlanet(planetId);
+  const noGravity = planet.surfaceGravity === 0;
 
-  // The live estimate powers the per-direction ranked type suggestions. Guard
-  // null (unresolvable config) — the chips simply don't render in that case.
+  // The live estimate powers the per-direction goal verdicts + resolved stacks.
   const result = useEstimate();
-  const suggestions = result?.suggestions ?? null;
 
-  // Thrusters for this grid, grouped by type (hydrogen / ion / atmospheric).
+  // Thrusters for this grid, grouped by type (hydrogen / ion / atmospheric) —
+  // feeds the "add thruster type" grouped picker in every direction.
   const thrusterGroups = useMemo(() => {
     const byType = new Map<ThrusterType, ThrusterBlock[]>();
     for (const block of VANILLA_BLOCKS) {
@@ -137,16 +151,6 @@ export function EstimatorConfigPanel(): React.JSX.Element {
     [gridSize],
   );
 
-  const selectedThruster = VANILLA_BLOCKS.find((b) => b.id === thrusterId);
-  const selectedType =
-    selectedThruster?.category === 'thruster' ? selectedThruster.thrusterType : undefined;
-
-  // How many directions are pinned to a non-default thruster (drives the summary).
-  const overrideCount = DIRECTION_ROWS.reduce(
-    (n, { dir }) => n + (thrusterOverrides[dir] !== undefined ? 1 : 0),
-    0,
-  );
-
   const fillPct = Math.round(cargo.fillFraction * 100);
 
   const onPowerKindChange = (kind: PowerKind): void => {
@@ -159,7 +163,11 @@ export function EstimatorConfigPanel(): React.JSX.Element {
   };
 
   return (
-    <Panel title="Build goals" subtitle="What the estimate is sized for" icon={<IconGauge size={16} />}>
+    <Panel
+      title="Thruster assignment"
+      subtitle="Set a goal per direction, then assign thrusters to hit it"
+      icon={<IconGauge size={16} />}
+    >
       <div className="flex flex-col gap-6">
         {/* Environment */}
         <section className="flex flex-col gap-2">
@@ -191,166 +199,58 @@ export function EstimatorConfigPanel(): React.JSX.Element {
           </div>
         </section>
 
-        {/* Target TWR */}
-        <section className="flex flex-col gap-2">
-          <div className="flex items-baseline justify-between">
-            <label htmlFor="est-twr" className={fieldLabel}>
-              Target up-TWR
-            </label>
-            <span className="font-mono text-sm font-semibold text-fg-bright">
-              {targetTwr.toFixed(1)}×
-            </span>
-          </div>
-          <input
-            id="est-twr"
-            type="range"
-            min={0.5}
-            max={6}
-            step={0.1}
-            value={targetTwr}
-            onChange={(e) => setTargetTwr(Number(e.target.value))}
-            aria-valuetext={`${targetTwr.toFixed(1)} times hover thrust`}
-            className="h-2 w-full cursor-pointer appearance-none rounded-full bg-bg accent-accent"
-          />
-          <div className="flex justify-between text-xs text-subtle">
-            <span>Just hovers (1×)</span>
-            <span>Agile (6×)</span>
-          </div>
-        </section>
-
-        {/* Lateral thrust fraction */}
-        <section className="flex flex-col gap-2">
-          <div className="flex items-baseline justify-between">
-            <label htmlFor="est-lateral" className={fieldLabel}>
-              Lateral thrust
-            </label>
-            <span className="font-mono text-sm font-semibold text-fg-bright">
-              {formatPercent(lateralThrustFraction)}
-            </span>
-          </div>
-          <input
-            id="est-lateral"
-            type="range"
-            min={0}
-            max={1}
-            step={0.05}
-            value={lateralThrustFraction}
-            onChange={(e) => setLateralThrustFraction(Number(e.target.value))}
-            aria-valuetext={`${formatPercent(lateralThrustFraction)} of up-thrust in each other direction`}
-            className="h-2 w-full cursor-pointer appearance-none rounded-full bg-bg accent-accent"
-          />
-          <p className="text-xs text-subtle">
-            Thrust in each non-up direction, as a fraction of up-thrust.
-          </p>
-        </section>
-
-        {/* Thruster model */}
-        <section className="flex flex-col gap-2">
-          <label htmlFor="est-thruster" className={fieldLabel}>
-            <span className="mr-1 inline-flex align-middle text-subtle">
-              <IconBolt size={13} />
-            </span>
-            Thruster model
-          </label>
-          <select
-            id="est-thruster"
-            value={thrusterId}
-            onChange={(e) => setThruster(e.target.value)}
-            className={selectClass}
-          >
-            {thrusterGroups.map(({ type, blocks }) => (
-              <optgroup key={type} label={THRUSTER_TYPE_LABELS[type]}>
-                {blocks.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.displayName} · {formatForce(b.maxThrust)}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-          {selectedType === 'atmospheric' && !planet.hasAtmosphere && (
-            <Badge variant="warning">Atmospheric thrusters produce no thrust in vacuum</Badge>
-          )}
-          {selectedType === 'ion' && planet.hasAtmosphere && planet.atmosphereDensity >= 1 && (
-            <Badge variant="warning">Ion thrusters are weak in dense atmosphere</Badge>
-          )}
-
-          {/* Per-direction override disclosure — mix thruster types by axis. */}
-          <details className="group mt-1 rounded-md border border-border bg-bg/50">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-xs font-medium text-muted transition-colors hover:text-fg">
-              <span className="inline-flex items-center gap-1.5">
-                Customize by direction
-                {overrideCount > 0 && (
-                  <Badge variant="info">
-                    {overrideCount} custom
-                  </Badge>
-                )}
-              </span>
-              <span className="text-subtle transition-transform group-open:rotate-90" aria-hidden>
-                ›
-              </span>
-            </summary>
-            <div className="flex flex-col gap-2.5 border-t border-border px-3 py-3">
-              <p className="text-xs text-subtle">
-                Each direction uses the default above unless you pin a type here — e.g. atmospheric
-                lift with ion sides. Counts are sized against the current build&apos;s loaded mass.
-              </p>
-              {DIRECTION_ROWS.map(({ dir, label }) => {
-                const overrideId = thrusterOverrides[dir];
-                const selectId = `est-thruster-${dir}`;
-                const ranked = suggestions?.[dir] ?? [];
-                return (
-                  <div key={dir} className="flex flex-col gap-1.5">
-                    <div className="flex items-center gap-2">
-                      <label
-                        htmlFor={selectId}
-                        className="w-20 shrink-0 text-xs font-medium text-muted"
-                      >
-                        {label}
-                      </label>
-                      <select
-                        id={selectId}
-                        value={overrideId ?? ''}
-                        onChange={(e) =>
-                          setDirectionalThruster(dir, e.target.value === '' ? null : e.target.value)
-                        }
-                        className={cn(selectClass, 'h-8 flex-1 text-xs')}
-                      >
-                        <option value="">Same as default</option>
-                        {thrusterGroups.map(({ type, blocks }) => (
-                          <optgroup key={type} label={THRUSTER_TYPE_LABELS[type]}>
-                            {blocks.map((b) => (
-                              <option key={b.id} value={b.id}>
-                                {b.displayName} · {formatForce(b.maxThrust)}
-                              </option>
-                            ))}
-                          </optgroup>
-                        ))}
-                      </select>
-                    </div>
-                    {ranked.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 pl-[calc(5rem+0.5rem)]">
-                        {ranked.map((s, i) => (
-                          <SuggestionChip
-                            key={s.thrusterType}
-                            suggestion={s}
-                            rank={i}
-                            active={overrideId === s.blockId}
-                            onPick={() => setDirectionalThruster(dir, s.blockId)}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+        {/* Per-direction goals + thruster stacks */}
+        <section className="flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className={fieldLabel}>Goals by direction</span>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] tracking-wide text-subtle uppercase">Check at</span>
+              <SegmentedControl<GoalLoadState>
+                name="est-goal-load"
+                ariaLabel="Check goals at empty or loaded mass"
+                value={goalLoadState}
+                options={[
+                  { value: 'empty', label: 'Empty' },
+                  { value: 'loaded', label: 'Loaded' },
+                ]}
+                onChange={setGoalLoadState}
+              />
             </div>
-          </details>
+          </div>
+          <p className="text-xs text-subtle">
+            {noGravity
+              ? 'In space each goal is a target acceleration as a multiple of g (1 g = 9.81 m/s²). There is no gravity to fight — assign thrusters until each axis accelerates as hard as you want.'
+              : 'On a planet each goal is a target thrust-to-weight ratio. UP must clear 1.0× just to hover; assign thrusters until each axis reaches its goal.'}
+          </p>
+          <div className="flex flex-col gap-2">
+            {DIRECTION_ROWS.map(({ dir, label, emphasis }) => (
+              <DirectionAssignment
+                key={dir}
+                dir={dir}
+                label={label}
+                emphasis={emphasis ?? false}
+                goal={directionGoals[dir]}
+                noGravity={noGravity}
+                verdict={result?.goalVerdicts[dir] ?? null}
+                assignments={result?.resolvedLayout[dir] ?? []}
+                thrusterGroups={thrusterGroups}
+                onGoalChange={(g) => setDirectionGoal(dir, g)}
+                onAdd={(id) => addThruster(dir, id)}
+                onCount={(id, n) => setThrusterCount(dir, id, n)}
+                onRemove={(id) => removeThruster(dir, id)}
+              />
+            ))}
+          </div>
         </section>
 
         {/* Power source */}
-        <section className="flex flex-col gap-2">
-          <span className={fieldLabel}>Power source</span>
+        <section className="flex flex-col gap-2 border-t border-border pt-4">
+          <span className={fieldLabel}>
+            <span className="mr-1 inline-flex align-middle text-subtle">
+              <IconBolt size={13} />
+            </span>
+            Power source
+          </span>
           <SegmentedControl<PowerKind>
             name="estimator-power-kind"
             ariaLabel="Power source kind"
@@ -494,51 +394,206 @@ export function EstimatorConfigPanel(): React.JSX.Element {
   );
 }
 
+/** Grouped thruster picker options (by type), shared across the six directions. */
+interface ThrusterGroup {
+  readonly type: ThrusterType;
+  readonly blocks: readonly ThrusterBlock[];
+}
+
 /**
- * One ranked thruster-*type* suggestion for a direction. Shows the type, the
- * count it would take (or "—" when the type is dead here), and a short
- * trade-off note. Clicking pins that type's least-added-mass variant; the
- * pinned chip highlights. The engine already sorted them, so `rank` 0 is the
- * best feasible option and gets a ✓.
+ * One direction's assignment block: a goal input, a live verdict + gauge, the
+ * stack of assigned thruster types (each with a count stepper + remove), and an
+ * "add thruster type" grouped picker. UP is emphasized as the lift axis.
  */
-function SuggestionChip({
-  suggestion,
-  rank,
-  active,
-  onPick,
+function DirectionAssignment({
+  dir,
+  label,
+  emphasis,
+  goal,
+  noGravity,
+  verdict,
+  assignments,
+  thrusterGroups,
+  onGoalChange,
+  onAdd,
+  onCount,
+  onRemove,
 }: {
-  suggestion: ThrusterTypeSuggestion;
-  rank: number;
-  active: boolean;
-  onPick: () => void;
+  dir: Direction;
+  label: string;
+  emphasis: boolean;
+  goal: number;
+  noGravity: boolean;
+  verdict: GoalVerdict | null;
+  assignments: readonly ResolvedAssignment[];
+  thrusterGroups: readonly ThrusterGroup[];
+  onGoalChange: (goal: number) => void;
+  onAdd: (blockId: string) => void;
+  onCount: (blockId: string, count: number) => void;
+  onRemove: (blockId: string) => void;
 }): React.JSX.Element {
-  const { thrusterType, feasible, countNeeded, note, needsFuel } = suggestion;
-  const isTop = rank === 0 && feasible;
-  const countLabel = !feasible ? '—' : countNeeded === 0 ? '0' : `×${formatCount(countNeeded)}`;
+  const goalId = `est-goal-${dir}`;
+  const addId = `est-add-thruster-${dir}`;
+  const meta = verdict ? VERDICT_META[verdict.status] : null;
 
   return (
-    <button
-      type="button"
-      onClick={onPick}
-      aria-pressed={active}
-      disabled={!feasible}
-      title={`${THRUSTER_TYPE_SHORT[thrusterType]} — ${note}`}
+    <div
       className={cn(
-        'flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors duration-150',
-        active
-          ? 'border-accent bg-accent text-white'
-          : feasible
-            ? 'border-border bg-surface-2 text-muted hover:border-border-strong hover:text-fg'
-            : 'cursor-not-allowed border-border/60 bg-surface-2/50 text-subtle',
+        'flex flex-col gap-2.5 rounded-lg border px-3 py-3',
+        emphasis ? 'border-accent/50 bg-accent/5' : 'border-border bg-bg/50',
       )}
     >
-      {isTop && !active && <span className="text-success" aria-hidden>✓</span>}
-      <span>{THRUSTER_TYPE_SHORT[thrusterType]}</span>
-      <span className={cn('font-mono', active ? 'text-white' : 'text-fg-bright')}>{countLabel}</span>
-      {needsFuel && feasible && (
-        <span className={cn('text-[10px]', active ? 'text-white/80' : 'text-subtle')}>fuel</span>
+      {/* Header: label + goal input + verdict badge. */}
+      <div className="flex items-center justify-between gap-2">
+        <span
+          className={cn(
+            'text-xs font-semibold tracking-wide uppercase',
+            emphasis ? 'text-accent-bright' : 'text-muted',
+          )}
+        >
+          {label}
+        </span>
+        <div className="flex items-center gap-2">
+          <label htmlFor={goalId} className="text-[11px] text-subtle">
+            {noGravity ? 'Goal ×g' : 'Goal ×'}
+          </label>
+          <input
+            id={goalId}
+            type="number"
+            min={0}
+            step={0.1}
+            value={goal}
+            onChange={(e) => onGoalChange(Number(e.target.value))}
+            aria-label={`${label} goal ${noGravity ? 'in g' : 'thrust to weight ratio'}`}
+            className="h-8 w-16 rounded-md border border-border bg-bg px-2 font-mono text-sm text-fg transition-colors hover:border-border-strong focus:border-accent"
+          />
+          {meta && <Badge variant={meta.variant}>{meta.label}</Badge>}
+        </div>
+      </div>
+
+      {/* Live gauge — TWR (planet) or accel-vs-goal (space). */}
+      {verdict && <GoalGauge label={label} goal={goal} verdict={verdict} noGravity={noGravity} />}
+
+      {/* Assigned thruster stack. */}
+      {assignments.length > 0 && (
+        <ul className="flex flex-col gap-1.5">
+          {assignments.map(({ definition, count }) => (
+            <li
+              key={definition.id}
+              className="flex items-center justify-between gap-2 rounded-md border border-border bg-surface-2 px-2 py-1.5"
+            >
+              <div className="flex min-w-0 flex-col">
+                <span className="truncate text-xs font-medium text-fg">{definition.displayName}</span>
+                <span className="font-mono text-[11px] text-subtle">
+                  {formatForce(definition.maxThrust)} each
+                </span>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <Stepper
+                  value={count}
+                  min={0}
+                  onChange={(n) => onCount(definition.id, n)}
+                  ariaLabel={`${definition.displayName} count for ${label}`}
+                />
+                <Button
+                  variant="ghost"
+                  aria-label={`Remove ${definition.displayName} from ${label}`}
+                  onClick={() => onRemove(definition.id)}
+                  className="size-7 !p-0 text-subtle hover:text-danger"
+                >
+                  <IconTrash size={14} />
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
       )}
-      {!feasible && <span className="text-[10px]">n/a here</span>}
-    </button>
+
+      {/* Add a thruster type to this direction. */}
+      <select
+        id={addId}
+        value=""
+        onChange={(e) => {
+          if (e.target.value) onAdd(e.target.value);
+        }}
+        aria-label={`Add a thruster type to ${label}`}
+        className={cn(selectClass, 'h-8 text-xs')}
+      >
+        <option value="">+ Add thruster type…</option>
+        {thrusterGroups.map(({ type, blocks }) => (
+          <optgroup key={type} label={THRUSTER_TYPE_LABELS[type]}>
+            {blocks.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.displayName} · {formatForce(b.maxThrust)}
+              </option>
+            ))}
+          </optgroup>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+/**
+ * The inline goal gauge for one direction. On a planet it reuses {@link TwrBar}
+ * (achieved TWR with a goal marker). In space TWR is undefined, so it shows a
+ * proportional accel bar comparing the achieved acceleration to the goal, with
+ * both the achieved and target m/s² spelled out.
+ */
+function GoalGauge({
+  label,
+  goal,
+  verdict,
+  noGravity,
+}: {
+  label: string;
+  goal: number;
+  verdict: GoalVerdict;
+  noGravity: boolean;
+}): React.JSX.Element {
+  if (!noGravity) {
+    return <TwrBar label="Achieved TWR" twr={verdict.metric} goal={goal} />;
+  }
+
+  // Space: proportional accel bar (metric is accel-in-g), goal marker at `goal`.
+  const scale = Math.max(verdict.metric, goal, 1e-6);
+  const fillPct = Math.max(2, (verdict.metric / scale) * 100);
+  const goalPct = Math.min(100, (goal / scale) * 100);
+  const showGoal = goal > 0;
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-baseline justify-between gap-2 text-[11px]">
+        <span className="tracking-wide text-subtle uppercase">Achieved accel</span>
+        <span className="font-mono text-muted">
+          {verdict.metric.toFixed(2)}×g · {formatAccel(verdict.accel)}
+        </span>
+      </div>
+      <div
+        className="relative h-2 w-full overflow-hidden rounded-full bg-bg"
+        role="meter"
+        aria-label={`${label} acceleration vs goal`}
+        aria-valuenow={Math.round(verdict.metric * 100) / 100}
+        aria-valuemin={0}
+        aria-valuetext={`${verdict.metric.toFixed(2)} g of ${goal.toFixed(2)} g goal`}
+      >
+        <div
+          className="h-full rounded-full bg-accent transition-[width] duration-200 ease-out"
+          style={{ width: `${fillPct}%` }}
+        />
+        {showGoal && (
+          <div
+            className="absolute top-0 bottom-0 w-0.5 bg-accent-bright"
+            style={{ left: `${goalPct}%` }}
+            aria-hidden
+          />
+        )}
+      </div>
+      {showGoal && (
+        <span className="text-[11px] text-subtle">
+          goal {goal.toFixed(2)}×g · {formatAccel(verdict.goalAccel)}
+        </span>
+      )}
+    </div>
   );
 }

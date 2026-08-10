@@ -16,6 +16,9 @@ const cockpit = VANILLA_BLOCKS_BY_ID['large-cockpit'] as BlockDefinition;
 const largeCargo = VANILLA_BLOCKS_BY_ID['large-large-cargo-container'] as BlockDefinition;
 const atmoLarge = VANILLA_BLOCKS_BY_ID['large-large-atmospheric-thruster'] as ThrusterBlock;
 
+const ATMO = 'large-large-atmospheric-thruster';
+const ION = 'large-large-ion-thruster';
+
 const moddedBlock: BlockDefinition = {
   id: 'modded:Exotic',
   subtypeId: 'Exotic',
@@ -72,7 +75,7 @@ describe('RecommendationsPanel rendering', () => {
   it('surfaces a prominent warning for atmospheric thrusters in space', () => {
     state().addBlock('large-large-cargo-container');
     state().setPlanet('space');
-    state().setThruster('large-large-atmospheric-thruster');
+    state().setThrusterCount('up', ATMO, 4);
     render(<RecommendationsPanel />);
     const alert = screen.getByRole('alert');
     expect(alert).toHaveTextContent(/no thrust|thrust/i);
@@ -105,60 +108,64 @@ describe('EssentialsBuilder rendering', () => {
   });
 });
 
-describe('EstimatorConfigPanel per-direction pickers', () => {
+describe('EstimatorConfigPanel manual assignment', () => {
   beforeEach(() => {
     state().reset();
   });
 
-  it('offers a "Same as default" option on each of the six direction selects', () => {
+  it('offers a grouped "add thruster type" select for each of the six directions', () => {
     render(<EstimatorConfigPanel />);
-    // Six per-direction selects, each defaulting to "same as default" (empty value).
     for (const dir of ['up', 'down', 'forward', 'backward', 'left', 'right']) {
-      const select = document.getElementById(`est-thruster-${dir}`) as HTMLSelectElement | null;
+      const select = document.getElementById(`est-add-thruster-${dir}`) as HTMLSelectElement | null;
       expect(select).not.toBeNull();
+      // Placeholder is selected until the user picks a type.
       expect(select!.value).toBe('');
-      expect(within(select!).getByRole('option', { name: /same as default/i })).toBeInTheDocument();
+      expect(
+        within(select!).getByRole('option', { name: /add thruster type/i }),
+      ).toBeInTheDocument();
     }
   });
 
-  it('reflects a pinned override as the selected value', () => {
-    state().setDirectionalThruster('left', 'large-large-ion-thruster');
+  it('adding a thruster type to a direction appends it to that stack', () => {
     render(<EstimatorConfigPanel />);
-    const select = document.getElementById('est-thruster-left') as HTMLSelectElement;
-    expect(select.value).toBe('large-large-ion-thruster');
+    const select = document.getElementById('est-add-thruster-up') as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: ATMO } });
+    expect(state().thrusterStacks.up).toEqual([{ blockId: ATMO, count: 1 }]);
   });
 
-  it('renders ranked type chips under each direction once a build exists', () => {
-    state().addBlock('large-large-cargo-container');
-    state().setPlanet('earthlike');
+  it('renders an assigned stack row with a count stepper and remove control', () => {
+    state().setThrusterCount('left', ION, 3);
     render(<EstimatorConfigPanel />);
-    // Each direction's chip row exposes a pressable button per thruster type.
-    const upSelect = document.getElementById('est-thruster-up') as HTMLSelectElement;
-    const row = upSelect.closest('div')?.parentElement as HTMLElement;
-    const chips = within(row).getAllByRole('button');
-    // Three type chips (hydrogen / ion / atmospheric).
-    expect(chips.length).toBeGreaterThanOrEqual(3);
-    expect(within(row).getByText('Atmospheric')).toBeInTheDocument();
-    expect(within(row).getByText('Ion')).toBeInTheDocument();
+    const count = screen.getByRole('status', { name: /count for left/i });
+    expect(count).toHaveTextContent('3');
+    expect(screen.getByRole('button', { name: /remove .* from left/i })).toBeInTheDocument();
   });
 
-  it('clicking a suggestion chip pins that type to the direction', () => {
-    state().addBlock('large-large-cargo-container');
-    state().setPlanet('earthlike');
+  it('supports mixing multiple thruster types in one direction', () => {
     render(<EstimatorConfigPanel />);
-    const leftSelect = document.getElementById('est-thruster-left') as HTMLSelectElement;
-    expect(leftSelect.value).toBe('');
-    const row = leftSelect.closest('div')?.parentElement as HTMLElement;
-    // Pin ion to the LEFT axis by clicking its chip. The pinned block is the
-    // ion variant the engine ranked for this axis (least added mass) — which at
-    // the smaller lateral requirement is the small model, not the large one.
-    fireEvent.click(within(row).getByRole('button', { name: /^Ion/ }));
-    expect(state().thrusterOverrides.left).toMatch(/ion-thruster$/);
-    const pinned = state().thrusterOverrides.left;
-    // The select reflects the pinned block.
-    expect(
-      (document.getElementById('est-thruster-left') as HTMLSelectElement).value,
-    ).toBe(pinned);
+    const select = document.getElementById('est-add-thruster-up') as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: ATMO } });
+    fireEvent.change(select, { target: { value: ION } });
+    expect(state().thrusterStacks.up.map((e) => e.blockId)).toEqual([ATMO, ION]);
+  });
+
+  it('exposes a per-direction goal input that writes to the store', () => {
+    render(<EstimatorConfigPanel />);
+    const goal = document.getElementById('est-goal-up') as HTMLInputElement;
+    // Default UP goal is 2.0.
+    expect(goal).toHaveValue(2);
+    fireEvent.change(goal, { target: { value: '3.5' } });
+    expect(state().directionGoals.up).toBe(3.5);
+  });
+
+  it('drives the empty/loaded goal check from the shared store slice', () => {
+    render(<EstimatorConfigPanel />);
+    const loaded = screen.getByRole('radio', { name: /loaded/i });
+    const empty = screen.getByRole('radio', { name: /empty/i });
+    // Default is loaded (worst case).
+    expect(loaded).toBeChecked();
+    fireEvent.click(empty);
+    expect(state().goalLoadState).toBe('empty');
   });
 });
 
@@ -174,6 +181,7 @@ describe('EstimatorTwrPanel rendering', () => {
 
   it('renders six directional TWR meters once a build exists', () => {
     state().addBlock('large-large-cargo-container');
+    state().setThrusterCount('up', ATMO, 8);
     state().setPlanet('earthlike');
     render(<EstimatorTwrPanel />);
     const meters = screen.getAllByRole('meter');
@@ -182,10 +190,10 @@ describe('EstimatorTwrPanel rendering', () => {
   });
 
   it('swaps TWR for directional acceleration in space', () => {
-    // Cargo alone has no thrusters, so the estimator adds them to hit target TWR;
-    // the synthesized build still accelerates in vacuum.
+    // Assign thrusters so the synthesized build actually accelerates in vacuum.
     state().addBlock('large-large-cargo-container');
     state().setPlanet('space');
+    state().setThrusterCount('up', ION, 8);
     render(<EstimatorTwrPanel />);
     expect(screen.getAllByText(/directional acceleration/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/reaches 100 m\/s in/i).length).toBeGreaterThan(0);
@@ -195,17 +203,19 @@ describe('EstimatorTwrPanel rendering', () => {
   it('rescales time-to-top-speed when the speed cap changes', () => {
     state().addBlock('large-large-cargo-container');
     state().setPlanet('space');
+    state().setThrusterCount('up', ION, 8);
     render(<EstimatorTwrPanel />);
     fireEvent.click(screen.getByRole('button', { name: '500 m/s' }));
     expect(screen.getAllByText(/reaches 500 m\/s in/i).length).toBeGreaterThan(0);
   });
 
-  it('shows the geometry caption only when the build was seeded from a blueprint', () => {
+  it('shows the seed caption only when the build was seeded from a blueprint', () => {
     state().addBlock('large-large-cargo-container');
+    state().setThrusterCount('up', ATMO, 8);
     state().setPlanet('earthlike');
     const { unmount } = render(<EstimatorTwrPanel />);
     // Hand-started build: no seed caption.
-    expect(screen.queryByText(/counts are re-estimated/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/re-estimated/i)).not.toBeInTheDocument();
     unmount();
 
     // Seed from a design, then re-render: the caption appears.
@@ -218,7 +228,7 @@ describe('EstimatorTwrPanel rendering', () => {
       'ship.sbc',
     );
     render(<EstimatorTwrPanel />);
-    expect(screen.getByText(/counts are re-estimated/i)).toBeInTheDocument();
+    expect(screen.getByText(/re-estimated/i)).toBeInTheDocument();
   });
 });
 

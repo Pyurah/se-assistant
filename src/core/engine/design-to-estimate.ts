@@ -28,7 +28,7 @@
 
 import type { ShipDesign } from '../types';
 import type { CargoLoadout } from '../types';
-import type { BlockDefinition, GridSize } from '../../data/schema';
+import type { BlockDefinition, GridSize, Direction } from '../../data/schema';
 import { SIZED_CATEGORIES } from '../../data/block-categories';
 import { BLOCKS_BY_ID } from '../../data/all-blocks';
 
@@ -43,6 +43,15 @@ export interface SkippedSeedBlock {
   readonly reason: string;
 }
 
+/** One seeded thruster type + count for a single direction. */
+export interface SeedThrusterEntry {
+  readonly blockId: string;
+  readonly count: number;
+}
+
+/** Per-direction seeded thruster stacks (empty array = none on that axis). */
+export type SeedThrusterStacks = Record<Direction, readonly SeedThrusterEntry[]>;
+
 /**
  * Serializable inputs for seeding the estimator from a design — mirrors the
  * estimator store's own input shape (ids + counts, no resolved definitions) so
@@ -54,8 +63,14 @@ export interface EstimateSeed {
   readonly cargo: CargoLoadout;
   /** Non-sized essentials, matched to the dataset, with their real counts. */
   readonly fixedBlocks: readonly { readonly id: string; readonly quantity: number }[];
-  /** Dominant matched thruster variant id, or null → use the grid default. */
-  readonly thrusterId: string | null;
+  /**
+   * The imported ship's real thruster layout — per direction, the matched
+   * thruster types and their counts. Manual-estimator seed: the user starts from
+   * the ship's actual thrusters (mixed types preserved) rather than a single
+   * re-solved model. Unoriented thrusters are omitted (they can't be attributed
+   * to a direction — mirrors {@link directionalThrust}).
+   */
+  readonly thrusterStacks: SeedThrusterStacks;
   /** Dominant matched power block id, or null → use the grid default battery. */
   readonly powerBlockId: string | null;
   /** Power kind implied by the dominant power block (battery vs producer). */
@@ -80,22 +95,11 @@ function powerKindOf(def: BlockDefinition): SeedPowerKind {
   return def.category === 'battery' ? 'battery' : 'producer';
 }
 
-/** A single-block thrust used to weight thruster dominance (0 for non-thrusters). */
-function thrustOf(def: BlockDefinition): number {
-  return def.category === 'thruster' ? def.maxThrust : 0;
-}
-
 /**
- * Pick the "dominant" definition from a tally by a caller-supplied score (higher
- * wins), breaking ties by id for determinism.
- *
- * Thrusters are scored by TOTAL thrust contributed (count × per-block thrust),
- * not by count: a ship often carries many tiny maneuvering/RCS thrusters plus a
- * few large main-drive ones, and the main drive — the blocks doing the actual
- * propulsion work — is what the estimator should size the build around. Seeding
- * from the numerous-but-weak type would try to build the whole ship out of
- * maneuvering thrusters and size thousands of them. Power blocks are scored by
- * count (the more-numerous kind is the primary source).
+ * Pick the "dominant" power definition from a tally by a caller-supplied score
+ * (higher wins), breaking ties by id for determinism. Used only for the power
+ * block now — thrusters carry over as their full per-direction layout rather
+ * than collapsing to one dominant model.
  */
 function pickDominant(
   tally: ReadonlyMap<string, { def: BlockDefinition; quantity: number }>,
@@ -114,6 +118,18 @@ function pickDominant(
   return best?.def ?? null;
 }
 
+/** An empty per-direction thruster-stacks map. */
+function emptyStacks(): Record<Direction, SeedThrusterEntry[]> {
+  return {
+    up: [],
+    down: [],
+    forward: [],
+    backward: [],
+    left: [],
+    right: [],
+  };
+}
+
 /**
  * Derive estimator seed inputs from an imported (or synthesized) design.
  *
@@ -123,8 +139,10 @@ export function designToEstimateSeed(design: ShipDesign): EstimateSeed {
   const fixedBlocks: { id: string; quantity: number }[] = [];
   const skipped: SkippedSeedBlock[] = [];
 
-  // Tally sized categories so we can pick a dominant thruster + power block.
-  const thrusterTally = new Map<string, { def: BlockDefinition; quantity: number }>();
+  // The ship's real thruster layout, grouped by direction then by type. Only
+  // oriented thrusters (a resolved `thrustDirection`) carry over — an unoriented
+  // thruster can't be attributed to an axis, matching `directionalThrust`.
+  const stacks = emptyStacks();
   const powerTally = new Map<string, { def: BlockDefinition; quantity: number }>();
 
   for (const block of design.blocks) {
@@ -151,11 +169,18 @@ export function designToEstimateSeed(design: ShipDesign): EstimateSeed {
       continue;
     }
 
-    // Sized category — seed config choice (which model), re-size the count later.
     if (def.category === 'thruster') {
-      const entry = thrusterTally.get(def.id);
-      if (entry) entry.quantity += qty;
-      else thrusterTally.set(def.id, { def, quantity: qty });
+      // Manual seed: preserve the ship's real per-direction layout (mixed types
+      // and all). Unoriented thrusters have no direction to attribute to.
+      const dir = block.thrustDirection;
+      if (dir === undefined) continue;
+      const stack = stacks[dir];
+      const entry = stack.find((e) => e.blockId === def.id);
+      if (entry) {
+        stack[stack.indexOf(entry)] = { blockId: def.id, count: entry.count + qty };
+      } else {
+        stack.push({ blockId: def.id, count: qty });
+      }
     } else if (def.category !== 'gyroscope') {
       // Power block (battery / reactor / solar / hydrogen-engine / wind-turbine).
       // Gyros are sized purely from mass/responsiveness — no model to seed.
@@ -165,9 +190,6 @@ export function designToEstimateSeed(design: ShipDesign): EstimateSeed {
     }
   }
 
-  // Thrusters: dominant = biggest total thrust contributor (count × per-block
-  // thrust) — the main drive, not the numerous-but-weak maneuvering thrusters.
-  const dominantThruster = pickDominant(thrusterTally, (def, qty) => thrustOf(def) * qty);
   // Power: dominant = the more-numerous kind (the primary source).
   const dominantPower = pickDominant(powerTally, (_def, qty) => qty);
 
@@ -176,7 +198,7 @@ export function designToEstimateSeed(design: ShipDesign): EstimateSeed {
     planetId: design.planetId,
     cargo: design.cargo,
     fixedBlocks,
-    thrusterId: dominantThruster?.id ?? null,
+    thrusterStacks: stacks,
     powerBlockId: dominantPower?.id ?? null,
     powerKind: dominantPower ? powerKindOf(dominantPower) : 'battery',
     skipped,

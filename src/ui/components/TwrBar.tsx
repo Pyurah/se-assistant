@@ -13,6 +13,12 @@ import { formatTwr } from '../lib/format';
 export interface TwrBarProps {
   label: string;
   twr: number;
+  /**
+   * Optional goal TWR to mark on the bar (a second, accent line at the goal's
+   * position). Omit for the plain "is it ≥ 1?" read. A non-positive goal is
+   * ignored (no target to draw).
+   */
+  goal?: number;
   /** Emphasize this axis (the UP/lift direction). */
   emphasis?: boolean;
   className?: string;
@@ -34,10 +40,14 @@ function twrToPct(twr: number): number {
 /** Bar position (%) of the TWR = 1.0 lift-off line. */
 const ONE_PCT = (1 / 2) * 75; // 37.5%
 
-export function TwrBar({ label, twr, emphasis, className }: TwrBarProps): React.JSX.Element {
+export function TwrBar({ label, twr, goal, emphasis, className }: TwrBarProps): React.JSX.Element {
   const noGravity = !Number.isFinite(twr);
   const passes = twr >= 1;
   const pct = twrToPct(twr);
+  // Draw a goal marker only for a real, positive target that isn't the 1.0 line
+  // (which already has its own lift-off marker).
+  const showGoal = goal !== undefined && Number.isFinite(goal) && goal > 0 && Math.abs(goal - 1) > 1e-6;
+  const goalPct = showGoal ? twrToPct(goal) : 0;
 
   return (
     <div className={cn('flex flex-col gap-1.5', className)}>
@@ -83,6 +93,14 @@ export function TwrBar({ label, twr, emphasis, className }: TwrBarProps): React.
           <div
             className="absolute top-0 bottom-0 w-px bg-fg-bright/60"
             style={{ left: `${ONE_PCT}%` }}
+            aria-hidden
+          />
+        )}
+        {/* The goal marker (accent), when a distinct positive goal is set. */}
+        {!noGravity && showGoal && (
+          <div
+            className="absolute top-0 bottom-0 w-0.5 bg-accent-bright"
+            style={{ left: `${goalPct}%` }}
             aria-hidden
           />
         )}

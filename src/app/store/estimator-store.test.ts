@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useEstimatorStore, GRID_DEFAULTS, isAdjustedFromSource } from './estimator-store';
+import {
+  useEstimatorStore,
+  GRID_DEFAULTS,
+  isAdjustedFromSource,
+  emptyStacks,
+  defaultGoals,
+} from './estimator-store';
 import { useEstimate } from '../hooks/use-estimate';
 import { renderHook } from '@testing-library/react';
 import { VANILLA_BLOCKS_BY_ID } from '@data';
@@ -12,7 +18,11 @@ const state = () => useEstimatorStore.getState();
 const cockpit = VANILLA_BLOCKS_BY_ID['large-cockpit'] as BlockDefinition;
 const largeCargo = VANILLA_BLOCKS_BY_ID['large-large-cargo-container'] as BlockDefinition;
 const atmoLarge = VANILLA_BLOCKS_BY_ID['large-large-atmospheric-thruster'] as ThrusterBlock;
+const ionLarge = VANILLA_BLOCKS_BY_ID['large-large-ion-thruster'] as ThrusterBlock;
 const largeReactor = VANILLA_BLOCKS_BY_ID['large-large-reactor'] as BlockDefinition;
+
+const ATMO = 'large-large-atmospheric-thruster';
+const ION = 'large-large-ion-thruster';
 
 const moddedBlock: BlockDefinition = {
   id: 'modded:Exotic',
@@ -46,57 +56,120 @@ describe('estimator store', () => {
     it('defaults to large grid with matching default block choices', () => {
       const s = state();
       expect(s.gridSize).toBe('large');
-      expect(s.thrusterId).toBe(GRID_DEFAULTS.large.thrusterId);
       expect(s.powerBlockId).toBe(GRID_DEFAULTS.large.batteryId);
+      expect(s.thrusterStacks).toEqual(emptyStacks());
     });
 
-    it('switching grid resets block choices and clears essentials', () => {
+    it('switching grid resets block choices, clears essentials AND thruster stacks', () => {
       state().addBlock('large-drill');
+      state().addThruster('up', ATMO);
       expect(state().fixedBlocks).toHaveLength(1);
+      expect(state().thrusterStacks.up).toHaveLength(1);
       state().setGridSize('small');
       const s = state();
       expect(s.gridSize).toBe('small');
       expect(s.fixedBlocks).toHaveLength(0);
-      expect(s.thrusterId).toBe(GRID_DEFAULTS.small.thrusterId);
+      expect(s.thrusterStacks).toEqual(emptyStacks());
       expect(s.powerKind).toBe('battery');
       expect(s.powerBlockId).toBe(GRID_DEFAULTS.small.batteryId);
     });
 
-    it('switching grid clears per-direction thruster overrides', () => {
-      state().setDirectionalThruster('left', 'large-large-atmospheric-thruster');
-      expect(state().thrusterOverrides.left).toBe('large-large-atmospheric-thruster');
+    it('switching grid leaves goals and load-state untouched (grid-agnostic UI targets)', () => {
+      state().setDirectionGoal('up', 3.5);
+      state().setGoalLoadState('empty');
       state().setGridSize('small');
-      expect(state().thrusterOverrides).toEqual({});
+      expect(state().directionGoals.up).toBe(3.5);
+      expect(state().goalLoadState).toBe('empty');
     });
   });
 
-  describe('per-direction thruster overrides', () => {
-    it('defaults to no overrides', () => {
-      expect(state().thrusterOverrides).toEqual({});
+  describe('per-direction thruster stacks', () => {
+    it('defaults to empty stacks in every direction', () => {
+      expect(state().thrusterStacks).toEqual(emptyStacks());
     });
 
-    it('sets an override for a single direction', () => {
-      state().setDirectionalThruster('left', 'large-large-ion-thruster');
-      expect(state().thrusterOverrides).toEqual({ left: 'large-large-ion-thruster' });
+    it('addThruster adds a type at count 1 and bumps on repeat', () => {
+      state().addThruster('up', ATMO);
+      expect(state().thrusterStacks.up).toEqual([{ blockId: ATMO, count: 1 }]);
+      state().addThruster('up', ATMO);
+      expect(state().thrusterStacks.up).toEqual([{ blockId: ATMO, count: 2 }]);
     });
 
-    it('clears an override with null (back to "same as default")', () => {
-      state().setDirectionalThruster('left', 'large-large-ion-thruster');
-      state().setDirectionalThruster('left', null);
-      expect(state().thrusterOverrides).toEqual({});
-      expect('left' in state().thrusterOverrides).toBe(false);
+    it('supports MULTIPLE types mixed in one direction', () => {
+      state().addThruster('up', ATMO);
+      state().addThruster('up', ION);
+      state().setThrusterCount('up', ATMO, 4);
+      state().setThrusterCount('up', ION, 6);
+      expect(state().thrusterStacks.up).toEqual([
+        { blockId: ATMO, count: 4 },
+        { blockId: ION, count: 6 },
+      ]);
     });
 
-    it('clearing an unset direction is a no-op (no key added)', () => {
-      state().setDirectionalThruster('right', null);
-      expect(state().thrusterOverrides).toEqual({});
+    it('setThrusterCount floors, and zero removes the entry', () => {
+      state().addThruster('up', ATMO);
+      state().setThrusterCount('up', ATMO, 7.9);
+      expect(state().thrusterStacks.up).toEqual([{ blockId: ATMO, count: 7 }]);
+      state().setThrusterCount('up', ATMO, 0);
+      expect(state().thrusterStacks.up).toEqual([]);
     });
 
-    it('reset clears all overrides', () => {
-      state().setDirectionalThruster('up', 'large-large-hydrogen-thruster');
-      state().setDirectionalThruster('down', 'large-large-ion-thruster');
+    it('setThrusterCount adds an entry when the type is not yet present', () => {
+      state().setThrusterCount('left', ION, 3);
+      expect(state().thrusterStacks.left).toEqual([{ blockId: ION, count: 3 }]);
+    });
+
+    it('removeThruster drops only that type from the direction', () => {
+      state().addThruster('up', ATMO);
+      state().addThruster('up', ION);
+      state().removeThruster('up', ATMO);
+      expect(state().thrusterStacks.up).toEqual([{ blockId: ION, count: 1 }]);
+    });
+
+    it('stacks are per-direction independent', () => {
+      state().addThruster('up', ATMO);
+      state().addThruster('down', ION);
+      expect(state().thrusterStacks.up).toEqual([{ blockId: ATMO, count: 1 }]);
+      expect(state().thrusterStacks.down).toEqual([{ blockId: ION, count: 1 }]);
+      expect(state().thrusterStacks.left).toEqual([]);
+    });
+
+    it('reset clears all stacks', () => {
+      state().addThruster('up', ATMO);
+      state().addThruster('down', ION);
       state().reset();
-      expect(state().thrusterOverrides).toEqual({});
+      expect(state().thrusterStacks).toEqual(emptyStacks());
+    });
+  });
+
+  describe('per-direction goals + load state', () => {
+    it('defaults to 2.0 up / 1.0 elsewhere, loaded', () => {
+      expect(state().directionGoals).toEqual(defaultGoals());
+      expect(state().directionGoals.up).toBe(2.0);
+      expect(state().directionGoals.left).toBe(1.0);
+      expect(state().goalLoadState).toBe('loaded');
+    });
+
+    it('setDirectionGoal floors at 0', () => {
+      state().setDirectionGoal('up', 3.5);
+      expect(state().directionGoals.up).toBe(3.5);
+      state().setDirectionGoal('up', -2);
+      expect(state().directionGoals.up).toBe(0);
+    });
+
+    it('setGoalLoadState toggles empty/loaded', () => {
+      state().setGoalLoadState('empty');
+      expect(state().goalLoadState).toBe('empty');
+      state().setGoalLoadState('loaded');
+      expect(state().goalLoadState).toBe('loaded');
+    });
+
+    it('reset restores goal + load-state defaults', () => {
+      state().setDirectionGoal('up', 5);
+      state().setGoalLoadState('empty');
+      state().reset();
+      expect(state().directionGoals).toEqual(defaultGoals());
+      expect(state().goalLoadState).toBe('loaded');
     });
   });
 
@@ -128,26 +201,19 @@ describe('estimator store', () => {
     });
   });
 
-  describe('config updates & clamping', () => {
-    it('clamps targetTwr to a sane floor', () => {
-      state().setTargetTwr(-3);
-      expect(state().targetTwr).toBe(0.1);
-      state().setTargetTwr(3.5);
-      expect(state().targetTwr).toBe(3.5);
-    });
-
-    it('clamps lateral thrust fraction and cargo fill to 0..1', () => {
-      state().setLateralThrustFraction(1.9);
-      expect(state().lateralThrustFraction).toBe(1);
-      state().setCargoFill(-0.5);
-      expect(state().cargo.fillFraction).toBe(0);
-    });
-
+  describe('support config updates & clamping', () => {
     it('setPower switches kind and block together', () => {
       state().setPower('producer', 'large-large-reactor');
       const s = state();
       expect(s.powerKind).toBe('producer');
       expect(s.powerBlockId).toBe('large-large-reactor');
+    });
+
+    it('clamps cargo fill to 0..1', () => {
+      state().setCargoFill(1.9);
+      expect(state().cargo.fillFraction).toBe(1);
+      state().setCargoFill(-0.5);
+      expect(state().cargo.fillFraction).toBe(0);
     });
 
     it('floors cargo density and runtime target at 0', () => {
@@ -159,55 +225,69 @@ describe('estimator store', () => {
   });
 
   describe('resolves ids into a live Estimate via useEstimate', () => {
-    it('returns null-ish empty state before any essentials are added', () => {
+    it('is empty before any essentials or thrusters are added', () => {
       const { result } = renderHook(() => useEstimate());
       expect(result.current).not.toBeNull();
       expect(result.current?.isEmpty).toBe(true);
     });
 
-    it('produces thruster / power / gyro counts once essentials exist', () => {
+    it('sizes power + gyros against a manually-assigned thruster build', () => {
       state().addBlock('large-large-cargo-container');
       state().setQuantity('large-large-cargo-container', 2);
       state().setPlanet('earthlike');
+      state().setThrusterCount('up', ATMO, 10);
       const { result } = renderHook(() => useEstimate());
       const r = result.current;
       expect(r).not.toBeNull();
       expect(r?.isEmpty).toBe(false);
       expect(r?.essentialsCount).toBe(2);
-      // A cargo hauler on Earthlike needs lift thrusters, power, and gyros.
-      expect(r?.estimate.thrusters.up).toBeGreaterThan(0);
+      // The manual UP thrusters carry into the estimate; support is sized.
+      expect(r?.estimate.thrusters.up).toBe(10);
       expect(r?.estimate.powerCount).toBeGreaterThan(0);
       expect(r?.estimate.gyroCount).toBeGreaterThan(0);
-      expect(r?.estimate.totalThrusters).toBeGreaterThanOrEqual(r!.estimate.thrusters.up);
     });
 
-    it('surfaces an infeasibility warning for atmospheric thrusters in space', () => {
+    it('warns (advisory) for atmospheric thrusters assigned in space', () => {
       state().addBlock('large-large-cargo-container');
       state().setPlanet('space');
-      state().setThruster('large-large-atmospheric-thruster');
+      state().setThrusterCount('up', ATMO, 4);
       const { result } = renderHook(() => useEstimate());
       const r = result.current;
       expect(r?.estimate.warnings.length).toBeGreaterThan(0);
       expect(r?.estimate.warnings.join(' ')).toMatch(/thrust/i);
     });
 
-    it('flows a per-direction override into the resolved thrusters + directional TWR', () => {
+    it('resolves the per-direction layout, mixing types, into directional TWR', () => {
       state().addBlock('large-large-cargo-container');
       state().setPlanet('earthlike');
-      // Base = atmospheric everywhere; pin the sides to ion.
-      state().setThruster('large-large-atmospheric-thruster');
-      state().setDirectionalThruster('left', 'large-large-ion-thruster');
-      state().setDirectionalThruster('right', 'large-large-ion-thruster');
+      state().setThrusterCount('up', ATMO, 8);
+      state().setThrusterCount('left', ION, 3);
+      state().setThrusterCount('right', ION, 3);
       const { result } = renderHook(() => useEstimate());
       const r = result.current;
       expect(r).not.toBeNull();
-      // The override reaches the resolved per-direction thruster types.
-      expect(r?.thrusters.up.id).toBe('large-large-atmospheric-thruster');
-      expect(r?.thrusters.left.id).toBe('large-large-ion-thruster');
-      expect(r?.thrusters.right.id).toBe('large-large-ion-thruster');
+      // Resolved layout reflects the assigned types.
+      expect(r?.resolvedLayout.up).toEqual([{ definition: atmoLarge, count: 8 }]);
+      expect(r?.resolvedLayout.left).toEqual([{ definition: ionLarge, count: 3 }]);
       // Directional TWR (empty + loaded) is exposed for the readout.
       expect(r?.directional.loaded.up).toBeGreaterThan(0);
       expect(r?.directional.empty.up).toBeGreaterThanOrEqual(r!.directional.loaded.up);
+    });
+
+    it('computes per-direction goal verdicts at the chosen load-state', () => {
+      state().addBlock('large-large-cargo-container');
+      state().setPlanet('earthlike');
+      state().setDirectionGoal('up', 2.0);
+      // Give UP plenty of lift so it clears the goal.
+      state().setThrusterCount('up', ATMO, 40);
+      const { result } = renderHook(() => useEstimate());
+      const r = result.current;
+      expect(r).not.toBeNull();
+      const up = r!.goalVerdicts.up;
+      expect(up.isSpace).toBe(false);
+      expect(['reached', 'exceeded']).toContain(up.status);
+      // DOWN has no thrusters and a positive goal → short.
+      expect(r!.goalVerdicts.down.status).toBe('short');
     });
 
     it('exposes ranked thruster-type suggestions per direction', () => {
@@ -216,36 +296,21 @@ describe('estimator store', () => {
       const { result } = renderHook(() => useEstimate());
       const r = result.current;
       expect(r).not.toBeNull();
-      // Three types ranked for the lift axis, best feasible pick first.
       const up = r!.suggestions.up;
       expect(up).toHaveLength(3);
       expect(up[0]!.feasible).toBe(true);
-      expect(Number.isFinite(up[0]!.countNeeded)).toBe(true);
-      expect(up[0]!.countNeeded).toBeGreaterThan(0);
-      // In dense air, atmospheric is feasible and ion reads "weak".
       const ion = up.find((s) => s.thrusterType === 'ion')!;
       expect(ion.note).toBe('weak in dense air');
-    });
-
-    it('ranks atmospheric last (infeasible) in vacuum', () => {
-      state().addBlock('large-large-cargo-container');
-      state().setPlanet('moon'); // vacuum + gravity
-      const { result } = renderHook(() => useEstimate());
-      const up = result.current!.suggestions.up;
-      const atmo = up.find((s) => s.thrusterType === 'atmospheric')!;
-      expect(atmo.feasible).toBe(false);
-      expect(atmo.countNeeded).toBe(Infinity);
-      // Infeasible type sorts after every feasible one.
-      expect(up[up.length - 1]!.thrusterType).toBe('atmospheric');
     });
   });
 
   describe('seedFromDesign', () => {
-    it('populates essentials + config atomically, without clearing mid-seed', () => {
+    it('populates essentials + real thruster layout + power atomically', () => {
       const src = seedDesign([
         { definition: cockpit, quantity: 1 },
         { definition: largeCargo, quantity: 3 },
         { definition: atmoLarge, quantity: 8, thrustDirection: 'up' },
+        { definition: ionLarge, quantity: 4, thrustDirection: 'left' },
         { definition: largeReactor, quantity: 2 },
       ]);
       state().seedFromDesign(src, 'my-ship.sbc');
@@ -256,24 +321,38 @@ describe('estimator store', () => {
         { id: cockpit.id, quantity: 1 },
         { id: largeCargo.id, quantity: 3 },
       ]);
-      // Config choices seeded from the dominant thruster + power block.
-      expect(s.thrusterId).toBe(atmoLarge.id);
+      // Thruster stacks carry the ship's REAL per-direction layout.
+      expect(s.thrusterStacks.up).toEqual([{ blockId: atmoLarge.id, count: 8 }]);
+      expect(s.thrusterStacks.left).toEqual([{ blockId: ionLarge.id, count: 4 }]);
+      expect(s.thrusterStacks.down).toEqual([]);
+      // Power seeded from the dominant power block.
       expect(s.powerKind).toBe('producer');
       expect(s.powerBlockId).toBe(largeReactor.id);
-      // Planet + cargo + grid carry through; overrides cleared.
+      // Planet + cargo + grid carry through.
       expect(s.gridSize).toBe('large');
       expect(s.planetId).toBe('earthlike');
       expect(s.cargo).toEqual({ fillFraction: 0.5, densityKgPerL: 2.8 });
-      expect(s.thrusterOverrides).toEqual({});
       // Source snapshot recorded for the adjusted/reset affordance.
       expect(s.sourceName).toBe('my-ship.sbc');
       expect(s.sourceDesign).toBe(src);
     });
 
-    it('falls back to grid defaults when the design has no thrusters/power', () => {
+    it('does NOT seed goals or load-state (UI targets, not part of the ship)', () => {
+      state().setDirectionGoal('up', 4);
+      state().setGoalLoadState('empty');
+      state().seedFromDesign(
+        seedDesign([{ definition: atmoLarge, quantity: 8, thrustDirection: 'up' }]),
+        'ship.sbc',
+      );
+      // Goals + load-state survive a seed unchanged.
+      expect(state().directionGoals.up).toBe(4);
+      expect(state().goalLoadState).toBe('empty');
+    });
+
+    it('falls back to grid default power when the design has no power', () => {
       state().seedFromDesign(seedDesign([{ definition: cockpit, quantity: 1 }]), 'bare.sbc');
       const s = state();
-      expect(s.thrusterId).toBe(GRID_DEFAULTS.large.thrusterId);
+      expect(s.thrusterStacks).toEqual(emptyStacks());
       expect(s.powerBlockId).toBe(GRID_DEFAULTS.large.batteryId);
       expect(s.powerKind).toBe('battery');
     });
@@ -339,22 +418,39 @@ describe('estimator store', () => {
       expect(isAdjustedFromSource(state())).toBe(true);
     });
 
-    it('flips true after changing the thruster config choice', () => {
+    it('flips true after changing a thruster stack (count)', () => {
       state().seedFromDesign(src(), 'ship.sbc');
-      state().setThruster('large-large-ion-thruster');
+      state().setThrusterCount('up', atmoLarge.id, 12);
       expect(isAdjustedFromSource(state())).toBe(true);
     });
 
-    it('flips true after pinning a per-direction thruster override', () => {
+    it('flips true after adding a thruster type to a direction', () => {
       state().seedFromDesign(src(), 'ship.sbc');
-      state().setDirectionalThruster('left', 'large-large-ion-thruster');
+      state().addThruster('up', ION);
       expect(isAdjustedFromSource(state())).toBe(true);
+    });
+
+    it('flips true after assigning thrusters to a new direction', () => {
+      state().seedFromDesign(src(), 'ship.sbc');
+      state().addThruster('left', ION);
+      expect(isAdjustedFromSource(state())).toBe(true);
+    });
+
+    it('does NOT flip when only a goal changes (goals are excluded)', () => {
+      state().seedFromDesign(src(), 'ship.sbc');
+      state().setDirectionGoal('up', 3.5);
+      expect(isAdjustedFromSource(state())).toBe(false);
+    });
+
+    it('does NOT flip when only the load-state toggle changes', () => {
+      state().seedFromDesign(src(), 'ship.sbc');
+      state().setGoalLoadState('empty');
+      expect(isAdjustedFromSource(state())).toBe(false);
     });
 
     it('resetToSource is a no-op when nothing was seeded', () => {
       state().addBlock('large-large-cargo-container');
       state().resetToSource();
-      // No source → reset does nothing; the manual essential remains.
       expect(state().fixedBlocks.map((b) => b.id)).toContain('large-large-cargo-container');
       expect(state().sourceDesign).toBeNull();
     });

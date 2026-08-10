@@ -1,6 +1,6 @@
 # SE Assistant — Product Roadmap
 
-> **Last Updated**: 2026-08-10 (v0.21.2)
+> **Last Updated**: 2026-08-10 (v0.22.0)
 
 A Space Engineers ship & base planner: import a blueprint (`.sbc`) and get
 instant thrust-to-weight, mass, cargo, and power analysis — empty vs fully
@@ -13,8 +13,29 @@ loaded, on any vanilla planet.
 **Everything through Phase 2 plus M6.6, M6.7, and all of Phase 3's first block —
 M7 (build cost + throughput + conveyor audit) and M8 (life support + combat) — is
 DONE, committed, and pushed to GitHub** (`https://github.com/Pyurah/se-assistant`,
-branch `master`, at v0.21.2). Working tree is clean and all four gates pass
-(`typecheck` / `lint` / `test` (466) / `build`). Nothing is half-finished.
+branch `master`, at v0.22.0). Working tree is clean and all four gates pass
+(`typecheck` / `lint` / `test` (474) / `build`). Nothing is half-finished.
+
+**v0.22.0 (2026-08-10) — Estimate mode is now a manual goal-seeking thruster
+workbench.** The old auto-sizer — one Target-TWR knob plus a lateral fraction
+that picked every thruster count for you — is retired (`estimateRequirements`,
+`uniformThrusters`, the `EstimatorInput`/`EstimatorConfig` surface, and the
+`targetTwr`/`lateralThrustFraction`/single-`thrusterId` store slices all deleted).
+You now **assign thrusters per direction by hand**, mixing multiple types on a
+single axis (Up = 4 large hydrogen + 6 small ion), and set an **explicit goal per
+direction**: target TWR on planets, target acceleration in g-multiples in space.
+Each axis shows a live **reached / exceeded / short** verdict with a goal marker
+on its TWR/AccelBar, checked against an **empty/loaded** toggle (default loaded —
+worst case) that stays in lock-step across the assignment surface and the TWR
+panel. Power blocks and gyros are still auto-sized against the resulting build via
+the generalized `sizeSupport` mass fixed-point. Blueprint seeding now populates
+each direction's stack from the imported ship's **real oriented thruster layout**
+(grouped by type + count) instead of one model to re-solve; goals and load-state
+are UI targets, not seeded, and changing a goal never flips "adjusted from source"
+while changing a stack does. New engine surface: `estimateManual` and the pure
+`evaluateGoal` helper (`GoalVerdict` reached/exceeded/short with the goal's m/s²
+equivalent). Heavy test churn across all four estimator test files, landed with
+each change; +`estimate-goal.test.ts` worked examples (474 total).
 
 **v0.21.2 (2026-08-10) — A blueprint-seeded Estimate build no longer sizes zero
 of everything.** After v0.21.1 carried every block over, an imported Heavy Space
@@ -321,15 +342,16 @@ fast-follow is **done** (v0.17.0).
 
 ## Current State
 
-- **Version**: 0.21.2
+- **Version**: 0.22.0
 - **Repo**: pushed to `https://github.com/Pyurah/se-assistant` (`master`);
   commits use the GitHub no-reply email (real email scrubbed from history).
 - **Build**: passing (`pnpm build`)
-- **Tests**: passing — 466 tests across logger, audit, data-integrity, the
+- **Tests**: passing — 474 tests across logger, audit, data-integrity, the
   merged-dataset invariants (`all-blocks` + `all-block-costs` override/gap-fill
   proofs) and the block + cost generators' fixture-driven parser/emitter/map
   suites, engine
-  (incl. `estimateRequirements`, the `estimateToDesign` + `designToEstimateSeed`
+  (incl. `estimateManual` + the `evaluateGoal` goal helper, the `estimateToDesign`
+  + `designToEstimateSeed`
   bridges, the `rankThrusterTypes` ranker, the `buildCost` bill-of-materials
   engine, the `manufacturingThroughput` fleet/ratio engine, the `conveyorAudit`
   port audit, the `lifeSupport` O₂/ice engine, the `combatAnalysis` DPS/ammo
@@ -519,6 +541,15 @@ and attitude hardware you need.
       import-to-verify note; empty / live / infeasible states all shipped
 - [x] Estimator store + recommendations-panel render tests (33 new tests, 136
       total)
+
+> **Superseded by v0.22.0.** The auto-sizing solver described here
+> (`estimateRequirements`, target-TWR + lateral-fraction knobs) was retired in
+> favor of a **manual goal-seeking workbench**: you assign thrusters per direction
+> by hand (mixing types), set an explicit per-direction goal (TWR on planets,
+> g-multiple accel in space), and see a live reached/exceeded/short verdict. Power
+> and gyros are still auto-sized (via `estimateManual` → `sizeSupport`); goal
+> verdicts come from the pure `evaluateGoal` helper. Blueprint seeding now
+> populates each direction's real oriented thruster stack.
 
 ---
 

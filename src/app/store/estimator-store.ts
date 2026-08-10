@@ -2,17 +2,20 @@
  * Estimator store — the single source of UI truth for the "Estimate build" mode.
  *
  * This is the inverse of the analysis flow: instead of importing a finished
- * blueprint, the user declares their *essential* gear (drills, cargo, cockpit,
- * …) plus a few goals, and the pure engine (`estimateRequirements` from
- * `@core`) sizes the rest — thrusters per direction, power blocks, gyros.
+ * blueprint, the user *drives the build themselves* — they declare their
+ * essential gear (drills, cargo, cockpit, …), then assign thrusters per
+ * direction against a per-direction goal, and the pure engine
+ * (`estimateManual` from `@core`) sizes only the support hardware (power blocks
+ * and gyros) against that fixed thruster set.
  *
  * Design mirrors {@link useDesignStore}: this store holds only INPUTS (grid
- * size, the fixed-block list, planet, cargo, and the estimator config as block
- * *ids*). The {@link Estimate} itself is NOT cached here — it is cheap and
- * derived on demand by `useEstimate` from the current inputs, so every change
- * recomputes with no stale state to invalidate. Block ids (not resolved
- * definitions) are stored so the state stays plain/serializable, matching the
- * data layer's "plain serializable data" philosophy.
+ * size, the fixed-block list, planet, cargo, the per-direction thruster stacks,
+ * the per-direction goals, and the power/gyro config as block *ids*). The
+ * {@link Estimate} itself is NOT cached here — it is cheap and derived on demand
+ * by `useEstimate` from the current inputs, so every change recomputes with no
+ * stale state to invalidate. Block ids (not resolved definitions) are stored so
+ * the state stays plain/serializable, matching the data layer's "plain
+ * serializable data" philosophy.
  *
  * The two stores are intentionally separate and never entangled.
  */
@@ -42,8 +45,32 @@ export interface FixedBlockRef {
   readonly quantity: number;
 }
 
+/** One assigned thruster type + count within a single direction, by id. */
+export interface ThrusterStackEntry {
+  readonly blockId: string;
+  readonly count: number;
+}
+
+/** Per-direction thruster stacks (empty array = no thrusters on that axis). */
+export type ThrusterStacks = Record<Direction, readonly ThrusterStackEntry[]>;
+
+/** Per-direction goal (read as TWR on a planet, g-multiple of accel in space). */
+export type DirectionGoals = Record<Direction, number>;
+
+/** Which mass the per-direction goal verdict is checked against. */
+export type GoalLoadState = 'empty' | 'loaded';
+
 /** Which kind of power block the estimator should size the count of. */
 export type PowerKind = 'battery' | 'producer';
+
+const ALL_DIRECTIONS: readonly Direction[] = [
+  'up',
+  'down',
+  'forward',
+  'backward',
+  'left',
+  'right',
+];
 
 export interface EstimatorState {
   /** Grid scale the whole build targets; drives which blocks are selectable. */
@@ -53,18 +80,15 @@ export interface EstimatorState {
   planetId: string;
   cargo: CargoLoadout;
 
-  // --- Estimator config (block choices held as ids) ---
-  targetTwr: number;
-  lateralThrustFraction: number;
-  /** Base thruster type applied to every direction that has no override. */
-  thrusterId: string;
-  /**
-   * Optional per-direction thruster type overrides. A direction absent here
-   * ("same as default") falls back to {@link thrusterId}; a present id pins that
-   * direction to a specific thruster so builds can mix types (e.g. atmospheric
-   * vertical, ion sides). Cleared on any grid switch and on reset.
-   */
-  thrusterOverrides: Partial<Record<Direction, string>>;
+  // --- Manual thruster assignment ---
+  /** Per-direction assigned thruster types + counts (the build the user drives). */
+  thrusterStacks: ThrusterStacks;
+  /** Per-direction target (TWR on a planet, g-multiple of accel in space). */
+  directionGoals: DirectionGoals;
+  /** Whether goal verdicts are checked at empty or loaded mass (default loaded). */
+  goalLoadState: GoalLoadState;
+
+  // --- Support config (block choices held as ids) ---
   powerKind: PowerKind;
   powerBlockId: string;
   runtimeTargetHours: number;
@@ -88,18 +112,25 @@ export interface EstimatorState {
   setPlanet: (planetId: string) => void;
   setCargoFill: (fillFraction: number) => void;
   setCargoDensity: (densityKgPerL: number) => void;
-  setTargetTwr: (targetTwr: number) => void;
-  setLateralThrustFraction: (fraction: number) => void;
-  setThruster: (id: string) => void;
-  setDirectionalThruster: (dir: Direction, id: string | null) => void;
+  /** Add one of `blockId` to `dir`'s stack (bumps count if already present). */
+  addThruster: (dir: Direction, blockId: string) => void;
+  /** Remove `blockId` from `dir`'s stack entirely. */
+  removeThruster: (dir: Direction, blockId: string) => void;
+  /** Set the count of `blockId` in `dir` (floored; ≤0 removes the entry). */
+  setThrusterCount: (dir: Direction, blockId: string, count: number) => void;
+  /** Set the per-direction goal (TWR / g-multiple), floored at 0. */
+  setDirectionGoal: (dir: Direction, goal: number) => void;
+  /** Choose whether goal verdicts read empty or loaded mass. */
+  setGoalLoadState: (state: GoalLoadState) => void;
   setPower: (kind: PowerKind, blockId: string) => void;
   setRuntimeTargetHours: (hours: number) => void;
   setResponsiveness: (responsiveness: Responsiveness) => void;
   /**
    * Seed the whole build from an imported design in one atomic update: grid,
-   * essentials (real counts), and the thruster/power config choices (counts are
-   * re-estimated). Snapshots the source for the adjusted/reset affordance. Never
-   * mutates the source design.
+   * essentials (real counts), the real per-direction thruster layout, and the
+   * power config choice. Snapshots the source for the adjusted/reset affordance.
+   * Goals and load-state are UI targets, not part of the ship, so they are NOT
+   * seeded. Never mutates the source design.
    */
   seedFromDesign: (design: ShipDesign, sourceName: string) => void;
   /** Re-seed from the stored source snapshot (one-click "back to as-imported"). */
@@ -118,6 +149,8 @@ export interface GridDefaults {
  * Default block choices per grid. Hydrogen thrusters are the safe default (they
  * work in atmosphere AND vacuum), batteries the simplest power source. These
  * ids exist in {@link VANILLA_BLOCKS}; the picker lets the user change them.
+ * `thrusterId` is now only the UI's default "add thruster" pick, not an
+ * auto-solved model.
  */
 export const GRID_DEFAULTS: Record<GridSize, GridDefaults> = {
   large: {
@@ -138,16 +171,38 @@ const DEFAULT_GRID: GridSize = 'large';
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
 const atLeast = (v: number, min: number): number => (Number.isFinite(v) ? Math.max(min, v) : min);
 
+/** An empty per-direction thruster-stacks map. */
+export function emptyStacks(): ThrusterStacks {
+  return { up: [], down: [], forward: [], backward: [], left: [], right: [] };
+}
+
+/**
+ * Default per-direction goals: 2.0 up (a fighter wants to clear ground fast),
+ * 1.0 everywhere else (hover / not fall) — a sane starting target the user tunes.
+ */
+export function defaultGoals(): DirectionGoals {
+  return { up: 2.0, down: 1.0, forward: 1.0, backward: 1.0, left: 1.0, right: 1.0 };
+}
+
+/** Convert a seed's per-direction stacks to the store's shape (id → count). */
+function stacksFromSeed(seedStacks: Record<Direction, readonly { blockId: string; count: number }[]>): ThrusterStacks {
+  const out = emptyStacks() as Record<Direction, ThrusterStackEntry[]>;
+  for (const dir of ALL_DIRECTIONS) {
+    out[dir] = seedStacks[dir].map((e) => ({ blockId: e.blockId, count: e.count }));
+  }
+  return out;
+}
+
 export const useEstimatorStore = create<EstimatorState>((set, get) => ({
   gridSize: DEFAULT_GRID,
   fixedBlocks: [],
   planetId: 'earthlike',
   cargo: DEFAULT_CARGO,
 
-  targetTwr: 2.0,
-  lateralThrustFraction: 0.5,
-  thrusterId: GRID_DEFAULTS[DEFAULT_GRID].thrusterId,
-  thrusterOverrides: {},
+  thrusterStacks: emptyStacks(),
+  directionGoals: defaultGoals(),
+  goalLoadState: 'loaded',
+
   powerKind: 'battery',
   powerBlockId: GRID_DEFAULTS[DEFAULT_GRID].batteryId,
   runtimeTargetHours: 0.5,
@@ -163,7 +218,9 @@ export const useEstimatorStore = create<EstimatorState>((set, get) => ({
     const defaults = GRID_DEFAULTS[gridSize];
     // A grid switch invalidates block choices tied to the old grid. Reset the
     // config picks to this grid's defaults; the fixed-block picker (which
-    // filters by grid) will drop mismatched essentials, so clear them too.
+    // filters by grid) will drop mismatched essentials, so clear them too. The
+    // thruster stacks hold old-grid ids, so clear them as well; goals and
+    // load-state are grid-agnostic UI targets and survive.
     const dropped = current.fixedBlocks.length;
     if (dropped > 0) {
       log.info('grid change cleared essentials for new grid size', {
@@ -172,13 +229,10 @@ export const useEstimatorStore = create<EstimatorState>((set, get) => ({
         dropped,
       });
     }
-    // Producer choices don't survive a grid switch cleanly (a producer id is
-    // grid-specific); fall back to the battery default to stay valid.
     set({
       gridSize,
       fixedBlocks: [],
-      thrusterId: defaults.thrusterId,
-      thrusterOverrides: {},
+      thrusterStacks: emptyStacks(),
       powerKind: 'battery',
       powerBlockId: defaults.batteryId,
     });
@@ -224,25 +278,50 @@ export const useEstimatorStore = create<EstimatorState>((set, get) => ({
   setCargoDensity: (densityKgPerL) =>
     set({ cargo: { ...get().cargo, densityKgPerL: atLeast(densityKgPerL, 0) } }),
 
-  setTargetTwr: (targetTwr) => set({ targetTwr: atLeast(targetTwr, 0.1) }),
+  addThruster: (dir, blockId) => {
+    const { thrusterStacks } = get();
+    const stack = thrusterStacks[dir];
+    const existing = stack.find((e) => e.blockId === blockId);
+    const nextStack = existing
+      ? stack.map((e) => (e.blockId === blockId ? { blockId, count: e.count + 1 } : e))
+      : [...stack, { blockId, count: 1 }];
+    set({ thrusterStacks: { ...thrusterStacks, [dir]: nextStack } });
+  },
 
-  setLateralThrustFraction: (fraction) => set({ lateralThrustFraction: clamp01(fraction) }),
+  removeThruster: (dir, blockId) => {
+    const { thrusterStacks } = get();
+    set({
+      thrusterStacks: {
+        ...thrusterStacks,
+        [dir]: thrusterStacks[dir].filter((e) => e.blockId !== blockId),
+      },
+    });
+  },
 
-  setThruster: (id) => set({ thrusterId: id }),
-
-  setDirectionalThruster: (dir, id) => {
-    const { thrusterOverrides } = get();
-    // Clearing an override ("same as default") removes the key entirely so the
-    // hook's fallback to `thrusterId` kicks in; setting one pins the direction.
-    if (id === null) {
-      if (!(dir in thrusterOverrides)) return;
-      const next = { ...thrusterOverrides };
-      delete next[dir];
-      set({ thrusterOverrides: next });
+  setThrusterCount: (dir, blockId, count) => {
+    const qty = Math.max(0, Math.floor(count));
+    const { thrusterStacks } = get();
+    const stack = thrusterStacks[dir];
+    if (qty <= 0) {
+      set({
+        thrusterStacks: {
+          ...thrusterStacks,
+          [dir]: stack.filter((e) => e.blockId !== blockId),
+        },
+      });
       return;
     }
-    set({ thrusterOverrides: { ...thrusterOverrides, [dir]: id } });
+    const existing = stack.find((e) => e.blockId === blockId);
+    const nextStack = existing
+      ? stack.map((e) => (e.blockId === blockId ? { blockId, count: qty } : e))
+      : [...stack, { blockId, count: qty }];
+    set({ thrusterStacks: { ...thrusterStacks, [dir]: nextStack } });
   },
+
+  setDirectionGoal: (dir, goal) =>
+    set({ directionGoals: { ...get().directionGoals, [dir]: atLeast(goal, 0) } }),
+
+  setGoalLoadState: (goalLoadState) => set({ goalLoadState }),
 
   setPower: (kind, blockId) => set({ powerKind: kind, powerBlockId: blockId }),
 
@@ -256,16 +335,16 @@ export const useEstimatorStore = create<EstimatorState>((set, get) => ({
     const defaults = GRID_DEFAULTS[seed.gridSize];
 
     // One atomic update — never composed from setGridSize/addBlock, which would
-    // clear essentials and bump counts one-by-one. Sized categories seed the
-    // config *choice* (model); the estimator re-sizes the count. A null dominant
-    // block falls back to the grid default battery (and powerKind is 'battery').
+    // clear essentials and bump counts one-by-one. The thruster stacks carry the
+    // ship's REAL per-direction layout (mixed types preserved). A null dominant
+    // power block falls back to the grid default battery. Goals/load-state are UI
+    // targets, not part of the imported ship, so they are left untouched.
     set({
       gridSize: seed.gridSize,
       fixedBlocks: seed.fixedBlocks.map((b) => ({ id: b.id, quantity: b.quantity })),
       planetId: seed.planetId,
       cargo: seed.cargo,
-      thrusterId: seed.thrusterId ?? defaults.thrusterId,
-      thrusterOverrides: {},
+      thrusterStacks: stacksFromSeed(seed.thrusterStacks),
       powerKind: seed.powerKind,
       powerBlockId: seed.powerBlockId ?? defaults.batteryId,
       sourceDesign: design,
@@ -273,12 +352,16 @@ export const useEstimatorStore = create<EstimatorState>((set, get) => ({
       lastSeedSkipped: seed.skipped,
     });
 
+    const seededThrusterCount = ALL_DIRECTIONS.reduce(
+      (n, d) => n + seed.thrusterStacks[d].length,
+      0,
+    );
     log.info('estimator seeded from design', {
       correlationId,
       sourceName,
       gridSize: seed.gridSize,
       essentials: seed.fixedBlocks.length,
-      thrusterId: seed.thrusterId,
+      thrusterStackEntries: seededThrusterCount,
       powerBlockId: seed.powerBlockId,
       skipped: seed.skipped.length,
     });
@@ -315,10 +398,9 @@ export const useEstimatorStore = create<EstimatorState>((set, get) => ({
       fixedBlocks: [],
       planetId: 'earthlike',
       cargo: DEFAULT_CARGO,
-      targetTwr: 2.0,
-      lateralThrustFraction: 0.5,
-      thrusterId: GRID_DEFAULTS[DEFAULT_GRID].thrusterId,
-      thrusterOverrides: {},
+      thrusterStacks: emptyStacks(),
+      directionGoals: defaultGoals(),
+      goalLoadState: 'loaded',
       powerKind: 'battery',
       powerBlockId: GRID_DEFAULTS[DEFAULT_GRID].batteryId,
       runtimeTargetHours: 0.5,
@@ -329,14 +411,29 @@ export const useEstimatorStore = create<EstimatorState>((set, get) => ({
     }),
 }));
 
+/** Compare two thruster stacks as id→count multisets (order-independent). */
+function stacksEqual(
+  a: readonly ThrusterStackEntry[],
+  b: readonly { blockId: string; count: number }[],
+): boolean {
+  if (a.length !== b.length) return false;
+  const byId = new Map(b.map((e) => [e.blockId, e.count]));
+  for (const e of a) {
+    if (byId.get(e.blockId) !== e.count) return false;
+  }
+  return true;
+}
+
 /**
  * Whether the current build has diverged from the design it was seeded from.
  *
  * Derived (not stored) so it is always correct: re-derives the seed the source
  * *would* produce and compares the parts the seed controls — grid, the essentials
- * multiset, the thruster/power config choices, planet, and cargo. Sized-block
- * *counts* are intentionally excluded (they're re-estimated, never seeded). When
- * there is no source snapshot, a build can't be "adjusted from" anything → false.
+ * multiset, the per-direction thruster stacks, the power config choice, planet,
+ * and cargo. The per-direction **goals** and the **load-state** toggle are
+ * intentionally excluded: they are UI targets the user picks, not part of the
+ * imported ship, so tuning a goal never flips "adjusted". When there is no
+ * source snapshot, a build can't be "adjusted from" anything → false.
  */
 export function isAdjustedFromSource(state: EstimatorState): boolean {
   const { sourceDesign } = state;
@@ -349,8 +446,10 @@ export function isAdjustedFromSource(state: EstimatorState): boolean {
   if (state.cargo.fillFraction !== seed.cargo.fillFraction) return true;
   if (state.cargo.densityKgPerL !== seed.cargo.densityKgPerL) return true;
 
-  if ((seed.thrusterId ?? defaults.thrusterId) !== state.thrusterId) return true;
-  if (Object.keys(state.thrusterOverrides).length > 0) return true;
+  // Per-direction thruster stacks must match as id→count multisets.
+  for (const dir of ALL_DIRECTIONS) {
+    if (!stacksEqual(state.thrusterStacks[dir], seed.thrusterStacks[dir])) return true;
+  }
 
   const seededPowerId = seed.powerBlockId ?? defaults.batteryId;
   if (state.powerKind !== seed.powerKind || state.powerBlockId !== seededPowerId) return true;

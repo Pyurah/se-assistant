@@ -17,28 +17,32 @@
 
 import type { ShipDesign, DesignBlock } from '../types';
 import { DIRECTIONS } from './twr';
-import type { EstimatorInput, Estimate } from './estimate';
+import type { ManualEstimatorInput, Estimate } from './estimate';
 
 /**
- * Synthesize a {@link ShipDesign} from an estimator input + result.
+ * Synthesize a {@link ShipDesign} from a manual estimator input + result.
  *
- * One thruster `DesignBlock` per direction that has a non-zero recommended count
- * (using that direction's chosen thruster type), plus the essentials and the
- * recommended power/gyro blocks. Cargo and grid size come from the input.
+ * One thruster `DesignBlock` per (direction, thruster type) in the user's
+ * layout — a direction that mixes types (e.g. UP = large hydrogen + small ion)
+ * yields one block per type, all sharing that direction's `thrustDirection` so
+ * {@link directionalThrust} sums them. Plus the essentials and the recommended
+ * power/gyro blocks. Cargo, grid size, and planet come from the input; the
+ * `estimate` supplies only the sized power/gyro counts.
  */
 export function estimateToDesign(
-  input: EstimatorInput,
+  input: ManualEstimatorInput,
   estimate: Estimate,
   planetId: string,
 ): ShipDesign {
-  const { config, fixedBlocks, cargo } = input;
+  const { config, fixedBlocks, cargo, gridSize } = input;
   const blocks: DesignBlock[] = [];
 
-  // Recommended thrusters, one entry per direction (skip empty directions).
+  // User-assigned thrusters: one entry per (direction, type) with a positive count.
   for (const d of DIRECTIONS) {
-    const quantity = estimate.thrusters[d];
-    if (quantity > 0) {
-      blocks.push({ definition: config.thrusters[d], quantity, thrustDirection: d });
+    for (const assignment of config.thrusterLayout[d]) {
+      if (assignment.count > 0) {
+        blocks.push({ definition: assignment.definition, quantity: assignment.count, thrustDirection: d });
+      }
     }
   }
 
@@ -62,7 +66,7 @@ export function estimateToDesign(
   return {
     id: 'estimate',
     name: 'Estimated build',
-    gridSize: config.thrusters.up.gridSize,
+    gridSize,
     blocks,
     planetId,
     cargo,

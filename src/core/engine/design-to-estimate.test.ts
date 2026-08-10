@@ -12,7 +12,7 @@ import type {
 import type { ShipDesign, DesignBlock } from '../types';
 import { designToEstimateSeed } from './design-to-estimate';
 import { estimateToDesign } from './estimate-to-design';
-import { estimateRequirements, uniformThrusters, type EstimatorInput } from './estimate';
+import { estimateManual, type ManualEstimatorInput, type ThrusterLayout } from './estimate';
 
 const earthlike = PLANET_PRESETS_BY_ID['earthlike']!;
 
@@ -30,7 +30,6 @@ const largeGyro = VANILLA_BLOCKS_BY_ID['large-gyroscope'] as GyroscopeBlock;
 // Analyze view factors in, but that the estimator seed used to wrongly drop.
 const genArmor = BLOCKS_BY_ID['gen:SmallHeavyBlockArmorBlock'] as BlockDefinition;
 const genSciFiThruster = BLOCKS_BY_ID['gen:SmallBlockSmallThrustSciFi'] as ThrusterBlock;
-const genSciFiThrusterLarge = BLOCKS_BY_ID['gen:SmallBlockLargeThrustSciFi'] as ThrusterBlock;
 
 /** A modded/unrecognized block, as the parser emits for unknown subtypes. */
 const moddedBlock: BlockDefinition = {
@@ -68,7 +67,7 @@ describe('designToEstimateSeed', () => {
       ]),
     );
 
-    // Essentials (cockpit + cargo) carry over; sized blocks (thruster/battery/gyro) do not.
+    // Essentials (cockpit + cargo) carry over; sized blocks (battery/gyro) do not.
     expect(seed.fixedBlocks).toEqual([
       { id: cockpit.id, quantity: 1 },
       { id: largeCargo.id, quantity: 3 },
@@ -102,30 +101,57 @@ describe('designToEstimateSeed', () => {
     expect(seed.fixedBlocks).toEqual([{ id: largeCargo.id, quantity: 5 }]);
   });
 
-  it('picks the biggest total-thrust contributor as the dominant thruster, not the most numerous', () => {
+  it('carries the real per-direction thruster layout into stacks', () => {
     const seed = designToEstimateSeed(
       design([
-        { definition: atmoSmall, quantity: 10, thrustDirection: 'up' },
-        { definition: atmoLarge, quantity: 4, thrustDirection: 'up' },
+        { definition: atmoLarge, quantity: 8, thrustDirection: 'up' },
+        { definition: atmoLarge, quantity: 4, thrustDirection: 'down' },
+        { definition: ionLarge, quantity: 2, thrustDirection: 'left' },
       ]),
     );
-    // atmoSmall is more numerous (10 vs 4) but atmoLarge contributes far more
-    // total thrust (4 × 6.48 MN = 25.9 MN vs 10 × 648 kN = 6.48 MN), so it wins.
-    // This is the main-drive-vs-maneuvering-thrusters case: size the build around
-    // the engines doing the actual propulsion, not the numerous small RCS ones.
-    expect(seed.thrusterId).toBe(atmoLarge.id);
+    expect(seed.thrusterStacks.up).toEqual([{ blockId: atmoLarge.id, count: 8 }]);
+    expect(seed.thrusterStacks.down).toEqual([{ blockId: atmoLarge.id, count: 4 }]);
+    expect(seed.thrusterStacks.left).toEqual([{ blockId: ionLarge.id, count: 2 }]);
+    expect(seed.thrusterStacks.right).toEqual([]);
+    expect(seed.thrusterStacks.forward).toEqual([]);
   });
 
-  it('breaks a thrust-contribution tie by id', () => {
+  it('preserves MULTIPLE thruster types mixed in one direction', () => {
     const seed = designToEstimateSeed(
       design([
-        // Equal total thrust: 1 × 6.48 MN == 10 × 648 kN. Tie → lower id wins.
-        { definition: atmoLarge, quantity: 1, thrustDirection: 'up' },
-        { definition: atmoSmall, quantity: 10, thrustDirection: 'up' },
+        { definition: atmoLarge, quantity: 4, thrustDirection: 'up' },
+        { definition: ionLarge, quantity: 6, thrustDirection: 'up' },
       ]),
     );
-    // 'large-large-...' < 'large-small-...' lexically, so atmoLarge is chosen.
-    expect(seed.thrusterId).toBe(atmoLarge.id);
+    expect(seed.thrusterStacks.up).toEqual([
+      { blockId: atmoLarge.id, count: 4 },
+      { blockId: ionLarge.id, count: 6 },
+    ]);
+  });
+
+  it('merges duplicate (direction, type) entries into a single stack row', () => {
+    const seed = designToEstimateSeed(
+      design([
+        { definition: atmoLarge, quantity: 3, thrustDirection: 'up' },
+        { definition: atmoLarge, quantity: 5, thrustDirection: 'up' },
+      ]),
+    );
+    expect(seed.thrusterStacks.up).toEqual([{ blockId: atmoLarge.id, count: 8 }]);
+  });
+
+  it('omits UNORIENTED thrusters from the stacks (no direction to attribute to)', () => {
+    const seed = designToEstimateSeed(
+      design([
+        { definition: atmoLarge, quantity: 4, thrustDirection: 'up' },
+        { definition: atmoSmall, quantity: 10 }, // no thrustDirection
+      ]),
+    );
+    expect(seed.thrusterStacks.up).toEqual([{ blockId: atmoLarge.id, count: 4 }]);
+    // The unoriented atmoSmall appears nowhere in the stacks.
+    const allEntries = Object.values(seed.thrusterStacks).flat();
+    expect(allEntries.some((e) => e.blockId === atmoSmall.id)).toBe(false);
+    // Nor is it a skipped block — it's recognized, just unattributable.
+    expect(seed.skipped).toHaveLength(0);
   });
 
   it('derives powerKind from the dominant power block (battery)', () => {
@@ -150,9 +176,9 @@ describe('designToEstimateSeed', () => {
     expect(seed.powerKind).toBe('producer');
   });
 
-  it('returns null config choices (→ grid defaults) when a design has no thrusters/power', () => {
+  it('returns empty stacks + null power (→ grid defaults) when a design has no thrusters/power', () => {
     const seed = designToEstimateSeed(design([{ definition: cockpit, quantity: 1 }]));
-    expect(seed.thrusterId).toBeNull();
+    expect(Object.values(seed.thrusterStacks).every((s) => s.length === 0)).toBe(true);
     expect(seed.powerBlockId).toBeNull();
     expect(seed.powerKind).toBe('battery');
   });
@@ -164,11 +190,10 @@ describe('designToEstimateSeed', () => {
         { definition: largeBattery, quantity: 1 },
       ]),
     );
-    // Even though gyros outnumber batteries, the dominant *power* block is the battery.
     expect(seed.powerBlockId).toBe(largeBattery.id);
   });
 
-  it('reports modded / unrecognized blocks as skipped, never as essentials', () => {
+  it('reports modded / unrecognized blocks as skipped, never as essentials or stacks', () => {
     const seed = designToEstimateSeed(
       design([
         { definition: cockpit, quantity: 1 },
@@ -176,6 +201,7 @@ describe('designToEstimateSeed', () => {
       ]),
     );
     expect(seed.fixedBlocks.map((b) => b.id)).not.toContain(moddedBlock.id);
+    expect(Object.values(seed.thrusterStacks).flat().some((e) => e.blockId === moddedBlock.id)).toBe(false);
     expect(seed.skipped).toHaveLength(1);
     expect(seed.skipped[0]).toMatchObject({
       id: moddedBlock.id,
@@ -185,10 +211,6 @@ describe('designToEstimateSeed', () => {
   });
 
   it('carries generated (definition) non-sized blocks over as essentials, not skipped', () => {
-    // Regression: generated `source:'definition'` blocks (armor, conveyors, …) are
-    // recognized by the parser and factored into Analyze mode. They must also carry
-    // into an Estimate build as fixed essentials — every recognized block counts
-    // toward mass even though the estimator can't re-size it.
     const seed = designToEstimateSeed(
       design([{ definition: genArmor, quantity: 523 }], { gridSize: 'small' }),
     );
@@ -196,39 +218,47 @@ describe('designToEstimateSeed', () => {
     expect(seed.skipped).toHaveLength(0);
   });
 
-  it('seeds a generated thruster as the dominant config choice', () => {
-    // A ship whose thrusters are only in the generated set (e.g. Sci-Fi ion) must
-    // still preset the estimator's thruster config, not fall back to a grid default.
+  it('carries generated thrusters into the stacks with their real direction', () => {
     const seed = designToEstimateSeed(
-      design([{ definition: genSciFiThruster, quantity: 28, thrustDirection: 'up' }], {
+      design([{ definition: genSciFiThruster, quantity: 28, thrustDirection: 'left' }], {
         gridSize: 'small',
       }),
     );
-    expect(seed.thrusterId).toBe(genSciFiThruster.id);
+    expect(seed.thrusterStacks.left).toEqual([{ blockId: genSciFiThruster.id, count: 28 }]);
   });
 
-  it('round-trips estimateToDesign → designToEstimateSeed for config identity', () => {
-    // Build a real estimate, synthesize a design, then seed back from it. The
-    // grid, non-sized essentials, planet, cargo, and *config choices* (thruster
-    // + power type) must survive — sized counts are intentionally re-derived.
-    const input: EstimatorInput = {
+  it('round-trips estimateToDesign → designToEstimateSeed for the full layout', () => {
+    // Build a manual estimate with a mixed UP axis, synthesize a design, then seed
+    // back from it. Grid, essentials, planet, cargo, power, and the FULL thruster
+    // layout must survive.
+    const layout: ThrusterLayout = {
+      up: [
+        { definition: atmoLarge, count: 6 },
+        { definition: ionLarge, count: 2 },
+      ],
+      down: [{ definition: atmoLarge, count: 3 }],
+      forward: [],
+      backward: [],
+      left: [],
+      right: [],
+    };
+    const input: ManualEstimatorInput = {
       fixedBlocks: [
         { definition: cockpit, quantity: 1 },
         { definition: largeCargo, quantity: 2 },
       ],
       planet: earthlike,
       cargo: { fillFraction: 0.4, densityKgPerL: 2.5 },
+      gridSize: 'large',
       config: {
-        targetTwr: 2.0,
-        lateralThrustFraction: 0.5,
-        thrusters: uniformThrusters(atmoLarge),
+        thrusterLayout: layout,
         power: { kind: 'battery', block: largeBattery },
         runtimeTargetHours: 0.25,
         gyro: largeGyro,
         responsiveness: 'normal',
       },
     };
-    const estimate = estimateRequirements(input);
+    const estimate = estimateManual(input);
     const synthesized = estimateToDesign(input, estimate, 'earthlike');
     const seed = designToEstimateSeed(synthesized);
 
@@ -239,41 +269,14 @@ describe('designToEstimateSeed', () => {
       { id: cockpit.id, quantity: 1 },
       { id: largeCargo.id, quantity: 2 },
     ]);
-    // Config choices recovered from the dominant sized blocks.
-    expect(seed.thrusterId).toBe(atmoLarge.id);
+    expect(seed.thrusterStacks.up).toEqual([
+      { blockId: atmoLarge.id, count: 6 },
+      { blockId: ionLarge.id, count: 2 },
+    ]);
+    expect(seed.thrusterStacks.down).toEqual([{ blockId: atmoLarge.id, count: 3 }]);
+    expect(seed.thrusterStacks.left).toEqual([]);
     expect(seed.powerBlockId).toBe(largeBattery.id);
     expect(seed.powerKind).toBe('battery');
     expect(seed.skipped).toHaveLength(0);
-  });
-
-  it('does not select a mixed build’s minority thruster as dominant', () => {
-    // A mixed build: atmospheric up (many), ion sides (few). Atmospheric wins.
-    const seed = designToEstimateSeed(
-      design([
-        { definition: atmoLarge, quantity: 12, thrustDirection: 'up' },
-        { definition: ionLarge, quantity: 2, thrustDirection: 'left' },
-        { definition: ionLarge, quantity: 2, thrustDirection: 'right' },
-      ]),
-    );
-    expect(seed.thrusterId).toBe(atmoLarge.id);
-  });
-
-  it('picks the main-drive thruster over numerous maneuvering thrusters (Heavy Space Fighter regression)', () => {
-    // The real bug: a small-grid fighter carries MANY small maneuvering/RCS
-    // thrusters (28 × 14.4 kN = 403 kN total) plus FEWER large main-drive
-    // thrusters (23 × 172.8 kN = 3.97 MN total). Selecting by count picked the
-    // small thruster, so the estimator tried to build the whole ship out of RCS,
-    // needed thousands, blew the sanity cap, and returned an all-zero build. The
-    // main drive contributes ~10× the total thrust and must be the seed choice.
-    const seed = designToEstimateSeed(
-      design(
-        [
-          { definition: genSciFiThruster, quantity: 28, thrustDirection: 'left' },
-          { definition: genSciFiThrusterLarge, quantity: 23, thrustDirection: 'forward' },
-        ],
-        { gridSize: 'small' },
-      ),
-    );
-    expect(seed.thrusterId).toBe(genSciFiThrusterLarge.id);
   });
 });

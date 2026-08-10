@@ -23,6 +23,12 @@ export interface AccelBarProps {
   distanceToTopSpeed: number;
   /** The speed cap the time/distance target, m/s. */
   topSpeed: number;
+  /**
+   * Optional goal acceleration to mark on the bar (m/s²), drawn as an accent line
+   * scaled the same way as the fill (relative to `maxAccel`). Omit for no marker;
+   * a non-positive goal is ignored.
+   */
+  goalAccel?: number;
   /** Emphasize this axis (the UP/lift direction). */
   emphasis?: boolean;
   className?: string;
@@ -35,11 +41,16 @@ export function AccelBar({
   timeToTopSpeed,
   distanceToTopSpeed,
   topSpeed,
+  goalAccel,
   emphasis,
   className,
 }: AccelBarProps): React.JSX.Element {
   const hasThrust = accel > 0;
   const pct = hasThrust && maxAccel > 0 ? (accel / maxAccel) * 100 : 0;
+  // Goal marker: positive target scaled to the same axis as the fill. Clamp to
+  // the bar so a goal beyond the strongest axis still shows at the far edge.
+  const showGoal = goalAccel !== undefined && Number.isFinite(goalAccel) && goalAccel > 0 && maxAccel > 0;
+  const goalPct = showGoal ? Math.min(100, (goalAccel / maxAccel) * 100) : 0;
 
   return (
     <div className={cn('flex flex-col gap-1.5', className)}>
@@ -76,6 +87,14 @@ export function AccelBar({
           />
         ) : (
           <div className="h-full w-full bg-border-strong/40" />
+        )}
+        {/* Goal marker (accent), when a positive target is set. */}
+        {showGoal && (
+          <div
+            className="absolute top-0 bottom-0 w-0.5 bg-accent-bright"
+            style={{ left: `${goalPct}%` }}
+            aria-hidden
+          />
         )}
       </div>
       {hasThrust ? (

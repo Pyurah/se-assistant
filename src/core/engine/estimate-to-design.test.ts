@@ -8,9 +8,9 @@ import type {
   BlockDefinition,
 } from '../../data/schema';
 import {
-  estimateRequirements,
-  uniformThrusters,
-  type EstimatorInput,
+  estimateManual,
+  type ManualEstimatorInput,
+  type ThrusterLayout,
   type FixedBlockSpec,
 } from './estimate';
 import { estimateToDesign } from './estimate-to-design';
@@ -39,95 +39,117 @@ const largeGyro: GyroscopeBlock = {
 
 const essentials: FixedBlockSpec[] = [{ definition: largeCockpit, quantity: 1 }];
 
-function input(overrides?: Partial<EstimatorInput['config']>): EstimatorInput {
+/** A uniform per-direction layout: `count` of `block` on every axis. */
+function uniformLayout(block: ThrusterBlock, count: number): ThrusterLayout {
+  return {
+    up: [{ definition: block, count }],
+    down: [{ definition: block, count }],
+    forward: [{ definition: block, count }],
+    backward: [{ definition: block, count }],
+    left: [{ definition: block, count }],
+    right: [{ definition: block, count }],
+  };
+}
+
+function input(layout: ThrusterLayout, overrides?: Partial<ManualEstimatorInput>): ManualEstimatorInput {
   return {
     fixedBlocks: essentials,
     planet: earthlike,
     cargo: { fillFraction: 0, densityKgPerL: 2.0 },
+    gridSize: 'large',
     config: {
-      targetTwr: 2.0,
-      lateralThrustFraction: 0.5,
-      thrusters: uniformThrusters(atmoLarge),
+      thrusterLayout: layout,
       power: { kind: 'battery', block: largeBattery },
       runtimeTargetHours: 0.25,
       gyro: largeGyro,
       responsiveness: 'normal',
-      ...overrides,
     },
+    ...overrides,
   };
 }
 
 describe('estimateToDesign', () => {
-  it('synthesizes a design with one thruster block per non-empty direction', () => {
-    const inp = input();
-    const est = estimateRequirements(inp);
+  it('synthesizes a design with one thruster block per assigned direction', () => {
+    const layout = uniformLayout(atmoLarge, 5);
+    const inp = input(layout);
+    const est = estimateManual(inp);
     const design = estimateToDesign(inp, est, 'earthlike');
 
     const thrusterBlocks = design.blocks.filter((b) => b.thrustDirection !== undefined);
-    // Every non-zero direction is represented, with the right count + definition.
     for (const d of DIRECTIONS) {
       const block = thrusterBlocks.find((b) => b.thrustDirection === d);
-      if (est.thrusters[d] > 0) {
-        expect(block).toBeDefined();
-        expect(block!.quantity).toBe(est.thrusters[d]);
-        expect(block!.definition.id).toBe(atmoLarge.id);
-      } else {
-        expect(block).toBeUndefined();
-      }
+      expect(block).toBeDefined();
+      expect(block!.quantity).toBe(5);
+      expect(block!.definition.id).toBe(atmoLarge.id);
     }
   });
 
+  it('omits directions with no assigned thrusters', () => {
+    const layout: ThrusterLayout = {
+      up: [{ definition: atmoLarge, count: 4 }],
+      down: [],
+      forward: [],
+      backward: [],
+      left: [],
+      right: [],
+    };
+    const inp = input(layout);
+    const est = estimateManual(inp);
+    const design = estimateToDesign(inp, est, 'earthlike');
+    const dirs = design.blocks.filter((b) => b.thrustDirection !== undefined).map((b) => b.thrustDirection);
+    expect(dirs).toEqual(['up']);
+  });
+
   it('includes the essentials, power, and gyro blocks (geometry-less)', () => {
-    const inp = input();
-    const est = estimateRequirements(inp);
+    const inp = input(uniformLayout(atmoLarge, 5));
+    const est = estimateManual(inp);
     const design = estimateToDesign(inp, est, 'earthlike');
 
     expect(design.blocks.some((b) => b.definition.id === largeCockpit.id)).toBe(true);
     expect(design.blocks.some((b) => b.definition.id === largeBattery.id)).toBe(true);
     expect(design.blocks.some((b) => b.definition.id === largeGyro.id)).toBe(true);
-    // No positions on any block — estimator designs carry no geometry.
     expect(design.blocks.every((b) => b.positions === undefined)).toBe(true);
     expect(design.planetId).toBe('earthlike');
     expect(design.gridSize).toBe('large');
   });
 
-  it('round-trips: liftAnalysis on the design reproduces the estimate up-TWR', () => {
-    const inp = input();
-    const est = estimateRequirements(inp);
+  it('round-trips: liftAnalysis on the design reproduces the estimate up-TWR + masses', () => {
+    const inp = input(uniformLayout(atmoLarge, 6));
+    const est = estimateManual(inp);
     const design = estimateToDesign(inp, est, 'earthlike');
     const lift = liftAnalysis(design, earthlike);
 
-    // The real TWR engine, run on the synthesized design, must agree with the
-    // estimator's own achievedUpTwr (both use effectiveThrust + weight).
     expect(lift.loadedUpTwr).toBeCloseTo(est.achievedUpTwr, 6);
-    // And masses agree too, since both sum definition.mass × quantity.
     expect(designDryMass(design)).toBeCloseTo(est.dryMass, 3);
     expect(designLoadedMass(design)).toBeCloseTo(est.loadedMass, 3);
   });
 
-  it('exposes all six directional TWR values (not just up)', () => {
-    const inp = input();
-    const est = estimateRequirements(inp);
+  it('emits one block per TYPE when a direction mixes thruster types, summing thrust', () => {
+    // UP = 4 atmospheric + 2 ion; both feasible on Earthlike, so both appear and
+    // their thrust sums through directionalTwr.
+    const layout: ThrusterLayout = {
+      up: [
+        { definition: atmoLarge, count: 4 },
+        { definition: ionLarge, count: 2 },
+      ],
+      down: [],
+      forward: [],
+      backward: [],
+      left: [],
+      right: [],
+    };
+    const inp = input(layout);
+    const est = estimateManual(inp);
     const design = estimateToDesign(inp, est, 'earthlike');
+
+    const upBlocks = design.blocks.filter((b) => b.thrustDirection === 'up');
+    expect(upBlocks).toHaveLength(2); // one per type
+    const ids = upBlocks.map((b) => b.definition.id).sort();
+    expect(ids).toEqual([atmoLarge.id, ionLarge.id].sort());
+
+    // directionalTwr sums both types on the UP axis.
     const dir = directionalTwr(design, earthlike, est.loadedMass);
-    // Lateral directions were sized to half the up thrust, so they lift too.
-    expect(dir.up).toBeGreaterThanOrEqual(2.0);
-    expect(dir.forward).toBeGreaterThan(0);
-    expect(dir.left).toBeGreaterThan(0);
-  });
-
-  it('carries mixed thruster types through to per-direction blocks', () => {
-    // Atmospheric everywhere except the sides, which use ion. On Earthlike the
-    // atmospheric UP axis lifts and ion (weak but feasible here) fills the sides,
-    // so both types appear on their assigned directions.
-    const mixed = uniformThrusters(atmoLarge);
-    const inp = input({ thrusters: { ...mixed, left: ionLarge, right: ionLarge } });
-    const est = estimateRequirements(inp);
-    const design = estimateToDesign(inp, est, 'earthlike');
-
-    const left = design.blocks.find((b) => b.thrustDirection === 'left');
-    const up = design.blocks.find((b) => b.thrustDirection === 'up');
-    expect(left?.definition.id).toBe(ionLarge.id);
-    expect(up?.definition.id).toBe(atmoLarge.id);
+    expect(dir.up).toBeGreaterThan(0);
+    expect(est.thrusters.up).toBe(6); // 4 + 2
   });
 });

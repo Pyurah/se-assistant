@@ -1,18 +1,19 @@
 /**
- * RecommendationsPanel — the estimator's payoff.
+ * RecommendationsPanel — the estimator's build summary.
  *
- * Given the essentials + goals, this shows what to build: per-direction thruster
- * counts (UP emphasized), the power block count with supply-vs-draw, the
- * (clearly labeled ESTIMATE) gyro count, resulting dry/loaded mass and achieved
- * loaded up-TWR, and any engine warnings surfaced prominently. Handles three
- * states: empty (no essentials yet → guidance), the live recommendation, and
- * the infeasible/warning case.
+ * The manual estimator lets the user assign thrusters per direction; this panel
+ * summarizes the resulting build: per-direction total thruster counts (UP
+ * emphasized) with a per-type breakdown when a direction mixes models, the
+ * auto-sized power block count with supply-vs-draw, the (clearly labeled
+ * ESTIMATE) gyro count, resulting dry/loaded mass and achieved loaded up-TWR,
+ * and any engine warnings surfaced prominently. Handles three states: empty (no
+ * thrusters/essentials yet → guidance), the live summary, and the warning case.
  *
  * A closing note reminds the user this is a planning estimate — import the real
  * blueprint afterward to verify against actual geometry.
  */
 import type { Direction } from '@data';
-import { useEstimate } from '../../app/hooks/use-estimate';
+import { useEstimate, type ResolvedAssignment } from '../../app/hooks/use-estimate';
 import { formatCount, formatMass, formatPower, formatTwr } from '../lib/format';
 import { Panel } from '../components/Panel';
 import { Badge } from '../components/Badge';
@@ -20,6 +21,15 @@ import { Stat } from '../components/Stat';
 import { Meter } from '../components/Meter';
 import { IconSparkles, IconAlert, IconRocket } from '../components/icons';
 import { cn } from '../lib/cn';
+
+/**
+ * A short per-type breakdown for a direction, shown only when the direction
+ * mixes more than one thruster model (the uniform case stays uncluttered).
+ */
+function breakdownCaption(assignments: readonly ResolvedAssignment[]): string | null {
+  if (assignments.length < 2) return null;
+  return assignments.map((a) => `${a.count}× ${a.definition.displayName}`).join(' + ');
+}
 
 /** Directions in a readout order with UP first (the lift axis). */
 const DIRECTION_ROWS: readonly { dir: Direction; label: string; emphasis?: boolean }[] = [
@@ -45,9 +55,9 @@ export function RecommendationsPanel(): React.JSX.Element {
     );
   }
 
-  const { estimate, powerBlock, thruster, gyro, isEmpty } = result;
+  const { estimate, powerBlock, gyro, resolvedLayout, isEmpty } = result;
 
-  // Empty state — no essentials declared yet.
+  // Empty state — no thrusters or essentials declared yet.
   if (isEmpty) {
     return (
       <Panel title="Recommended build" icon={<IconSparkles size={16} />}>
@@ -56,8 +66,8 @@ export function RecommendationsPanel(): React.JSX.Element {
             <IconRocket size={24} />
           </span>
           <p className="max-w-sm text-sm text-muted">
-            Add your essential gear on the left and the estimator will size the thrusters, power,
-            and gyros you need to fly it.
+            Add your essential gear and assign thrusters per direction on the left — the estimator
+            sizes the power and gyros to fly the build you design.
           </p>
         </div>
       </Panel>
@@ -78,9 +88,9 @@ export function RecommendationsPanel(): React.JSX.Element {
   return (
     <Panel
       title="Recommended build"
-      subtitle="Sized to your gear & goals"
+      subtitle="Your thrusters, our power & gyros"
       icon={<IconSparkles size={16} />}
-      actions={<Badge variant="neutral">{estimate.iterations} iterations</Badge>}
+      actions={<Badge variant="neutral">{formatCount(estimate.totalThrusters)} thrusters</Badge>}
     >
       <div className="flex flex-col gap-6">
         {/* Warnings — surfaced first and prominently. */}
@@ -100,7 +110,7 @@ export function RecommendationsPanel(): React.JSX.Element {
           </div>
         )}
 
-        {/* Thrusters — per direction, UP emphasized. */}
+        {/* Thrusters — per direction, UP emphasized, with a mix breakdown. */}
         <section className="flex flex-col gap-3">
           <div className="flex items-baseline justify-between">
             <h3 className="text-[11px] font-semibold tracking-wide text-subtle uppercase">
@@ -108,36 +118,40 @@ export function RecommendationsPanel(): React.JSX.Element {
             </h3>
             <span className="text-xs text-subtle">
               <span className="font-mono text-fg-bright">{formatCount(estimate.totalThrusters)}</span>{' '}
-              total · {thruster.displayName}
+              total, your assignment
             </span>
           </div>
           <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {DIRECTION_ROWS.map(({ dir, label, emphasis }) => (
-              <li
-                key={dir}
-                className={cn(
-                  'flex flex-col gap-0.5 rounded-lg border px-3 py-2',
-                  emphasis ? 'border-accent/50 bg-accent/10' : 'border-border bg-bg',
-                )}
-              >
-                <span
+            {DIRECTION_ROWS.map(({ dir, label, emphasis }) => {
+              const breakdown = breakdownCaption(resolvedLayout[dir]);
+              return (
+                <li
+                  key={dir}
                   className={cn(
-                    'text-[11px] tracking-wide uppercase',
-                    emphasis ? 'text-accent-bright' : 'text-subtle',
+                    'flex flex-col gap-0.5 rounded-lg border px-3 py-2',
+                    emphasis ? 'border-accent/50 bg-accent/10' : 'border-border bg-bg',
                   )}
                 >
-                  {label}
-                </span>
-                <span
-                  className={cn(
-                    'font-mono font-semibold',
-                    emphasis ? 'text-lg text-fg-bright' : 'text-base text-fg',
-                  )}
-                >
-                  {formatCount(estimate.thrusters[dir])}
-                </span>
-              </li>
-            ))}
+                  <span
+                    className={cn(
+                      'text-[11px] tracking-wide uppercase',
+                      emphasis ? 'text-accent-bright' : 'text-subtle',
+                    )}
+                  >
+                    {label}
+                  </span>
+                  <span
+                    className={cn(
+                      'font-mono font-semibold',
+                      emphasis ? 'text-lg text-fg-bright' : 'text-base text-fg',
+                    )}
+                  >
+                    {formatCount(estimate.thrusters[dir])}
+                  </span>
+                  {breakdown && <span className="text-[11px] leading-tight text-subtle">{breakdown}</span>}
+                </li>
+              );
+            })}
           </ul>
         </section>
 

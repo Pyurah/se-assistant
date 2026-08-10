@@ -1,26 +1,26 @@
 /**
  * Ship requirement estimator — the inverse of blueprint import.
  *
- * You specify the *essential* gear (drills, cargo, cockpit, beacon, …) and a
- * few goals, and this sizes the rest: how many thrusters (per direction, to hit
- * a target TWR), how much power (batteries/reactor to cover peak draw + a
- * runtime target), and roughly how many gyros. It's what you need while
- * planning a build you can't yet export a blueprint for.
+ * You specify the *essential* gear (drills, cargo, cockpit, beacon, …) and
+ * assign thrusters per direction by hand ({@link estimateManual}); this sizes
+ * the *support* systems the build implies: how much power (batteries/reactor to
+ * cover peak draw + a runtime target) and roughly how many gyros. It's what you
+ * need while planning a build you can't yet export a blueprint for.
  *
  * Why it iterates
  * ---------------
- * Thrusters, power blocks, and gyros each add mass AND power draw, which changes
- * how many are needed. So we can't size once — we loop: size thrusters for the
- * current mass → they add mass/draw → size power for the new draw → it adds mass
- * → size gyros → repeat until the counts stop changing (fixed point). Without
- * this, a naive single pass under-sizes every ship.
+ * The thrusters are fixed the moment the user's layout is set, but power blocks
+ * and gyros each add mass AND power draw, which changes how many are needed. So
+ * we can't size those once — we loop ({@link sizeSupport}): size power for the
+ * current draw → it adds mass → size gyros → repeat until the counts stop
+ * changing (fixed point). Without this, a naive single pass under-sizes support.
  *
  * Exactness
  * ---------
- * Thruster and power sizing are exact arithmetic (thrust vs. weight, sum of
- * draws). Gyro count is a HEURISTIC — true turn rate needs the ship's moment of
- * inertia (its geometry), unknown before the build — so it's a torque-per-mass
- * target, clearly labeled an estimate.
+ * Power sizing is exact arithmetic (sum of draws, runtime capacity). Gyro count
+ * is a HEURISTIC — true turn rate needs the ship's moment of inertia (its
+ * geometry), unknown before the build — so it's a torque-per-mass target,
+ * clearly labeled an estimate.
  */
 
 import type { PlanetPreset, ThrusterBlock, Direction, GridSize } from '../../data/schema';
@@ -32,7 +32,6 @@ import type {
   BlockDefinition,
 } from '../../data/schema';
 import { GRID_CELL_SIZE_M } from '../../data/fuel-constants';
-import { STANDARD_GRAVITY } from '../../data/planets';
 import { effectiveThrust } from './thruster';
 import { weight, DIRECTIONS } from './twr';
 
@@ -90,41 +89,11 @@ export type PowerChoice =
   | { readonly kind: 'battery'; readonly block: BatteryBlock }
   | { readonly kind: 'producer'; readonly block: PowerProducerBlock };
 
-export interface EstimatorConfig {
-  /** Target loaded up-TWR (e.g. 2.0 = twice the thrust needed to hover). */
-  readonly targetTwr: number;
-  /** Fraction of the up-thrust magnitude to provide in each other direction. */
-  readonly lateralThrustFraction: number;
-  /**
-   * The thruster model to size counts of, per direction. Each direction can use
-   * a different thruster type (e.g. flat atmospheric on vertical/fore/aft, ion on
-   * the sides). For the common single-type build, use {@link uniformThrusters}.
-   */
-  readonly thrusters: Record<Direction, ThrusterBlock>;
-  /** The power source to size the count of (battery or producer). */
-  readonly power: PowerChoice;
-  /** How long batteries must sustain peak draw, hours (ignored for producers). */
-  readonly runtimeTargetHours: number;
-  /** The gyroscope model to size the count of. */
-  readonly gyro: GyroscopeBlock;
-  /** Desired maneuverability, driving the gyro estimate. */
-  readonly responsiveness: Responsiveness;
-}
-
-export interface EstimatorInput {
-  /** The essential gear the user selected. */
-  readonly fixedBlocks: readonly FixedBlockSpec[];
-  readonly planet: PlanetPreset;
-  readonly cargo: CargoLoadout;
-  readonly config: EstimatorConfig;
-}
-
 /**
  * The subset of estimator config that {@link sizeSupport}, {@link sizePower} and
  * {@link sizeGyros} need — power source, runtime target, gyro model, and desired
- * responsiveness. Both {@link EstimatorConfig} (legacy auto-solver) and
- * {@link ManualEstimatorConfig} satisfy it structurally, so the support-sizing
- * helpers are shared across both entry points.
+ * responsiveness. {@link ManualEstimatorConfig} satisfies it structurally, so the
+ * support-sizing helpers stay decoupled from the full manual config.
  */
 export interface SupportConfig {
   readonly power: PowerChoice;
@@ -150,8 +119,7 @@ export type ThrusterLayout = Record<Direction, readonly ThrusterAssignment[]>;
 /**
  * Manual estimator config: the user assigns thrusters per direction by hand
  * ({@link thrusterLayout}); the app only sizes the *support* systems (power,
- * gyros) against the resulting build. This is the inverse of {@link EstimatorConfig},
- * whose thruster counts were solver-derived from a target TWR.
+ * gyros) against the resulting build.
  */
 export interface ManualEstimatorConfig {
   /** User-assigned thruster stacks, per direction. */
@@ -178,18 +146,6 @@ export interface ManualEstimatorInput {
 
 /** Per-direction recommended thruster counts. */
 export type DirectionalCount = Record<Direction, number>;
-
-/** Build a per-direction thruster map that uses one model for every direction. */
-export function uniformThrusters(block: ThrusterBlock): Record<Direction, ThrusterBlock> {
-  return {
-    up: block,
-    down: block,
-    forward: block,
-    backward: block,
-    left: block,
-    right: block,
-  };
-}
 
 export interface Estimate {
   /** Recommended thruster count per direction (0 where none needed). */
@@ -264,15 +220,8 @@ function peakThrusterDraw(counts: DirectionalCount, draw: Record<Direction, numb
   return axis('up', 'down') + axis('forward', 'backward') + axis('left', 'right');
 }
 
-const MAX_ITERATIONS = 25;
-
-/**
- * No real ship has this many thrusters in total. If the coupled mass↔count loop
- * pushes past it, the thruster type simply can't lift the power/support mass it
- * needs on this planet (each added thruster brings more weight than thrust), so
- * the loop would diverge toward absurd counts. We stop and warn instead.
- */
-const SANITY_THRUSTER_CAP = 2000;
+/** Cap on the power↔gyro mass fixed-point loop (it converges in a few passes). */
+const SUPPORT_MAX_ITERATIONS = 25;
 
 /**
  * Battery/producer count to cover a peak electrical draw. Batteries must ALSO
@@ -320,7 +269,7 @@ function sizeSupport(
 ): { powerCount: number; gyroCount: number } {
   let powerCount = 0;
   let gyroCount = 0;
-  for (let i = 0; i < MAX_ITERATIONS; i++) {
+  for (let i = 0; i < SUPPORT_MAX_ITERATIONS; i++) {
     const dryMass =
       baseMass + thrusterMass + powerCount * config.power.block.mass + gyroCount * config.gyro.mass;
     const loadedMass = dryMass + cargoPayload;
@@ -334,249 +283,9 @@ function sizeSupport(
   return { powerCount, gyroCount };
 }
 
-/**
- * Size power + gyros for a build whose thruster counts are fixed — used when the
- * thruster choice can't lift the ship (UP axis dead, or the count diverges past
- * the sanity cap), so thrusters settle at zero. Thin adapter over
- * {@link sizeSupport} that computes the thruster mass + peak draw from the
- * per-direction counts and the config's per-direction thruster types.
- */
-function sizeSupportOnly(
-  input: EstimatorInput,
-  thrusters: DirectionalCount,
-  baseMass: number,
-  baseDraw: number,
-  cargoPayload: number,
-  perPowerSupply: number,
-): { powerCount: number; gyroCount: number } {
-  const { config } = input;
-  const drawByDir = {} as Record<Direction, number>;
-  let thrusterMass = 0;
-  for (const d of DIRECTIONS) {
-    drawByDir[d] = config.thrusters[d].maxPowerDraw;
-    thrusterMass += thrusters[d] * config.thrusters[d].mass;
-  }
-  const peakThrusterWatts = peakThrusterDraw(thrusters, drawByDir);
-  return sizeSupport(
-    config,
-    thrusterMass,
-    peakThrusterWatts,
-    baseMass,
-    baseDraw,
-    cargoPayload,
-    perPowerSupply,
-  );
-}
-
-/**
- * Estimate the thruster/power/gyro requirements for a ship from its essentials.
- *
- * Iterates to a fixed point where the recommended counts stop changing.
- */
-export function estimateRequirements(input: EstimatorInput): Estimate {
-  const { fixedBlocks, planet, cargo, config } = input;
-  const warnings: string[] = [];
-
-  const baseMass = fixedMass(fixedBlocks);
-  const baseDraw = fixedDraw(fixedBlocks);
-  const cargoPayload =
-    fixedCargoCapacity(fixedBlocks) *
-    Math.min(1, Math.max(0, cargo.fillFraction)) *
-    cargo.densityKgPerL;
-
-  // Per-direction effective thrust, electrical draw, and block mass in this
-  // environment. Each direction can use a different thruster type.
-  const perThruster = {} as Record<Direction, number>;
-  const drawByDir = {} as Record<Direction, number>;
-  const massByDir = {} as Record<Direction, number>;
-  for (const d of DIRECTIONS) {
-    perThruster[d] = effectiveThrust(config.thrusters[d], planet.atmosphereDensity);
-    drawByDir[d] = config.thrusters[d].maxPowerDraw;
-    massByDir[d] = config.thrusters[d].mass;
-  }
-
-  const zeroCounts: DirectionalCount = {
-    up: 0,
-    down: 0,
-    forward: 0,
-    backward: 0,
-    left: 0,
-    right: 0,
-  };
-
-  // Per-power-block supply (discharge rate for batteries, output for producers).
-  const perPowerSupply = perPowerSupplyOf(config);
-  const perPowerMass = config.power.block.mass;
-
-  // UP must be feasible or the ship can't lift at all — that's a hard stop, not
-  // a per-axis note. (e.g. atmospheric thrusters on the UP axis in vacuum.) The
-  // recommended thrusters settle at zero, but the ship's base systems still draw
-  // power and the hull still needs gyros, so we size those against zero thrusters
-  // rather than zeroing the whole build.
-  if (perThruster.up <= 0) {
-    warnings.push(
-      `${config.thrusters.up.displayName} on the UP axis produces no thrust on ` +
-        `${planet.displayName} (air density ${planet.atmosphereDensity}) — the ship ` +
-        `can't lift. Pick a thruster type that works here for the UP direction.`,
-    );
-    const support = sizeSupportOnly(input, zeroCounts, baseMass, baseDraw, cargoPayload, perPowerSupply);
-    return finalize(input, zeroCounts, support.powerCount, support.gyroCount, perPowerSupply, cargoPayload, baseMass, baseDraw, 1, warnings);
-  }
-
-  let counts: DirectionalCount = { ...zeroCounts };
-  let powerCount = 0;
-  let gyroCount = 0;
-  let iterations = 0;
-
-  // Warn once per infeasible LATERAL axis (up is handled above as a hard stop).
-  const lateralWarned = new Set<Direction>();
-
-  for (let i = 0; i < MAX_ITERATIONS; i++) {
-    iterations = i + 1;
-
-    // Current recommended-block mass from the previous iteration's counts.
-    let thrusterMass = 0;
-    for (const d of DIRECTIONS) thrusterMass += counts[d] * massByDir[d];
-    const powerMass = powerCount * perPowerMass;
-    const gyroMass = gyroCount * config.gyro.mass;
-    const dryMass = baseMass + thrusterMass + powerMass + gyroMass;
-    const loadedMass = dryMass + cargoPayload;
-
-    // 1) Thrusters: size UP to hit target TWR against loaded weight; each other
-    //    direction to the lateral fraction of that. A direction whose thruster
-    //    type is dead here (e.g. atmospheric on a lateral axis in vacuum) gets 0.
-    //
-    //    In space (g = 0) weight is 0, so a TWR target is meaningless and would
-    //    size ZERO thrusters — leaving the whole build unpropelled. There the
-    //    target-TWR knob is reinterpreted as a target *acceleration* in g-units:
-    //    TWR 2 → accelerate at 2 g (19.62 m/s²), so upThrustNeeded = targetTwr ·
-    //    g₀ · mass. On planets (g > 0) this is exactly targetTwr · weight, so all
-    //    existing worked examples are unchanged.
-    const g = planet.surfaceGravity;
-    const upThrustNeeded =
-      g > 0
-        ? config.targetTwr * weight(loadedMass, g)
-        : config.targetTwr * STANDARD_GRAVITY * loadedMass;
-    const lateralThrustNeeded = config.lateralThrustFraction * upThrustNeeded;
-
-    const newCounts: DirectionalCount = { ...zeroCounts };
-    for (const d of DIRECTIONS) {
-      const need = d === 'up' ? upThrustNeeded : lateralThrustNeeded;
-      if (perThruster[d] > 0 && need > 0) {
-        newCounts[d] = Math.ceil(need / perThruster[d]);
-      } else if (d !== 'up' && need > 0 && perThruster[d] <= 0 && !lateralWarned.has(d)) {
-        lateralWarned.add(d);
-        warnings.push(
-          `${config.thrusters[d].displayName} on the ${d.toUpperCase()} axis produces ` +
-            `no thrust on ${planet.displayName} — that direction will have no thrust. ` +
-            `Pick a thruster type that works here for ${d.toUpperCase()}.`,
-        );
-      }
-    }
-    const newThrusterTotal = DIRECTIONS.reduce((s, d) => s + newCounts[d], 0);
-
-    // Divergence guard: if the thruster count runs away, the thruster type(s)
-    // can't lift the mass they drag in (power/support blocks) on this planet —
-    // each added thruster brings more weight than thrust (e.g. ion in dense
-    // atmosphere). Stop and return an infeasible estimate rather than emitting
-    // astronomically large battery/thruster counts. Thrusters settle at zero,
-    // but power and gyros are still sized (base draw and attitude control don't
-    // depend on the thrusters hitting their TWR target).
-    if (newThrusterTotal > SANITY_THRUSTER_CAP) {
-      warnings.push(
-        `${config.thrusters.up.displayName} can't lift this ship on ${planet.displayName} — ` +
-          `it needs so many thrusters that their own mass (plus the power to run ` +
-          `them) outweighs the thrust gained. Try a stronger or better-suited ` +
-          `thruster type, a lower target TWR, or less cargo.`,
-      );
-      const support = sizeSupportOnly(input, zeroCounts, baseMass, baseDraw, cargoPayload, perPowerSupply);
-      return finalize(input, zeroCounts, support.powerCount, support.gyroCount, perPowerSupply, cargoPayload, baseMass, baseDraw, iterations, warnings);
-    }
-
-    // 2) Power: cover REALISTIC peak draw. Opposing thruster pairs never fire
-    //    together, so peak thruster draw comes from only the larger-drawing side
-    //    of each pair. (Mirrors peakDraw() in power.ts; summing all six over-
-    //    sizes power. Draw-aware because mixed types differ in watts per block.)
-    const thrusterDraw = peakThrusterDraw(newCounts, drawByDir);
-    const gyroDraw = gyroCount * config.gyro.powerDraw;
-    const peakDraw = baseDraw + thrusterDraw + gyroDraw;
-    const newPowerCount = sizePower(config, peakDraw, perPowerSupply);
-
-    // 3) Gyros: heuristic torque-per-mass target against loaded mass, scaled to
-    //    the ship's grid (small-grid ships need far less torque-per-kg — see
-    //    gyroTorquePerKg).
-    const newGyroCount = sizeGyros(config, loadedMass);
-
-    const converged =
-      DIRECTIONS.every((d) => newCounts[d] === counts[d]) &&
-      newPowerCount === powerCount &&
-      newGyroCount === gyroCount;
-
-    counts = newCounts;
-    powerCount = newPowerCount;
-    gyroCount = newGyroCount;
-
-    if (converged) {
-      return finalize(input, newCounts, powerCount, gyroCount, perPowerSupply, cargoPayload, baseMass, baseDraw, iterations, warnings);
-    }
-  }
-
-  warnings.push('Estimate did not fully converge; showing the last iteration.');
-  return finalize(input, counts, powerCount, gyroCount, perPowerSupply, cargoPayload, baseMass, baseDraw, iterations, warnings);
-}
-
 /** Per-power-block supply: discharge rate for batteries, output for producers. */
 function perPowerSupplyOf(config: SupportConfig): number {
   return config.power.block.maxPowerOutput;
-}
-
-/** Assemble the final Estimate from settled counts. */
-function finalize(
-  input: EstimatorInput,
-  thrusters: DirectionalCount,
-  powerCount: number,
-  gyroCount: number,
-  perPowerSupply: number,
-  cargoPayload: number,
-  baseMass: number,
-  baseDraw: number,
-  iterations: number,
-  warnings: string[],
-): Estimate {
-  const { config, planet } = input;
-  const totalThrusters = DIRECTIONS.reduce((s, d) => s + thrusters[d], 0);
-
-  let thrusterMass = 0;
-  const drawByDir = {} as Record<Direction, number>;
-  for (const d of DIRECTIONS) {
-    thrusterMass += thrusters[d] * config.thrusters[d].mass;
-    drawByDir[d] = config.thrusters[d].maxPowerDraw;
-  }
-
-  const dryMass =
-    baseMass + thrusterMass + powerCount * config.power.block.mass + gyroCount * config.gyro.mass;
-  const loadedMass = dryMass + cargoPayload;
-  const upThrust = thrusters.up * effectiveThrust(config.thrusters.up, planet.atmosphereDensity);
-  const w = weight(loadedMass, planet.surfaceGravity);
-  const achievedUpTwr = w === 0 ? (upThrust > 0 ? Infinity : 0) : upThrust / w;
-  // Peak draw counts only the larger-drawing side of each opposing thruster pair
-  // — the same realistic model power was sized against (see peakThrusterDraw).
-  const peakDraw =
-    baseDraw + peakThrusterDraw(thrusters, drawByDir) + gyroCount * config.gyro.powerDraw;
-
-  return {
-    thrusters,
-    totalThrusters,
-    powerCount,
-    gyroCount,
-    dryMass,
-    loadedMass,
-    achievedUpTwr,
-    peakDraw,
-    powerSupply: powerCount * perPowerSupply,
-    iterations,
-    warnings,
-  };
 }
 
 /**

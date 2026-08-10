@@ -4,6 +4,45 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.22.0] - 2026-08-10
+
+### Changed
+
+- **Estimate mode is now a manual goal-seeking thruster workbench.** The old
+  auto-sizer — one Target-TWR knob + a lateral fraction that picked every
+  thruster count for you — is retired. You now **assign thrusters per direction
+  by hand**, mixing multiple thruster types on a single axis (e.g. Up = 4 large
+  hydrogen + 6 small ion), and set an **explicit goal per direction**: a target
+  TWR on planets, or a target acceleration in g-multiples in space. Each axis
+  shows a live **reached / exceeded / short** verdict with a goal marker on its
+  TWR/acceleration bar, checked against an **empty/loaded** toggle (default
+  loaded — the worst case). Power blocks and gyroscopes are still sized
+  automatically against the resulting build.
+- **Blueprint seeding now populates the real per-direction thruster layout.**
+  Importing a ship into Estimate mode fills each direction's stack from the
+  blueprint's actual oriented thrusters (grouped by type and count) instead of
+  seeding a single model to re-solve. Goals and the load-state toggle are UI
+  targets, not part of the imported ship, so they are not seeded — and changing a
+  goal never flips the "adjusted from source" indicator, while changing a stack
+  does.
+
+### Added
+
+- **`estimateManual` engine entry point** (`@core`): sizes power + gyros for a
+  build whose thrusters are fixed by the user's per-direction layout, via the
+  generalized `sizeSupport` mass fixed-point. Mixed thruster types in one
+  direction sum in count, mass, and (watts-aware) peak draw.
+- **`evaluateGoal` pure helper** (`@core`, `estimate-goal.ts`): returns a
+  per-direction `GoalVerdict` (`reached` / `exceeded` / `short`) with the goal's
+  m/s² equivalent, handling the planet-TWR vs space-g-multiple reinterpretation.
+
+### Removed
+
+- **The auto thruster-solver `estimateRequirements`** and its config surface
+  (`EstimatorInput`, `EstimatorConfig`, `uniformThrusters`, the `targetTwr` /
+  `lateralThrustFraction` / single-`thrusterId` store slices). Replaced by the
+  manual assignment API above.
+
 ## [0.21.2] - 2026-08-10
 
 ### Fixed
