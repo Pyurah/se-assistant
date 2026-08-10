@@ -102,16 +102,17 @@ describe('curated override (curated wins on conflict)', () => {
 
 describe('gap-fill (blocks we never curated now resolve)', () => {
   // A representative slice of the "Heavy Space Fighter" blueprint's formerly
-  // unrecognized subtypes — armor family, SciFi thruster, Warfare 2 weapon,
-  // merge block, projector, air vent, fighter cockpit.
+  // unrecognized subtypes — armor family, SciFi thruster, merge block,
+  // projector, air vent, fighter cockpit. (Weapon subtypes that used to appear
+  // here — SmallBlockMediumCalibreGun, SmallGatlingGunWarfare2 — are now curated
+  // as `weapon` blocks, so they resolve to `source: 'vanilla'`; see
+  // weapon-blocks.test.ts for their coverage.)
   const fighterSubtypes = [
     'SmallHeavyBlockArmorSlope',
     'SmallHeavyBlockArmorCorner',
     'HeavyHalfArmorBlock',
     'SmallBlockLargeThrustSciFi',
     'SmallBlockSmallThrustSciFi',
-    'SmallBlockMediumCalibreGun',
-    'SmallGatlingGunWarfare2',
     'SmallShipMergeBlock',
     'SmallProjector',
     'SmallAirVent',

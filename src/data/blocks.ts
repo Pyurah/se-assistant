@@ -1,5 +1,6 @@
 import type { BlockDefinition } from './schema';
 import { FUNCTIONAL_BLOCKS } from './functional-blocks';
+import { WEAPON_BLOCKS } from './weapon-blocks';
 
 /**
  * Curated vanilla block dataset — Space Engineers v1.210.012 b0.
@@ -544,11 +545,13 @@ export const VANILLA_CORE_BLOCKS: readonly BlockDefinition[] = [
  * All curated vanilla blocks: the propulsion/cargo/power/cockpit core above
  * plus the functional "payload" & utility blocks (drills, tools, gyros,
  * connectors, lights, comms, sensors, logic) used by the block palette and the
- * requirement estimator.
+ * requirement estimator, plus the curated weapon blocks (mass-only catalogue
+ * entries; firing stats live in `weapons.ts`).
  */
 export const VANILLA_BLOCKS: readonly BlockDefinition[] = [
   ...VANILLA_CORE_BLOCKS,
   ...FUNCTIONAL_BLOCKS,
+  ...WEAPON_BLOCKS,
 ];
 
 /** Convenience lookup by id. */

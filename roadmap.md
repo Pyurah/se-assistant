@@ -1,6 +1,6 @@
 # SE Assistant — Product Roadmap
 
-> **Last Updated**: 2026-08-10 (v0.19.0)
+> **Last Updated**: 2026-08-10 (v0.20.0)
 
 A Space Engineers ship & base planner: import a blueprint (`.sbc`) and get
 instant thrust-to-weight, mass, cargo, and power analysis — empty vs fully
@@ -13,8 +13,28 @@ loaded, on any vanilla planet.
 **Everything through Phase 2 plus M6.6, M6.7, and all of Phase 3's first block —
 M7 (build cost + throughput + conveyor audit) and M8 (life support + combat) — is
 DONE, committed, and pushed to GitHub** (`https://github.com/Pyurah/se-assistant`,
-branch `master`, at v0.19.0). Working tree is clean and all four gates pass
-(`typecheck` / `lint` / `test` (438) / `build`). Nothing is half-finished.
+branch `master`, at v0.20.0). Working tree is clean and all four gates pass
+(`typecheck` / `lint` / `test` (449) / `build`). Nothing is half-finished.
+
+**v0.20.0 (2026-08-10) — Life Support & Combat now available in Estimate mode.**
+v0.19.0 shipped Life Support and Combat for imported blueprints (Analyze) only.
+This release closes the mode gap: a build sized from declared essentials now gets
+the same two readouts, run through the **same** trusted engines (`lifeSupport` /
+`combatAnalysis`) on the `ShipDesign` that `estimateToDesign` already synthesizes
+— no second implementation of the math. Declaring an O2/H2 generator + oxygen tank
+surfaces crew-oxygen balance, max crew, breathing time, and ice burn; adding
+weapons surfaces burst/sustained DPS and ammo duration. Each panel self-hides
+until the build has the relevant hardware, so an essentials-only build stays
+calm. To make the Combat readout usable, weapons became **declarable**: a new
+`weapon` `BlockCategory` and 17 curated weapon blocks (one per weapon with curated
+firing stats) appear in the essentials palette. Firing stats stay in the
+`weapons.ts` overlay (joined by SubtypeId); the curated blocks copy
+**mass/gridSize/dlc/cellCount verbatim** from the generated catalogue, so an
+imported ship's mass is unchanged by their addition — guarded by a
+trustworthiness-invariant test. New `useEstimate().design`, two Estimator panels,
+render tests. Scope was locked (with the user) to Life Support + Combat only;
+Conveyor is deliberately excluded because the estimator never places conveyor
+pieces, so a presence audit would always false-warn. See `docs/data-audit.md`.
 
 **v0.19.0 (2026-08-10) — conveyor audit, life support & combat (M7 finisher +
 M8).** Three additive analyses ship as one release, each on trustworthy, cited
@@ -249,11 +269,11 @@ fast-follow is **done** (v0.17.0).
 
 ## Current State
 
-- **Version**: 0.19.0
+- **Version**: 0.20.0
 - **Repo**: pushed to `https://github.com/Pyurah/se-assistant` (`master`);
   commits use the GitHub no-reply email (real email scrubbed from history).
 - **Build**: passing (`pnpm build`)
-- **Tests**: passing — 438 tests across logger, audit, data-integrity, the
+- **Tests**: passing — 449 tests across logger, audit, data-integrity, the
   merged-dataset invariants (`all-blocks` + `all-block-costs` override/gap-fill
   proofs) and the block + cost generators' fixture-driven parser/emitter/map
   suites, engine
@@ -704,12 +724,13 @@ caveat in-panel and in `docs/data-audit.md`. Worked-example + panel render tests
 
 ### M8 — Life Support & Combat
 
-**Status**: ✅ Complete — life support + combat shipped (v0.19.0)
+**Status**: ✅ Complete — life support + combat shipped in Analyze (v0.19.0) and
+Estimate (v0.20.0)
 
 **Deliverables:**
 
-- [x] O2 / H2 generation vs crew size — **v0.19.0**
-- [x] Weapon DPS / ammo consumption math — **v0.19.0**
+- [x] O2 / H2 generation vs crew size — **v0.19.0** (Analyze), **v0.20.0** (Estimate)
+- [x] Weapon DPS / ammo consumption math — **v0.19.0** (Analyze), **v0.20.0** (Estimate)
 
 **Delivered (v0.19.0, life support):** the Life Support panel answers "can my
 crew breathe, and how much ice does life support burn?" New pure
@@ -739,6 +760,21 @@ no curated stats are surfaced as "DPS known for N of M," never zeroed. A
 `generate:weapons` script over `Weapons.sbc` is a documented fast-follow.
 Worked-example engine tests (gatling 385 burst DPS, autocannon 212.5) + panel
 render tests.
+
+**Delivered (v0.20.0, Estimate-mode parity):** both analyses now also run in
+Estimate mode, on the synthesized `ShipDesign` from `estimateToDesign` (newly
+exposed as `useEstimate().design`) — the same engines Analyze uses, no second
+implementation. Two thin Estimator panels mirror the EstimatorTwrPanel pattern
+(own their local crew-size / magazines-per-weapon state, call the pure engine,
+self-hide until the build has gas gear / weapons). To make the Combat readout
+usable, weapons became declarable: a new `weapon` `BlockCategory` + 17 curated
+weapon blocks (`src/data/weapon-blocks.ts`) surface in the essentials palette,
+with mass/gridSize/dlc/cellCount **copied verbatim** from the generated catalogue
+(trustworthiness-invariant test guards that the merge doesn't shift any imported
+ship's mass). Firing stats remain the `weapons.ts` overlay joined by SubtypeId.
+Scope locked (with the user) to Life Support + Combat; Conveyor excluded (the
+estimator never places conveyor pieces, so a presence audit would always
+false-warn). Panel render tests for populated / essentials-only / unarmed builds.
 
 ---
 

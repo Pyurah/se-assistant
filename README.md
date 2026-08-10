@@ -93,6 +93,13 @@ and watch the analysis recompute. It never edits the source file; an "Adjusted �
 no longer matches" indicator with one-click **Reset to source** keeps the
 relationship clear.
 
+Estimate mode also runs the **life support** and **combat** analyses on the build
+it sizes — the same engines the Analyze view uses. Declare an O2/H2 generator and
+an oxygen tank and you get the crew-oxygen balance and ice burn; add **weapons**
+(now selectable in the essentials palette under a "Weapons" group) and you get the
+build's burst/sustained DPS and how long its ammo lasts. Each readout stays hidden
+until the build has the relevant hardware.
+
 ## Why the numbers are trustworthy
 
 - Block stats (thrust, mass, power, capacity, fuel burn) are **fixed constants**
@@ -104,18 +111,19 @@ relationship clear.
   Build-cost recipes for all 1,455 blocks are generated the same way, so an
   imported ship's bill of materials covers the whole catalogue too.
 - The pure calc engine is covered by **worked-example tests** with hand-verified
-  reference values (currently **376 tests**).
+  reference values (currently **449 tests**).
 - Where a value is genuinely an estimate — the gyro turn-rate (needs the ship's
   moment of inertia) or stopping distance (ignores per-axis gravity) — the UI
   says so rather than implying false precision.
 
 ## Status
 
-Version **0.19.0**. Phases 1 (core engine + blueprint import), 1.5 (requirement
+Version **0.20.0**. Phases 1 (core engine + blueprint import), 1.5 (requirement
 estimator), 2 (fuel/flight-time + motion/stability), and 2.5 (Estimate-mode
 enhancements incl. blueprint-seeded builds) are complete, and **Phase 3's first
 block is done**: production/logistics (build cost, manufacturing throughput,
-conveyor port audit) plus life support and combat DPS/ammo. See
+conveyor port audit) plus life support and combat DPS/ammo — the latter two now
+available in **both** Analyze and Estimate mode. See
 [`roadmap.md`](./roadmap.md) for what's next (multi-design compare, PWA offline,
 and a `generate:weapons` fast-follow) and
 [`CHANGELOG.md`](./CHANGELOG.md) for release history.

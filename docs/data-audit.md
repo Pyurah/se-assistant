@@ -771,3 +771,53 @@ routed-connectivity graph solve.** The blueprint gives block geometry but not
 wire topology, so the tool cannot prove a specific block is actually reachable
 through the network. The panel states this caveat explicitly.
 
+## Curated weapon blocks (v0.20.0)
+
+To make the Combat readout usable in **Estimate** mode, weapons had to be
+selectable in the essentials palette. v0.20.0 adds a `weapon` `BlockCategory` and
+17 curated weapon `BlockDefinition`s in `src/data/weapon-blocks.ts` — one for each
+weapon that already carries curated firing stats in `weapons.ts`.
+
+**These blocks add NO new stat data.** They exist only to make the weapon
+declarable in the UI. Firing stats stay in the `weapons.ts` overlay (joined by
+SubtypeId — see the v0.19.0 combat notes above), and the physical stats
+(**mass, gridSize, dlc, cellCount**) are **copied verbatim** from the generated
+catalogue (`src/data/generated-blocks.ts`, which derives mass from each block's
+`<Components>` list per the v0.16.0 generator). No value here is independently
+authored.
+
+**Why verbatim matters (trustworthiness invariant).** The curated block wins the
+`all-blocks.ts` merge on a SubtypeId conflict (curated-last), replacing the
+generated `'other'` twin. If a copied mass diverged from the generated value, an
+imported ship containing that weapon would silently change mass when the curated
+block was added. `weapon-blocks.test.ts` asserts every curated
+mass/gridSize/dlc/cellCount equals the `generated-blocks.ts` entry exactly, so the
+invariant is machine-checked, not trusted to review.
+
+| SubtypeId | Grid | DLC | Mass (kg) | cellCount |
+| --- | --- | --- | --- | --- |
+| `SmallGatlingGunWarfare2` | small | warfare-2 | 148.2 | 4 |
+| `LargeGatlingTurretReskin` | large | contact | 1428 | 27 |
+| `SmallGatlingTurret` | small | base | 692 | 125 |
+| `SmallGatlingTurretReskin` | small | contact | 692 | 125 |
+| `SmallBlockAutocannon` | small | base | 180.2 | 5 |
+| `AutoCannonTurret` | small | base | 870 | 100 |
+| `SmallBlockMediumCalibreGun` | small | base | 860.2 | 9 |
+| `SmallBlockMediumCalibreTurret` | small | base | 2254 | 245 |
+| `LargeBlockMediumCalibreTurret` | large | base | 9654 | 18 |
+| `LargeBlockLargeCalibreGun` | large | base | 5781 | 4 |
+| `LargeCalibreTurret` | large | base | 14224 | 27 |
+| `LargeRailgun` | large | base | 14470 | 16 |
+| `SmallRailgun` | small | base | 1364 | 16 |
+| `LargeMissileLauncher` | large | base | 1713.8 | 2 |
+| `SmallMissileLauncherWarfare2` | small | warfare-2 | 226.2 | 4 |
+| `SmallMissileTurret` | small | base | 894 | 125 |
+| `LargeMissileTurretReskin` | large | contact | 1826 | 27 |
+
+**Source for every row:** `generated-blocks.ts` (see _Generated block
+definitions_, v0.16.0). Firing stats (RoF, damage, ammo) for these SubtypeIds are
+in the combat weapons table above (v0.19.0). No `generate:weapons` script exists
+yet (documented fast-follow); until then the 17 curated blocks are the declarable
+set in Estimate mode — a subset of the full generated weapon catalogue, chosen to
+match the weapons that have hand-verified firing stats.
+

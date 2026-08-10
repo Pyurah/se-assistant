@@ -105,6 +105,10 @@ export type BlockCategory =
   | 'logic'
   | 'gas'
   | 'utility'
+  // Offensive hardware — turrets and fixed guns. Catalogue entries carry mass +
+  // optional power draw; firing stats (RoF, damage, ammo) live in the combat
+  // overlay (`weapons.ts`), joined by subtypeId, never on the block itself.
+  | 'weapon'
   | 'structural'
   | 'other';
 
@@ -259,9 +263,9 @@ export interface UtilityBlock extends BlockBase {
   readonly oxygenOutput?: number;
 }
 
-/** Blocks that only add mass / draw idle power (structural, misc). */
+/** Blocks that only add mass / draw idle power (structural, misc, weapons). */
 export interface GenericBlock extends BlockBase {
-  readonly category: 'structural' | 'other';
+  readonly category: 'structural' | 'other' | 'weapon';
   /** Idle/operational electrical draw, W. */
   readonly powerDraw?: number;
 }

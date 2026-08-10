@@ -11,6 +11,8 @@ import { EssentialsBuilder } from '../ui/panels/EssentialsBuilder';
 import { EstimatorConfigPanel } from '../ui/panels/EstimatorConfigPanel';
 import { RecommendationsPanel } from '../ui/panels/RecommendationsPanel';
 import { EstimatorTwrPanel } from '../ui/panels/EstimatorTwrPanel';
+import { EstimatorLifeSupportPanel } from '../ui/panels/EstimatorLifeSupportPanel';
+import { EstimatorCombatPanel } from '../ui/panels/EstimatorCombatPanel';
 import { SeedFromBlueprint } from '../ui/panels/SeedFromBlueprint';
 
 export function EstimatorDashboard(): React.JSX.Element {
@@ -24,10 +26,14 @@ export function EstimatorDashboard(): React.JSX.Element {
       <div className="flex flex-col gap-4">
         <EstimatorConfigPanel />
       </div>
-      {/* Right column: the recommendation payoff + directional TWR readout. */}
+      {/* Right column: the recommendation payoff + directional TWR readout,
+          then the life-support and combat readouts (each self-hides until the
+          build has gas gear / weapons). */}
       <div className="flex flex-col gap-4">
         <RecommendationsPanel />
         <EstimatorTwrPanel />
+        <EstimatorLifeSupportPanel />
+        <EstimatorCombatPanel />
       </div>
     </main>
   );

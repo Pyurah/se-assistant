@@ -31,6 +31,7 @@ export const CATEGORY_LABELS: Record<BlockCategory, string> = {
   logic: 'Logic',
   gas: 'Gas Systems',
   utility: 'Utility',
+  weapon: 'Weapons',
   structural: 'Structural',
   other: 'Other',
 };
@@ -59,6 +60,7 @@ export const CATEGORY_COLOR: Record<BlockCategory, string> = {
   logic: 'bg-[oklch(0.68_0.12_300)]',
   gas: 'bg-[oklch(0.74_0.12_190)]',
   utility: 'bg-[oklch(0.6_0.04_260)]',
+  weapon: 'bg-[oklch(0.66_0.18_35)]',
   structural: 'bg-[oklch(0.6_0.02_260)]',
   other: 'bg-[oklch(0.55_0.02_260)]',
 };
@@ -87,6 +89,7 @@ export const CATEGORY_ORDER: readonly BlockCategory[] = [
   'logic',
   'gas',
   'utility',
+  'weapon',
   'structural',
   'other',
 ];

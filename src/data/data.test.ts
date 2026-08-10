@@ -88,6 +88,7 @@ describe('vanilla blocks dataset', () => {
     expect(count('hydrogen-engine')).toBe(2);
     expect(count('wind-turbine')).toBe(1);
     expect(count('cockpit')).toBe(2);
+    expect(count('weapon')).toBe(17); // curated weapons with firing stats (see weapons.ts)
   });
 
   it('recognizes the DLC-reskin & armor subtypes that real imported ships use', () => {

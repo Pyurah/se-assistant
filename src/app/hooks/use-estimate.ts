@@ -27,6 +27,7 @@ import {
   type PowerChoice,
   type DirectionalThrust,
   type ThrusterTypeSuggestion,
+  type ShipDesign,
 } from '@core';
 import {
   VANILLA_BLOCKS,
@@ -83,6 +84,13 @@ export interface EstimateResult {
    * the "can I stay airborne tilted fully to one side?" readout.
    */
   readonly directional: { readonly empty: DirectionalThrust; readonly loaded: DirectionalThrust };
+  /**
+   * The synthesized {@link ShipDesign} the directional TWR was computed from —
+   * the same object the Analyze engines consume. Exposed so Estimate-mode panels
+   * (life support, combat) can run those trusted engines on the estimated build
+   * instead of only on imported blueprints.
+   */
+  readonly design: ShipDesign;
   /** The resolved essentials (skipping any unknown ids), for the tally. */
   readonly resolvedFixed: readonly ResolvedFixedBlock[];
   /** Total mass of the essentials alone, kg. */
@@ -271,6 +279,7 @@ export function useEstimate(): EstimateResult | null {
       gyro,
       powerBlock,
       directional,
+      design,
       resolvedFixed,
       essentialsMass,
       essentialsCount,

@@ -4,6 +4,35 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.20.0] - 2026-08-10
+
+### Added
+
+- **Life Support & Combat now available in Estimate mode.** The two analyses that
+  shipped in v0.19.0 for imported blueprints now also read out on builds sized
+  from declared essentials. Declaring an O2/H2 generator + oxygen tank surfaces
+  the crew-oxygen balance, max supported crew, breathing time, and ice-burn rate;
+  adding weapons surfaces burst/sustained DPS and how long the loaded magazines
+  last. Both run through the **same** trusted engines Analyze uses
+  (`lifeSupport` / `combatAnalysis`), on the `ShipDesign` that `estimateToDesign`
+  already synthesizes — no second implementation of the math. Each panel
+  self-hides until the build has the relevant hardware, so an essentials-only
+  build stays uncluttered. New Estimator panels + render tests.
+- **Weapons are declarable in the essentials palette.** A new `weapon`
+  `BlockCategory` and 17 curated weapon blocks (one per weapon with curated
+  firing stats) make turrets and fixed guns selectable in Estimate mode, so the
+  new Combat readout has something to measure. Firing stats stay in the
+  `weapons.ts` overlay (joined by SubtypeId); the curated blocks carry
+  **mass/gridSize/dlc/cellCount copied verbatim** from the generated catalogue,
+  so an imported ship's mass is unchanged by their addition — guarded by a
+  trustworthiness-invariant test.
+
+### Changed
+
+- `useEstimate()` now exposes the synthesized `design` (the `ShipDesign` its
+  directional TWR is computed from), so Estimate-mode panels can run the Analyze
+  engines on the estimated build directly.
+
 ## [0.19.0] - 2026-08-10
 
 ### Added
