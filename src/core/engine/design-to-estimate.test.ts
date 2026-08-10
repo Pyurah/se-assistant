@@ -91,6 +91,20 @@ describe('designToEstimateSeed', () => {
     expect(seed.cargo).toEqual({ fillFraction: 0.25, densityKgPerL: 1.5 });
   });
 
+  it('carries the source design extra mass into the seed', () => {
+    const seed = designToEstimateSeed(
+      design([{ definition: cockpit, quantity: 1 }], {
+        extraMass: { added: 12_000, payload: 3_000 },
+      }),
+    );
+    expect(seed.extraMass).toEqual({ added: 12_000, payload: 3_000 });
+  });
+
+  it('omits extraMass from the seed when the source design has none', () => {
+    const seed = designToEstimateSeed(design([{ definition: cockpit, quantity: 1 }]));
+    expect(seed.extraMass).toBeUndefined();
+  });
+
   it('merges duplicate non-sized block ids into a single essential', () => {
     const seed = designToEstimateSeed(
       design([
@@ -278,5 +292,33 @@ describe('designToEstimateSeed', () => {
     expect(seed.powerBlockId).toBe(largeBattery.id);
     expect(seed.powerKind).toBe('battery');
     expect(seed.skipped).toHaveLength(0);
+  });
+
+  it('round-trips extra mass through estimateToDesign → designToEstimateSeed', () => {
+    const input: ManualEstimatorInput = {
+      fixedBlocks: [{ definition: cockpit, quantity: 1 }],
+      planet: earthlike,
+      cargo: { fillFraction: 0.4, densityKgPerL: 2.5 },
+      gridSize: 'large',
+      extraMass: { added: 40_000, payload: 8_000 },
+      config: {
+        thrusterLayout: {
+          up: [{ definition: atmoLarge, count: 4 }],
+          down: [],
+          forward: [],
+          backward: [],
+          left: [],
+          right: [],
+        },
+        power: { kind: 'battery', block: largeBattery },
+        runtimeTargetHours: 0.25,
+        gyro: largeGyro,
+        targetTurnTime: 2.5,
+      },
+    };
+    const estimate = estimateManual(input);
+    const synthesized = estimateToDesign(input, estimate, 'earthlike');
+    const seed = designToEstimateSeed(synthesized);
+    expect(seed.extraMass).toEqual({ added: 40_000, payload: 8_000 });
   });
 });

@@ -25,7 +25,7 @@
  */
 
 import type { PlanetPreset, ThrusterBlock, Direction, GridSize } from '../../data/schema';
-import type { CargoLoadout } from '../types';
+import type { CargoLoadout, ExtraMass } from '../types';
 import type {
   GyroscopeBlock,
   PowerProducerBlock,
@@ -105,6 +105,12 @@ export interface ManualEstimatorInput {
   readonly fixedBlocks: readonly FixedBlockSpec[];
   readonly planet: PlanetPreset;
   readonly cargo: CargoLoadout;
+  /**
+   * Optional freeform extra mass: always-on `added` (counts empty AND loaded,
+   * folded into base/dry mass) and loaded-only `payload` (counts only loaded,
+   * alongside cargo). Absent ⇒ no extra mass.
+   */
+  readonly extraMass?: ExtraMass;
   /** Grid scale of the build (drives geometry-less design synthesis downstream). */
   readonly gridSize: GridSize;
   readonly config: ManualEstimatorConfig;
@@ -318,12 +324,19 @@ export function estimateManual(input: ManualEstimatorInput): Estimate {
   const { thrusterLayout } = config;
   const warnings: string[] = [];
 
-  const baseMass = fixedMass(fixedBlocks);
+  // Always-on extra mass (docked ship / bolted-on module) is part of the empty
+  // ship, so it joins the base (dry) mass; loaded-only extra payload (a hauled
+  // load) joins the cargo payload. Both clamped ≥ 0 and default to 0 when absent.
+  const addedMass = Math.max(0, input.extraMass?.added ?? 0);
+  const extraPayload = Math.max(0, input.extraMass?.payload ?? 0);
+
+  const baseMass = fixedMass(fixedBlocks) + addedMass;
   const baseDraw = fixedDraw(fixedBlocks);
   const cargoPayload =
     fixedCargoCapacity(fixedBlocks) *
-    Math.min(1, Math.max(0, cargo.fillFraction)) *
-    cargo.densityKgPerL;
+      Math.min(1, Math.max(0, cargo.fillFraction)) *
+      cargo.densityKgPerL +
+    extraPayload;
 
   // Per-direction totals from the user's stacks: effective thrust in this
   // environment, block count, total mass, and peak electrical draw.

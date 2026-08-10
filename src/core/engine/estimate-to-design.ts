@@ -70,5 +70,9 @@ export function estimateToDesign(
     blocks,
     planetId,
     cargo,
+    // Carry the freeform extra mass onto the synthesized design so the shared
+    // mass/TWR engines re-derive the exact figures estimateManual computed
+    // (always-on `added` in dry mass, loaded-only `payload` in loaded mass).
+    ...(input.extraMass ? { extraMass: input.extraMass } : {}),
   };
 }

@@ -255,5 +255,76 @@ describe('estimateManual', () => {
     const est = estimateManual(manualInput(layout, { planet: space }));
     expect(est.achievedUpTwr).toBe(Infinity); // no weight to divide by
   });
+
+  // ── Freeform extra mass ─────────────────────────────────────────────────────
+  // Always-on `added` joins the base (dry) mass; loaded-only `payload` joins the
+  // cargo payload. Both flow through the support-sizing fixed point, so power +
+  // gyros grow with the extra weight, and the reported dry/loaded mass reflect it.
+  describe('extra mass', () => {
+    it('folds always-on added mass into dry AND loaded mass', () => {
+      const layout = uniformLayout(hydroLarge, 4);
+      const baseline = estimateManual(manualInput(layout));
+      const withAdded = estimateManual(
+        manualInput(layout, { extraMass: { added: 20_000, payload: 0 } }),
+      );
+      // Dry mass gains exactly the always-on module.
+      expect(withAdded.dryMass).toBeCloseTo(baseline.dryMass + 20_000, 0);
+      // Loaded mass inherits it too (dry already includes it).
+      expect(withAdded.loadedMass).toBeCloseTo(baseline.loadedMass + 20_000, 0);
+    });
+
+    it('folds loaded-only payload into loaded mass but NOT dry mass', () => {
+      const layout = uniformLayout(hydroLarge, 4);
+      const baseline = estimateManual(manualInput(layout));
+      const withPayload = estimateManual(
+        manualInput(layout, { extraMass: { added: 0, payload: 15_000 } }),
+      );
+      // Dry mass unchanged — the hauled load isn't part of the empty ship.
+      expect(withPayload.dryMass).toBeCloseTo(baseline.dryMass, 0);
+      // Loaded mass gains the hauled payload.
+      expect(withPayload.loadedMass).toBeCloseTo(baseline.loadedMass + 15_000, 0);
+    });
+
+    it('extra mass lowers achieved up-TWR (same thrust, more weight)', () => {
+      const layout = emptyLayout();
+      layout.up = [{ definition: hydroLarge, count: 10 }];
+      const light = estimateManual(
+        manualInput(layout, { cargo: { fillFraction: 0, densityKgPerL: 2 } }),
+      );
+      const heavy = estimateManual(
+        manualInput(layout, {
+          cargo: { fillFraction: 0, densityKgPerL: 2 },
+          extraMass: { added: 100_000, payload: 0 },
+        }),
+      );
+      expect(heavy.achievedUpTwr).toBeLessThan(light.achievedUpTwr);
+    });
+
+    it('a large added mass can force more gyros (heavier ship to turn)', () => {
+      // Light baseline (no cargo) so the extra mass is what dominates inertia; a
+      // huge always-on module then demands strictly more gyros to hit the target.
+      const layout = uniformLayout(hydroLarge, 4);
+      const baseline = estimateManual(
+        manualInput(layout, { cargo: { fillFraction: 0, densityKgPerL: 2 } }),
+      );
+      const heavy = estimateManual(
+        manualInput(layout, {
+          cargo: { fillFraction: 0, densityKgPerL: 2 },
+          extraMass: { added: 10_000_000, payload: 0 },
+        }),
+      );
+      expect(heavy.gyroCount).toBeGreaterThan(baseline.gyroCount);
+    });
+
+    it('clamps negative extra mass to zero (identical to no extra mass)', () => {
+      const layout = uniformLayout(hydroLarge, 4);
+      const baseline = estimateManual(manualInput(layout));
+      const negative = estimateManual(
+        manualInput(layout, { extraMass: { added: -50_000, payload: -50_000 } }),
+      );
+      expect(negative.dryMass).toBeCloseTo(baseline.dryMass, 6);
+      expect(negative.loadedMass).toBeCloseTo(baseline.loadedMass, 6);
+    });
+  });
 });
 

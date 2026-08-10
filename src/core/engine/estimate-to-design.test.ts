@@ -152,4 +152,26 @@ describe('estimateToDesign', () => {
     expect(dir.up).toBeGreaterThan(0);
     expect(est.thrusters.up).toBe(6); // 4 + 2
   });
+
+  it('carries extra mass onto the design so the shared engine reproduces the masses', () => {
+    const inp = input(uniformLayout(atmoLarge, 6), {
+      cargo: { fillFraction: 1.0, densityKgPerL: 2.0 },
+      extraMass: { added: 25_000, payload: 10_000 },
+    });
+    const est = estimateManual(inp);
+    const design = estimateToDesign(inp, est, 'earthlike');
+
+    // The synthesized design carries the same extra mass...
+    expect(design.extraMass).toEqual({ added: 25_000, payload: 10_000 });
+    // ...so the trusted mass engine re-derives exactly what estimateManual computed.
+    expect(designDryMass(design)).toBeCloseTo(est.dryMass, 3);
+    expect(designLoadedMass(design)).toBeCloseTo(est.loadedMass, 3);
+  });
+
+  it('omits extraMass from the design when the input has none', () => {
+    const inp = input(uniformLayout(atmoLarge, 5));
+    const est = estimateManual(inp);
+    const design = estimateToDesign(inp, est, 'earthlike');
+    expect(design.extraMass).toBeUndefined();
+  });
 });

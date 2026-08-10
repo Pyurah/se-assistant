@@ -54,6 +54,29 @@ export interface CargoLoadout {
   readonly densityKgPerL: number;
 }
 
+/**
+ * Freeform extra mass bolted onto a design that isn't a block and isn't cargo —
+ * a docked/towed ship, a bolted-on module, an externally-clamped load, anything
+ * the user needs the analysis to account for. Two independent kg figures with
+ * different load semantics:
+ *
+ * - {@link added} is **always on**: it's physically attached (a welded module, a
+ *   permanently docked ship), so it counts in BOTH the empty and the loaded
+ *   figures — it folds into dry mass.
+ * - {@link payload} is **loaded-only**: it's something being hauled (a detachable
+ *   load, a ship carried only for this run), so it counts only alongside cargo in
+ *   the loaded figure and is absent when empty.
+ *
+ * Both default to 0 (and the whole object is optional on a design) so a design
+ * with no extra mass behaves exactly as before.
+ */
+export interface ExtraMass {
+  /** Always-on additional mass (counts empty AND loaded), kg. Clamped ≥ 0. */
+  readonly added: number;
+  /** Loaded-only extra payload (counts only loaded, like cargo), kg. Clamped ≥ 0. */
+  readonly payload: number;
+}
+
 export interface ShipDesign {
   readonly id: string;
   readonly name: string;
@@ -63,4 +86,9 @@ export interface ShipDesign {
   /** Planet preset id the analysis is evaluated against. */
   readonly planetId: string;
   readonly cargo: CargoLoadout;
+  /**
+   * Optional freeform extra mass (docked ship, bolted-on module, hauled load).
+   * Absent ⇒ no extra mass, identical to the pre-feature behavior.
+   */
+  readonly extraMass?: ExtraMass;
 }

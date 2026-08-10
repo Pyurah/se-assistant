@@ -27,6 +27,7 @@ import {
   InMemoryAuditStore,
   designToEstimateSeed,
   type CargoLoadout,
+  type ExtraMass,
   type ShipDesign,
   type SkippedSeedBlock,
 } from '@core';
@@ -78,6 +79,8 @@ export interface EstimatorState {
   fixedBlocks: readonly FixedBlockRef[];
   planetId: string;
   cargo: CargoLoadout;
+  /** Freeform extra mass (docked ship / bolted-on module + hauled payload). */
+  extraMass: ExtraMass;
 
   // --- Manual thruster assignment ---
   /** Per-direction assigned thruster types + counts (the build the user drives). */
@@ -112,6 +115,10 @@ export interface EstimatorState {
   setPlanet: (planetId: string) => void;
   setCargoFill: (fillFraction: number) => void;
   setCargoDensity: (densityKgPerL: number) => void;
+  /** Set the always-on additional mass (counts empty AND loaded), kg. */
+  setAddedMass: (kg: number) => void;
+  /** Set the loaded-only extra payload (counts only loaded), kg. */
+  setExtraPayload: (kg: number) => void;
   /** Add one of `blockId` to `dir`'s stack (bumps count if already present). */
   addThruster: (dir: Direction, blockId: string) => void;
   /** Remove `blockId` from `dir`'s stack entirely. */
@@ -167,6 +174,7 @@ export const GRID_DEFAULTS: Record<GridSize, GridDefaults> = {
 };
 
 const DEFAULT_CARGO: CargoLoadout = { fillFraction: 0, densityKgPerL: 2.0 };
+const DEFAULT_EXTRA_MASS: ExtraMass = { added: 0, payload: 0 };
 const DEFAULT_GRID: GridSize = 'large';
 
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
@@ -209,6 +217,7 @@ export const useEstimatorStore = create<EstimatorState>((set, get) => ({
   fixedBlocks: [],
   planetId: 'earthlike',
   cargo: DEFAULT_CARGO,
+  extraMass: DEFAULT_EXTRA_MASS,
 
   thrusterStacks: emptyStacks(),
   directionGoals: defaultGoals(),
@@ -289,6 +298,10 @@ export const useEstimatorStore = create<EstimatorState>((set, get) => ({
   setCargoDensity: (densityKgPerL) =>
     set({ cargo: { ...get().cargo, densityKgPerL: atLeast(densityKgPerL, 0) } }),
 
+  setAddedMass: (kg) => set({ extraMass: { ...get().extraMass, added: atLeast(kg, 0) } }),
+
+  setExtraPayload: (kg) => set({ extraMass: { ...get().extraMass, payload: atLeast(kg, 0) } }),
+
   addThruster: (dir, blockId) => {
     const { thrusterStacks } = get();
     const stack = thrusterStacks[dir];
@@ -355,6 +368,7 @@ export const useEstimatorStore = create<EstimatorState>((set, get) => ({
       fixedBlocks: seed.fixedBlocks.map((b) => ({ id: b.id, quantity: b.quantity })),
       planetId: seed.planetId,
       cargo: seed.cargo,
+      extraMass: seed.extraMass ?? DEFAULT_EXTRA_MASS,
       thrusterStacks: stacksFromSeed(seed.thrusterStacks),
       powerKind: seed.powerKind,
       powerBlockId: seed.powerBlockId ?? defaults.batteryId,
@@ -409,6 +423,7 @@ export const useEstimatorStore = create<EstimatorState>((set, get) => ({
       fixedBlocks: [],
       planetId: 'earthlike',
       cargo: DEFAULT_CARGO,
+      extraMass: DEFAULT_EXTRA_MASS,
       thrusterStacks: emptyStacks(),
       directionGoals: defaultGoals(),
       goalLoadState: 'loaded',
@@ -456,6 +471,11 @@ export function isAdjustedFromSource(state: EstimatorState): boolean {
   if (state.planetId !== seed.planetId) return true;
   if (state.cargo.fillFraction !== seed.cargo.fillFraction) return true;
   if (state.cargo.densityKgPerL !== seed.cargo.densityKgPerL) return true;
+  // Extra mass is a seeded ship property (like cargo): changing it is an
+  // adjustment. A source with no extra mass seeds the zero default.
+  const seedExtra = seed.extraMass ?? DEFAULT_EXTRA_MASS;
+  if (state.extraMass.added !== seedExtra.added) return true;
+  if (state.extraMass.payload !== seedExtra.payload) return true;
 
   // Per-direction thruster stacks must match as id→count multisets.
   for (const dir of ALL_DIRECTIONS) {

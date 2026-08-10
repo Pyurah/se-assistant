@@ -215,6 +215,7 @@ export function useEstimate(): EstimateResult | null {
   const fixedBlocks = useEstimatorStore((s) => s.fixedBlocks);
   const planetId = useEstimatorStore((s) => s.planetId);
   const cargo = useEstimatorStore((s) => s.cargo);
+  const extraMass = useEstimatorStore((s) => s.extraMass);
   const thrusterStacks = useEstimatorStore((s) => s.thrusterStacks);
   const directionGoals = useEstimatorStore((s) => s.directionGoals);
   const goalLoadState = useEstimatorStore((s) => s.goalLoadState);
@@ -305,6 +306,10 @@ export function useEstimate(): EstimateResult | null {
       cargo,
       gridSize,
       config,
+      // Freeform extra mass flows straight into the engine: always-on `added`
+      // joins base/dry mass, loaded-only `payload` joins the cargo payload, so
+      // support sizing (power + gyros), TWR, and dry/loaded mass all reflect it.
+      ...(extraMass.added > 0 || extraMass.payload > 0 ? { extraMass } : {}),
     };
     const estimate = estimateManual(input);
 
@@ -370,6 +375,7 @@ export function useEstimate(): EstimateResult | null {
     fixedBlocks,
     planetId,
     cargo,
+    extraMass,
     thrusterStacks,
     directionGoals,
     goalLoadState,

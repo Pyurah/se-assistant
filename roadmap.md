@@ -1,6 +1,6 @@
 # SE Assistant — Product Roadmap
 
-> **Last Updated**: 2026-08-10 (v0.24.0)
+> **Last Updated**: 2026-08-10 (v0.25.0)
 
 A Space Engineers ship & base planner: import a blueprint (`.sbc`) and get
 instant thrust-to-weight, mass, cargo, and power analysis — empty vs fully
@@ -10,11 +10,23 @@ loaded, on any vanilla planet.
 
 ## 👉 Next session starts here
 
-**Everything through Phase 2 plus M6.6, M6.7, and all of Phase 3's first block —
-M7 (build cost + throughput + conveyor audit) and M8 (life support + combat) — is
-DONE, committed, and pushed to GitHub** (`https://github.com/Pyurah/se-assistant`,
-branch `master`, at v0.23.0). Working tree is clean and all four gates pass
-(`typecheck` / `lint` / `test` (505) / `build`). Nothing is half-finished.
+**v0.25.0 (2026-08-10) — Freeform extra mass on both tabs.** Users can now add
+weight the block list can't capture — a docked ship, a bolted-on module, a hauled
+detachable load — via an optional `extraMass` (`{ added, payload }`) on `ShipDesign`.
+**Added mass** is always-on and folds into **dry** mass, so it counts empty *and*
+loaded (a welded subgrid); **extra payload** is loaded-only and folds into **loaded**
+mass alongside cargo (a hauled load you can drop). Two pure clamped-≥-0 mass helpers
+(`addedMass` / `extraPayload`) do it all: `dryMass = blocks + added`,
+`loadedMass = dryMass + cargo + payload` — so every downstream consumer (directional
+TWR, space acceleration, and in Estimate mode the auto-sized power + gyro counts via
+`estimateManual`'s `baseMass`/`cargoPayload` scalars) inherits it with no new math.
+Both stores hold the shape with `setAddedMass`/`setExtraPayload`; both bridges carry
+it (`EstimateSeed.extraMass`, the synthesized design's `extraMass`) so blueprint-seeded
+Estimate builds keep the source's extra mass, and changing it counts as an
+adjustment-from-source. UI: a shared dumb `ExtraMassFields`, an Analyze-side
+`ExtraMassControl` panel, an Estimate-side workbench section, and `MassPanel` readouts
+when non-zero. +worked-example tests across the mass engine, `estimateManual`, and both
+bridges (522 total).
 
 **v0.24.0 (2026-08-10) — Refinery & assembler upgrade modules in Build cost.**
 The Build-cost panel now models the real in-game upgrade modules, closing a gap
@@ -380,7 +392,7 @@ fast-follow is **done** (v0.17.0).
 
 ## Current State
 
-- **Version**: 0.22.0
+- **Version**: 0.25.0
 - **Repo**: pushed to `https://github.com/Pyurah/se-assistant` (`master`);
   commits use the GitHub no-reply email (real email scrubbed from history).
 - **Build**: passing (`pnpm build`)

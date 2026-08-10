@@ -35,6 +35,23 @@ export function MassPanel(): React.JSX.Element | null {
           <Stat label="Loaded" value={formatMass(mass.loadedMass)} />
         </div>
 
+        {(mass.addedMass > 0 || mass.extraPayload > 0) && (
+          <div className="flex flex-col gap-1.5 text-sm">
+            {mass.addedMass > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-muted">Added mass (empty + loaded)</span>
+                <span className="font-mono text-fg">{formatMass(mass.addedMass)}</span>
+              </div>
+            )}
+            {mass.extraPayload > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-muted">Extra payload (loaded only)</span>
+                <span className="font-mono text-fg">{formatMass(mass.extraPayload)}</span>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="flex items-center justify-between border-t border-border pt-3 text-sm">
           <span className="text-muted">Cargo capacity</span>
           <span className="font-mono text-fg">{formatVolume(mass.cargoCapacity)}</span>

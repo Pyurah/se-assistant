@@ -13,6 +13,7 @@ import { Button } from '../ui/components/Button';
 import { IconRefresh, IconRocket, IconSparkles } from '../ui/components/icons';
 import { PlanetSelector } from '../ui/panels/PlanetSelector';
 import { CargoControl } from '../ui/panels/CargoControl';
+import { ExtraMassControl } from '../ui/panels/ExtraMassControl';
 import { TwrPanel } from '../ui/panels/TwrPanel';
 import { MassPanel } from '../ui/panels/MassPanel';
 import { PowerPanel } from '../ui/panels/PowerPanel';
@@ -83,6 +84,7 @@ export function AnalysisDashboard(): React.JSX.Element {
         <div className="flex flex-col gap-4">
           <PlanetSelector />
           <CargoControl />
+          <ExtraMassControl />
           <BuildCostPanel />
           <ConveyorPanel />
           <LifeSupportPanel />

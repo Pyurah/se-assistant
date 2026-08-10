@@ -46,8 +46,9 @@ import { SegmentedControl } from '../components/SegmentedControl';
 import { Stepper } from '../components/Stepper';
 import { Button } from '../components/Button';
 import { TwrBar } from '../components/TwrBar';
-import { IconGauge, IconGlobe, IconBolt, IconCompass, IconBox, IconTrash } from '../components/icons';
+import { IconGauge, IconGlobe, IconBolt, IconCompass, IconBox, IconTrash, IconScale } from '../components/icons';
 import { cn } from '../lib/cn';
+import { ExtraMassFields } from './ExtraMassFields';
 
 const THRUSTER_TYPE_LABELS: Record<ThrusterType, string> = {
   hydrogen: 'Hydrogen — works everywhere',
@@ -95,6 +96,7 @@ export function EstimatorConfigPanel(): React.JSX.Element {
   const runtimeTargetHours = useEstimatorStore((s) => s.runtimeTargetHours);
   const targetTurnTime = useEstimatorStore((s) => s.targetTurnTime);
   const cargo = useEstimatorStore((s) => s.cargo);
+  const extraMass = useEstimatorStore((s) => s.extraMass);
 
   const setPlanet = useEstimatorStore((s) => s.setPlanet);
   const setDirectionGoal = useEstimatorStore((s) => s.setDirectionGoal);
@@ -107,6 +109,8 @@ export function EstimatorConfigPanel(): React.JSX.Element {
   const setTargetTurnTime = useEstimatorStore((s) => s.setTargetTurnTime);
   const setCargoFill = useEstimatorStore((s) => s.setCargoFill);
   const setCargoDensity = useEstimatorStore((s) => s.setCargoDensity);
+  const setAddedMass = useEstimatorStore((s) => s.setAddedMass);
+  const setExtraPayload = useEstimatorStore((s) => s.setExtraPayload);
 
   const planet = resolvePlanet(planetId);
   const noGravity = planet.surfaceGravity === 0;
@@ -397,6 +401,21 @@ export function EstimatorConfigPanel(): React.JSX.Element {
               <span className="font-mono text-xs text-subtle">kg/L</span>
             </label>
           </div>
+        </section>
+
+        {/* Extra mass — freeform weight beyond the blocks & cargo */}
+        <section className="flex flex-col gap-3 border-t border-border pt-4">
+          <span className={fieldLabel}>
+            <span className="mr-1 inline-flex align-middle text-subtle">
+              <IconScale size={13} />
+            </span>
+            Extra mass
+          </span>
+          <ExtraMassFields
+            extraMass={extraMass}
+            onAddedChange={setAddedMass}
+            onPayloadChange={setExtraPayload}
+          />
         </section>
       </div>
     </Panel>

@@ -27,7 +27,7 @@
  */
 
 import type { ShipDesign } from '../types';
-import type { CargoLoadout } from '../types';
+import type { CargoLoadout, ExtraMass } from '../types';
 import type { BlockDefinition, GridSize, Direction } from '../../data/schema';
 import { SIZED_CATEGORIES } from '../../data/block-categories';
 import { BLOCKS_BY_ID } from '../../data/all-blocks';
@@ -61,6 +61,12 @@ export interface EstimateSeed {
   readonly gridSize: GridSize;
   readonly planetId: string;
   readonly cargo: CargoLoadout;
+  /**
+   * Freeform extra mass carried straight through from the source design (always-on
+   * `added` + loaded-only `payload`). Absent when the source had none, so a plain
+   * blueprint seed stays identical to the pre-feature behavior.
+   */
+  readonly extraMass?: ExtraMass;
   /** Non-sized essentials, matched to the dataset, with their real counts. */
   readonly fixedBlocks: readonly { readonly id: string; readonly quantity: number }[];
   /**
@@ -197,6 +203,7 @@ export function designToEstimateSeed(design: ShipDesign): EstimateSeed {
     gridSize: design.gridSize,
     planetId: design.planetId,
     cargo: design.cargo,
+    ...(design.extraMass ? { extraMass: design.extraMass } : {}),
     fixedBlocks,
     thrusterStacks: stacks,
     powerBlockId: dominantPower?.id ?? null,

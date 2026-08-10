@@ -4,7 +4,16 @@ import { PLANET_PRESETS_BY_ID } from '../../data/planets';
 import type { ShipDesign, DesignBlock } from '../types';
 import type { ThrusterBlock, Direction } from '../../data/schema';
 import { thrusterEffectiveness, effectiveThrust } from './thruster';
-import { dryMass, cargoCapacity, cargoMass, loadedMass, massByCategory } from './mass';
+import {
+  dryMass,
+  cargoCapacity,
+  cargoMass,
+  loadedMass,
+  massByCategory,
+  addedMass,
+  extraPayload,
+  massSummary,
+} from './mass';
 import {
   directionalThrust,
   directionalTwr,
@@ -105,6 +114,84 @@ describe('mass & cargo (worked example)', () => {
     expect(cargoMass(over)).toBeCloseTo(842_000, 0); // clamped to 1.0
   });
 });
+
+describe('freeform extra mass (worked example)', () => {
+  // The same hauler, now with a 10 t docked module bolted on (always-on) and a
+  // 5 t detachable payload being hauled (loaded-only).
+  const base: ShipDesign = {
+    id: 'hauler',
+    name: 'Hauler',
+    gridSize: 'large',
+    blocks: [
+      block('large-large-reactor', 1),
+      block('large-large-hydrogen-thruster', 4, 'up'),
+      block('large-large-cargo-container', 1),
+    ],
+    planetId: 'earthlike',
+    cargo: { fillFraction: 1.0, densityKgPerL: 2.0 },
+  };
+  // Dry (blocks only) = 104,148.6; cargo payload = 842,000.
+  const blocksDry = 104_148.6;
+  const cargoPayload = 842_000;
+
+  it('absent extraMass is identical to the pre-feature ship', () => {
+    expect(addedMass(base)).toBe(0);
+    expect(extraPayload(base)).toBe(0);
+    expect(dryMass(base)).toBeCloseTo(blocksDry, 1);
+    expect(loadedMass(base)).toBeCloseTo(blocksDry + cargoPayload, 1);
+  });
+
+  it('always-on added mass counts in BOTH dry and loaded', () => {
+    const ship = { ...base, extraMass: { added: 10_000, payload: 0 } };
+    // Dry mass gains the always-on module: 104,148.6 + 10,000.
+    expect(dryMass(ship)).toBeCloseTo(blocksDry + 10_000, 1);
+    // Loaded inherits it (dry already includes it) plus cargo.
+    expect(loadedMass(ship)).toBeCloseTo(blocksDry + 10_000 + cargoPayload, 1);
+  });
+
+  it('loaded-only extra payload counts ONLY in loaded, not dry', () => {
+    const ship = { ...base, extraMass: { added: 0, payload: 5_000 } };
+    // Dry mass unchanged — the hauled load isn't part of the empty ship.
+    expect(dryMass(ship)).toBeCloseTo(blocksDry, 1);
+    // Loaded gains the hauled payload alongside the cargo hold.
+    expect(loadedMass(ship)).toBeCloseTo(blocksDry + cargoPayload + 5_000, 1);
+  });
+
+  it('both together: added in dry & loaded, payload only in loaded', () => {
+    const ship = { ...base, extraMass: { added: 10_000, payload: 5_000 } };
+    expect(dryMass(ship)).toBeCloseTo(blocksDry + 10_000, 1);
+    expect(loadedMass(ship)).toBeCloseTo(blocksDry + 10_000 + cargoPayload + 5_000, 1);
+  });
+
+  it('clamps negative extra mass to zero', () => {
+    const ship = { ...base, extraMass: { added: -10_000, payload: -5_000 } };
+    expect(addedMass(ship)).toBe(0);
+    expect(extraPayload(ship)).toBe(0);
+    expect(dryMass(ship)).toBeCloseTo(blocksDry, 1);
+    expect(loadedMass(ship)).toBeCloseTo(blocksDry + cargoPayload, 1);
+  });
+
+  it('massSummary surfaces addedMass and extraPayload', () => {
+    const ship = { ...base, extraMass: { added: 10_000, payload: 5_000 } };
+    const summary = massSummary(ship);
+    expect(summary.addedMass).toBe(10_000);
+    expect(summary.extraPayload).toBe(5_000);
+    expect(summary.dryMass).toBeCloseTo(blocksDry + 10_000, 1);
+    expect(summary.loadedMass).toBeCloseTo(blocksDry + 10_000 + cargoPayload + 5_000, 1);
+    // Extra mass is NOT block mass, so the by-category breakdown is unchanged.
+    expect(summary.byCategory.reactor).toBeCloseTo(73_795, 1);
+  });
+
+  it('extra mass raises loaded weight, lowering TWR', () => {
+    const light = { ...base, cargo: { fillFraction: 0, densityKgPerL: 2.0 } };
+    const heavy = { ...light, extraMass: { added: 50_000, payload: 0 } };
+    const lightTwr = directionalTwr(light, earthlike, dryMass(light));
+    const heavyTwr = directionalTwr(heavy, earthlike, dryMass(heavy));
+    // Same thrust, more mass → strictly lower up-TWR.
+    expect(heavyTwr.up).toBeLessThan(lightTwr.up);
+  });
+});
+
 
 describe('directional TWR & lift analysis', () => {
   // 4 large hydrogen thrusters pointing up on a light-ish frame.

@@ -4,6 +4,31 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.25.0] - 2026-08-10
+
+### Added
+
+- **Freeform extra mass on both the Analyze and Estimate tabs.** A ship's real
+  weight isn't only its blocks and cargo, so you can now add two kinds of extra
+  mass:
+  - **Added mass** — always-on weight that counts in *both* the empty and loaded
+    states (a docked ship, a bolted-on module, a welded subgrid). It joins **dry
+    mass**, so empty and loaded TWR/acceleration both feel it.
+  - **Extra payload** — a detachable load you're hauling that counts *only* when
+    loaded, exactly like cargo (an externally-clamped container, a rover on a
+    pad). It joins **loaded mass** alongside the cargo hold.
+
+  Both flow through the same trusted mass/TWR/acceleration engines, so every
+  readout — directional TWR, space acceleration, and (in Estimate mode) the
+  auto-sized power and gyro counts — reflects the added weight. In Analyze, a new
+  **Extra mass** panel sits beside Cargo loadout; in Estimate, an **Extra mass**
+  section joins the thruster workbench. Blueprint-seeded Estimate builds carry the
+  source design's extra mass through.
+- `ExtraMass` type (`{ added, payload }`) and the pure `addedMass` / `extraPayload`
+  mass helpers, with the `MassSummary` gaining `addedMass` / `extraPayload` fields
+  (with worked-example tests: `added` in dry+loaded, `payload` in loaded only,
+  clamping ≥ 0, and TWR dropping as extra mass rises).
+
 ## [0.24.0] - 2026-08-10
 
 ### Added

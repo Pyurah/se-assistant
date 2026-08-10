@@ -23,6 +23,7 @@ import {
   type ShipDesign,
   type BlueprintReport,
   type CargoLoadout,
+  type ExtraMass,
 } from '@core';
 
 const log = logger.child({ module: 'design-store' });
@@ -39,6 +40,8 @@ export interface DesignState {
   report: BlueprintReport | null;
   planetId: string;
   cargo: CargoLoadout;
+  /** Freeform extra mass (docked ship / bolted-on module + hauled payload). */
+  extraMass: ExtraMass;
   status: ImportStatus;
   /** User-facing error message when `status === 'error'`. */
   error: string | null;
@@ -49,19 +52,28 @@ export interface DesignState {
   setPlanet: (planetId: string) => void;
   setCargoFill: (fillFraction: number) => void;
   setCargoDensity: (densityKgPerL: number) => void;
+  /** Set the always-on additional mass (counts empty AND loaded), kg. */
+  setAddedMass: (kg: number) => void;
+  /** Set the loaded-only extra payload (counts only loaded), kg. */
+  setExtraPayload: (kg: number) => void;
   reset: () => void;
 }
 
 /** Default loadout: empty ship, average ore-ish density until the user adjusts. */
 const DEFAULT_CARGO: CargoLoadout = { fillFraction: 0, densityKgPerL: 2.0 };
 
+/** Default: no freeform extra mass until the user adds some. */
+const DEFAULT_EXTRA_MASS: ExtraMass = { added: 0, payload: 0 };
+
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
+const atLeastZero = (v: number): number => (Number.isFinite(v) ? Math.max(0, v) : 0);
 
 export const useDesignStore = create<DesignState>((set, get) => ({
   design: null,
   report: null,
   planetId: 'earthlike',
   cargo: DEFAULT_CARGO,
+  extraMass: DEFAULT_EXTRA_MASS,
   status: 'idle',
   error: null,
   sourceName: null,
@@ -71,9 +83,15 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     set({ status: 'loading', error: null });
     try {
       const { design, report } = parseBlueprint(xml, { planetId: get().planetId });
-      // Adopt the design's cargo defaults but keep the user's chosen planet.
+      // Adopt the design's cargo defaults but keep the user's chosen planet and
+      // freeform extra mass (both are analysis inputs, not part of the blueprint).
       set({
-        design: { ...design, planetId: get().planetId, cargo: get().cargo },
+        design: {
+          ...design,
+          planetId: get().planetId,
+          cargo: get().cargo,
+          extraMass: get().extraMass,
+        },
         report,
         status: 'ready',
         error: null,
@@ -150,6 +168,18 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     set({ cargo, ...(design ? { design: { ...design, cargo } } : {}) });
   },
 
+  setAddedMass: (kg) => {
+    const extraMass: ExtraMass = { ...get().extraMass, added: atLeastZero(kg) };
+    const { design } = get();
+    set({ extraMass, ...(design ? { design: { ...design, extraMass } } : {}) });
+  },
+
+  setExtraPayload: (kg) => {
+    const extraMass: ExtraMass = { ...get().extraMass, payload: atLeastZero(kg) };
+    const { design } = get();
+    set({ extraMass, ...(design ? { design: { ...design, extraMass } } : {}) });
+  },
+
   reset: () =>
     set({
       design: null,
@@ -158,5 +188,6 @@ export const useDesignStore = create<DesignState>((set, get) => ({
       error: null,
       sourceName: null,
       cargo: DEFAULT_CARGO,
+      extraMass: DEFAULT_EXTRA_MASS,
     }),
 }));
