@@ -181,11 +181,23 @@ describe('EstimatorTwrPanel rendering', () => {
     expect(screen.getByText(/thrust-to-weight/i)).toBeInTheDocument();
   });
 
-  it('shows a no-gravity note in space instead of runaway bars', () => {
+  it('swaps TWR for directional acceleration in space', () => {
+    // Cargo alone has no thrusters, so the estimator adds them to hit target TWR;
+    // the synthesized build still accelerates in vacuum.
     state().addBlock('large-large-cargo-container');
     state().setPlanet('space');
     render(<EstimatorTwrPanel />);
-    expect(screen.getByText(/no gravity here/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/directional acceleration/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/reaches 100 m\/s in/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/not applicable in space/i)).not.toBeInTheDocument();
+  });
+
+  it('rescales time-to-top-speed when the speed cap changes', () => {
+    state().addBlock('large-large-cargo-container');
+    state().setPlanet('space');
+    render(<EstimatorTwrPanel />);
+    fireEvent.click(screen.getByRole('button', { name: '500 m/s' }));
+    expect(screen.getAllByText(/reaches 500 m\/s in/i).length).toBeGreaterThan(0);
   });
 
   it('shows the geometry caption only when the build was seeded from a blueprint', () => {

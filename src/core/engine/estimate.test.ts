@@ -126,6 +126,31 @@ describe('estimateRequirements', () => {
     expect(est.totalThrusters).toBe(0);
   });
 
+  it('sizes thrusters in space by reading target TWR as target g-acceleration', () => {
+    // In space there is no weight, so a TWR target would size ZERO thrusters and
+    // leave the build unpropelled. Instead the target-TWR knob means target
+    // acceleration in g-units: TWR 2 → accelerate at 2 g (19.62 m/s²). Hydrogen
+    // works in vacuum, so the ship must get real thrusters and accelerate.
+    const est = estimateRequirements(baseInput({ planet: space }));
+    expect(est.warnings).toHaveLength(0);
+    expect(est.thrusters.up).toBeGreaterThan(0);
+    expect(est.totalThrusters).toBeGreaterThan(0);
+    // Achieved acceleration = up-thrust / loaded mass must meet the 2 g target
+    // (counts round up, so it's ≥). Worked from the settled build.
+    const upThrust = est.thrusters.up * hydroLarge.maxThrust; // hydrogen: flat 1.0 in vacuum
+    const achievedAccel = upThrust / est.loadedMass;
+    expect(achievedAccel).toBeGreaterThanOrEqual(2.0 * 9.81);
+  });
+
+  it('needs FEWER thrusters in space than on a planet (no gravity, same g-target)', () => {
+    // 2 g of acceleration in space is far less thrust than TWR 2 against full
+    // Earth gravity plus the same 2 g — so space should size no more thrusters.
+    const earth = estimateRequirements(baseInput());
+    const vac = estimateRequirements(baseInput({ planet: space }));
+    expect(vac.thrusters.up).toBeLessThanOrEqual(earth.thrusters.up);
+    expect(vac.thrusters.up).toBeGreaterThan(0);
+  });
+
   it('sizes power to cover peak draw (battery count ≥ draw/discharge)', () => {
     const est = estimateRequirements(baseInput());
     expect(est.powerSupply).toBeGreaterThanOrEqual(est.peakDraw);

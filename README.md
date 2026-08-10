@@ -21,7 +21,11 @@ Drag in an exported `.sbc` (or load the bundled example) and get a live readout:
 - **Thrust-to-weight** — directional TWR (up/down/forward/back/lateral) with
   per-type environment scaling (atmospheric thrusters fade with altitude, ion
   thrusters are the inverse, hydrogen is flat), per-planet gravity, and the
-  **empty-vs-loaded** comparison with a can-it-take-off verdict.
+  **empty-vs-loaded** comparison with a can-it-take-off verdict. **In space**
+  (no gravity to fight) TWR gives way to per-direction **acceleration** (m/s²)
+  plus the time and distance to reach top speed — exact `thrust ÷ mass` with no
+  drag — over an adjustable speed cap (vanilla 100 m/s; raise it for modded
+  servers).
 - **Mass & cargo** — dry vs loaded mass, breakdown by block category, cargo
   capacity and how a full hold drags down TWR. Pick a real game item (Gold
   Ingot, Iron Ore, Steel Plate, …) or enter a mass + volume, and the loaded
@@ -118,7 +122,7 @@ until the build has the relevant hardware.
 
 ## Status
 
-Version **0.20.0**. Phases 1 (core engine + blueprint import), 1.5 (requirement
+Version **0.21.0**. Phases 1 (core engine + blueprint import), 1.5 (requirement
 estimator), 2 (fuel/flight-time + motion/stability), and 2.5 (Estimate-mode
 enhancements incl. blueprint-seeded builds) are complete, and **Phase 3's first
 block is done**: production/logistics (build cost, manufacturing throughput,

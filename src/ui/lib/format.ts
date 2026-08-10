@@ -142,3 +142,21 @@ export function formatGravity(mps2: number): string {
   const g = mps2 / 9.81;
   return `${trim(mps2, 2)} m/s² (${trim(g, 2)} g)`;
 }
+
+/** Speed (m/s) → "100 m/s". Infinity becomes ∞. */
+export function formatSpeed(mps: number): string {
+  if (!Number.isFinite(mps)) return '∞';
+  return `${trim(mps, 1)} m/s`;
+}
+
+/**
+ * Acceleration (m/s²) → "23.8 m/s²". Infinity becomes ∞; zero reads "0 m/s²"
+ * (caller pairs it with a "no thrust this axis" note). Small values keep two
+ * decimals so a lightly-thrusted axis doesn't collapse to "0".
+ */
+export function formatAccel(mps2: number): string {
+  if (!Number.isFinite(mps2)) return '∞';
+  const a = Math.abs(mps2);
+  const frac = a >= 10 ? 1 : 2;
+  return `${trim(mps2, frac)} m/s²`;
+}

@@ -212,6 +212,34 @@ Center-of-mass and thrust-center alignment are exact given block positions;
 they return `null` (UI: "import a blueprint") for position-less designs like the
 estimator's.
 
+## Space directional acceleration & speed cap (v0.21.0)
+
+In space (gravity 0) thrust-to-weight is undefined, so both TWR panels swap to a
+per-direction **acceleration** readout instead. The physics is exact, not an
+approximation:
+
+1. **Acceleration is `thrust ÷ mass`, exact in vacuum.** With no gravity and no
+   atmospheric drag, net acceleration on an axis is just its directional thrust
+   over the ship's mass — the same net-force model `motion.ts` already uses for
+   vacuum braking (`stoppingDistance`). Directional thrust is read at air density
+   0, so atmospheric thrusters correctly contribute nothing. `directionalAccel​eration`
+   (`src/core/engine/twr.ts`) returns `a`, time-to-cap `t = v_cap / a`, and
+   distance-to-cap `d = v_cap² / (2a)`, with a zero-thrust or zero-mass axis
+   returning 0 accel / Infinite time & distance. Worked example (locked in tests):
+   480 kN on 20,000 kg → 24 m/s²; cap 100 m/s → t ≈ 4.17 s, d ≈ 208.3 m.
+2. **Vanilla speed cap = 100 m/s (360 km/h)**, uniform across large and small
+   grids (spaceengineers.wiki.gg). Because dedicated servers routinely raise the
+   `LimitMaxSpeed` / world-speed setting, this is a *default* the UI exposes as an
+   editable field (`DEFAULT_MAX_SPEED_MPS`, `src/data/fuel-constants.ts`), so the
+   time/distance-to-top-speed readouts stay accurate on modded servers. It does
+   not affect any thrust or mass math.
+3. **Estimator target-TWR reads as target g-acceleration in space.** The estimator
+   sizes thrusters to a target loaded up-TWR, which is meaningless at 0 g (it would
+   size zero thrusters). In vacuum it instead reads the knob as a target
+   acceleration in g-units — TWR 2 → 2 g = `2 × STANDARD_GRAVITY` = 19.62 m/s² — so
+   `upThrustNeeded = targetTwr · g₀ · mass`. On planets (g > 0) this is exactly
+   `targetTwr · weight`, unchanged.
+
 ## Battery variants (v0.9.0)
 
 Five battery blocks, all wiki-confirmed for mass/capacity/I-O:

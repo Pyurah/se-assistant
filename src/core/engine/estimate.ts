@@ -32,6 +32,7 @@ import type {
   BlockDefinition,
 } from '../../data/schema';
 import { GRID_CELL_SIZE_M } from '../../data/fuel-constants';
+import { STANDARD_GRAVITY } from '../../data/planets';
 import { effectiveThrust } from './thruster';
 import { weight, DIRECTIONS } from './twr';
 
@@ -289,8 +290,18 @@ export function estimateRequirements(input: EstimatorInput): Estimate {
     // 1) Thrusters: size UP to hit target TWR against loaded weight; each other
     //    direction to the lateral fraction of that. A direction whose thruster
     //    type is dead here (e.g. atmospheric on a lateral axis in vacuum) gets 0.
+    //
+    //    In space (g = 0) weight is 0, so a TWR target is meaningless and would
+    //    size ZERO thrusters — leaving the whole build unpropelled. There the
+    //    target-TWR knob is reinterpreted as a target *acceleration* in g-units:
+    //    TWR 2 → accelerate at 2 g (19.62 m/s²), so upThrustNeeded = targetTwr ·
+    //    g₀ · mass. On planets (g > 0) this is exactly targetTwr · weight, so all
+    //    existing worked examples are unchanged.
     const g = planet.surfaceGravity;
-    const upThrustNeeded = config.targetTwr * weight(loadedMass, g);
+    const upThrustNeeded =
+      g > 0
+        ? config.targetTwr * weight(loadedMass, g)
+        : config.targetTwr * STANDARD_GRAVITY * loadedMass;
     const lateralThrustNeeded = config.lateralThrustFraction * upThrustNeeded;
 
     const newCounts: DirectionalCount = { ...zeroCounts };

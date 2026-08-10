@@ -103,24 +103,33 @@ describe('TwrPanel rendering', () => {
     expect(screen.getByText(/can't lift ·/i)).toBeInTheDocument();
   });
 
-  it('renders a no-gravity state in space instead of pass/fail', async () => {
+  it('swaps TWR for directional acceleration in space', async () => {
     await state().importBlueprint(EXAMPLE_BLUEPRINT_XML, 'example.sbc');
     state().setPlanet('space');
     render(<TwrPanel />);
-    expect(screen.getByText(/no gravity here/i)).toBeInTheDocument();
+    // No pass/fail verdict in vacuum — instead acceleration + time-to-top-speed.
+    expect(screen.getAllByText(/directional acceleration/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/reaches 100 m\/s in/i).length).toBeGreaterThan(0);
+    // The old "TWR is not applicable" placeholder is gone.
+    expect(screen.queryByText(/not applicable in space/i)).not.toBeInTheDocument();
   });
 
-  it('flags an atmospheric thruster as unusable in space via the recommender', async () => {
+  it('rescales the time-to-top-speed when the speed cap is raised', async () => {
     await state().importBlueprint(EXAMPLE_BLUEPRINT_XML, 'example.sbc');
     state().setPlanet('space');
     render(<TwrPanel />);
-    // Default recommender pick is the first thruster (an ion, feasible); switch
-    // to an atmospheric one to hit the infeasible branch.
-    const select = screen.getByLabelText(/thruster type for the recommender/i);
-    const atmoOption = Array.from(select.querySelectorAll('option')).find((o) =>
-      /atmospheric/i.test(o.textContent ?? ''),
-    );
-    expect(atmoOption).toBeDefined();
+    // Raise the cap to a preset; captions must now target 500 m/s.
+    fireEvent.click(screen.getByRole('button', { name: '500 m/s' }));
+    expect(screen.getAllByText(/reaches 500 m\/s in/i).length).toBeGreaterThan(0);
+  });
+
+  it('keeps TWR bars unchanged on a normal planet', async () => {
+    await state().importBlueprint(EXAMPLE_BLUEPRINT_XML, 'example.sbc');
+    state().setPlanet('earthlike');
+    render(<TwrPanel />);
+    // TWR title and verdicts present; no acceleration copy.
+    expect(screen.getByText(/thrust-to-weight/i)).toBeInTheDocument();
+    expect(screen.queryByText(/directional acceleration/i)).not.toBeInTheDocument();
   });
 });
 

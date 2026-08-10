@@ -23,3 +23,13 @@ export const GRID_CELL_SIZE_M: Readonly<Record<'small' | 'large', number>> = {
   small: 0.5,
   large: 2.5,
 };
+
+/**
+ * Default maximum ship speed in meters per second.
+ *
+ * Vanilla Space Engineers caps ship speed at 100 m/s (360 km/h), uniform across
+ * large and small grids. Servers frequently raise this, so it's a *default* the
+ * UI exposes as an editable field for time/distance-to-top-speed calculations,
+ * not a fixed constant. See `docs/data-audit.md`.
+ */
+export const DEFAULT_MAX_SPEED_MPS = 100;

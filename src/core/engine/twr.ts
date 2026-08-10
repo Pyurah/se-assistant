@@ -60,6 +60,48 @@ export function weight(mass: number, gravity: number): number {
   return mass * gravity;
 }
 
+/** Per-axis acceleration and time/distance to reach a target speed. */
+export interface AxisAcceleration {
+  /** Acceleration in m/s² (thrust / mass); 0 when mass ≤ 0. */
+  readonly acceleration: number;
+  /** Seconds to reach the target speed from rest (cap / a); Infinity when a = 0. */
+  readonly timeToTopSpeed: number;
+  /** Meters travelled reaching the target speed (cap² / 2a); Infinity when a = 0. */
+  readonly distanceToTopSpeed: number;
+}
+
+/**
+ * Per-direction acceleration and time/distance to reach a target speed.
+ *
+ * In space there is no gravity and no atmospheric drag, so acceleration is
+ * exactly `thrust / mass` — this is exact arithmetic, not an estimate (same
+ * basis as {@link stoppingDistance}'s brake-thrust deceleration). Callers pass
+ * the *vacuum* directional thrust (i.e. {@link directionalThrust} at air density
+ * 0); this function does not re-derive it.
+ *
+ * With `a = thrust / mass`: time to reach `topSpeed` from rest is `topSpeed / a`
+ * and distance is `topSpeed² / (2a)`. A zero-thrust axis (or non-positive mass)
+ * yields 0 acceleration and Infinite time/distance; a non-positive `topSpeed`
+ * yields Infinite time/distance regardless.
+ */
+export function directionalAcceleration(
+  thrust: DirectionalThrust,
+  mass: number,
+  topSpeed: number,
+): Record<Direction, AxisAcceleration> {
+  const out = {} as Record<Direction, AxisAcceleration>;
+  for (const dir of DIRECTIONS) {
+    const a = mass > 0 ? thrust[dir] / mass : 0;
+    const reachable = a > 0 && topSpeed > 0;
+    out[dir] = {
+      acceleration: a,
+      timeToTopSpeed: reachable ? topSpeed / a : Infinity,
+      distanceToTopSpeed: reachable ? (topSpeed * topSpeed) / (2 * a) : Infinity,
+    };
+  }
+  return out;
+}
+
 /**
  * TWR in every direction for a given mass and planet.
  *

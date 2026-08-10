@@ -1,6 +1,6 @@
 # SE Assistant — Product Roadmap
 
-> **Last Updated**: 2026-08-10 (v0.20.0)
+> **Last Updated**: 2026-08-10 (v0.21.0)
 
 A Space Engineers ship & base planner: import a blueprint (`.sbc`) and get
 instant thrust-to-weight, mass, cargo, and power analysis — empty vs fully
@@ -13,8 +13,27 @@ loaded, on any vanilla planet.
 **Everything through Phase 2 plus M6.6, M6.7, and all of Phase 3's first block —
 M7 (build cost + throughput + conveyor audit) and M8 (life support + combat) — is
 DONE, committed, and pushed to GitHub** (`https://github.com/Pyurah/se-assistant`,
-branch `master`, at v0.20.0). Working tree is clean and all four gates pass
-(`typecheck` / `lint` / `test` (449) / `build`). Nothing is half-finished.
+branch `master`, at v0.21.0). Working tree is clean and all four gates pass
+(`typecheck` / `lint` / `test` (463) / `build`). Nothing is half-finished.
+
+**v0.21.0 (2026-08-10) — Space swaps directional TWR for directional
+acceleration.** TWR is thrust ÷ weight, and weight is `mass · gravity` — so in
+space (gravity 0) it's undefined and both TWR panels rendered a dead "TWR is not
+applicable in space" placeholder. Selecting **Space** now turns that panel into a
+per-axis **acceleration** readout: m/s² per direction plus the time and distance
+to reach the speed cap ("reaches 100 m/s in 4.2 s over 210 m"), empty vs loaded.
+With no gravity and no atmospheric drag this is *exact* arithmetic
+(`a = thrust / mass`), the same treatment `stoppingDistance` already gives vacuum
+braking — not an estimate. Shipped in **both** modes (Analyze `TwrPanel` +
+Estimate `EstimatorTwrPanel`) at full parity, per the user's explicit
+both-tabs requirement. An **adjustable speed cap** (vanilla 100 m/s; preset chips
+100 / 300 / 500 + free entry) rescales the time/distance readouts for raised-cap
+servers. To make the Estimate tab useful in space — where a TWR target would size
+zero thrusters — the estimator now reads the target-TWR knob as a target
+acceleration in g-units in vacuum (TWR 2 → 2 g = 19.62 m/s²); planet sizing
+(`targetTwr · weight`) is unchanged, so every worked example holds. New pure
+`directionalAcceleration` helper (worked-example tested), `AccelBar` gauge,
+`formatSpeed`/`formatAccel`, and `DEFAULT_MAX_SPEED_MPS`. See `docs/data-audit.md`.
 
 **v0.20.0 (2026-08-10) — Life Support & Combat now available in Estimate mode.**
 v0.19.0 shipped Life Support and Combat for imported blueprints (Analyze) only.
@@ -269,7 +288,7 @@ fast-follow is **done** (v0.17.0).
 
 ## Current State
 
-- **Version**: 0.20.0
+- **Version**: 0.21.0
 - **Repo**: pushed to `https://github.com/Pyurah/se-assistant` (`master`);
   commits use the GitHub no-reply email (real email scrubbed from history).
 - **Build**: passing (`pnpm build`)

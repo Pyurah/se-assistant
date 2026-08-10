@@ -12,6 +12,8 @@ import {
   formatCount,
   formatGravity,
   formatMeters,
+  formatSpeed,
+  formatAccel,
 } from './format';
 
 describe('formatForce', () => {
@@ -138,5 +140,29 @@ describe('formatMeters', () => {
   it('switches to kilometers above 1000 m', () => {
     expect(formatMeters(1240)).toBe('1.24 km');
     expect(formatMeters(12_500)).toBe('12.5 km');
+  });
+});
+
+describe('formatSpeed', () => {
+  it('formats m/s with up to one decimal', () => {
+    expect(formatSpeed(100)).toBe('100 m/s');
+    expect(formatSpeed(104.5)).toBe('104.5 m/s');
+  });
+  it('renders Infinity as ∞', () => {
+    expect(formatSpeed(Infinity)).toBe('∞');
+  });
+});
+
+describe('formatAccel', () => {
+  it('uses one decimal at or above 10 m/s²', () => {
+    expect(formatAccel(24)).toBe('24 m/s²');
+    expect(formatAccel(23.75)).toBe('23.8 m/s²');
+  });
+  it('keeps two decimals below 10 m/s²', () => {
+    expect(formatAccel(1.234)).toBe('1.23 m/s²');
+    expect(formatAccel(0)).toBe('0 m/s²');
+  });
+  it('renders Infinity as ∞', () => {
+    expect(formatAccel(Infinity)).toBe('∞');
   });
 });

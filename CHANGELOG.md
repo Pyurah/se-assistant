@@ -4,6 +4,38 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.21.0] - 2026-08-10
+
+### Added
+
+- **Space swaps directional TWR for directional acceleration.** TWR is thrust ÷
+  weight, and weight is `mass · gravity` — so in space (gravity 0) it's undefined
+  and both TWR panels used to render a dead "TWR is not applicable in space"
+  placeholder. Selecting **Space** now turns that panel into a per-axis
+  **acceleration** readout: m/s² per direction plus the time and distance to reach
+  the speed cap ("reaches 100 m/s in 4.2 s over 210 m"), empty vs loaded. With no
+  gravity and no atmospheric drag this is *exact* arithmetic (`a = thrust / mass`),
+  not an estimate — the same treatment `stoppingDistance` already gives vacuum
+  braking. Shipped in **both** modes: the Analyze-a-blueprint tab (`TwrPanel`) and
+  the Estimate-a-build tab (`EstimatorTwrPanel`), full parity. New pure engine
+  helper `directionalAcceleration` (worked-example tested), `AccelBar` gauge,
+  `formatSpeed`/`formatAccel` helpers, and `DEFAULT_MAX_SPEED_MPS` constant.
+- **Adjustable speed cap.** Vanilla caps ship speed at **100 m/s** (360 km/h,
+  uniform across grid sizes), but servers routinely raise it — so the space
+  acceleration panel exposes an editable speed-cap field (preset chips 100 / 300 /
+  500 m/s + free numeric entry) and rescales the time/distance-to-top-speed
+  readouts to match.
+
+### Changed
+
+- **The Estimator sizes thrusters in space by target *acceleration*, not TWR.**
+  The estimator sizes thrusters to a target loaded up-TWR — meaningless at 0 g,
+  where it would size zero thrusters and leave an Estimate build unpropelled. In
+  space the target-TWR knob is now read as a target acceleration in g-units (TWR 2
+  → accelerate at 2 g = 19.62 m/s²), so an estimated build gets real thrusters and
+  a real acceleration readout in vacuum. Planet sizing (g > 0) is unchanged —
+  `targetTwr · weight` exactly as before — so every existing worked example holds.
+
 ## [0.20.0] - 2026-08-10
 
 ### Added

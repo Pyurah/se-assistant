@@ -5,7 +5,13 @@ import type { ShipDesign, DesignBlock } from '../types';
 import type { ThrusterBlock, Direction } from '../../data/schema';
 import { thrusterEffectiveness, effectiveThrust } from './thruster';
 import { dryMass, cargoCapacity, cargoMass, loadedMass, massByCategory } from './mass';
-import { directionalThrust, directionalTwr, liftAnalysis } from './twr';
+import {
+  directionalThrust,
+  directionalTwr,
+  directionalAcceleration,
+  liftAnalysis,
+  type DirectionalThrust,
+} from './twr';
 import { powerSummary } from './power';
 import { recommendThrusters, rankThrusterTypes } from './recommend';
 
@@ -171,6 +177,86 @@ describe('directional TWR & lift analysis', () => {
       cargo: { fillFraction: 0, densityKgPerL: 2.0 },
     };
     expect(directionalThrust(atmoShip, space.atmosphereDensity).up).toBe(0);
+  });
+});
+
+describe('directional acceleration (space)', () => {
+  it('computes accel = thrust/mass and time/distance to top speed (worked example)', () => {
+    // 480 kN of thrust on a 20,000 kg ship → a = 480,000 / 20,000 = 24 m/s².
+    const thrust: DirectionalThrust = {
+      up: 480_000,
+      down: 0,
+      forward: 0,
+      backward: 0,
+      left: 0,
+      right: 0,
+    };
+    const accel = directionalAcceleration(thrust, 20_000, 100);
+    expect(accel.up.acceleration).toBeCloseTo(24, 6);
+    // t = v/a = 100/24 = 4.1667 s
+    expect(accel.up.timeToTopSpeed).toBeCloseTo(4.1667, 3);
+    // d = v²/(2a) = 10,000/48 = 208.333 m
+    expect(accel.up.distanceToTopSpeed).toBeCloseTo(208.333, 2);
+  });
+
+  it('a zero-thrust axis has zero accel and Infinite time/distance', () => {
+    const thrust: DirectionalThrust = {
+      up: 480_000,
+      down: 0,
+      forward: 0,
+      backward: 0,
+      left: 0,
+      right: 0,
+    };
+    const accel = directionalAcceleration(thrust, 20_000, 100);
+    expect(accel.down.acceleration).toBe(0);
+    expect(accel.down.timeToTopSpeed).toBe(Infinity);
+    expect(accel.down.distanceToTopSpeed).toBe(Infinity);
+  });
+
+  it('non-positive mass yields zero accel and Infinite time/distance', () => {
+    const thrust: DirectionalThrust = {
+      up: 480_000,
+      down: 0,
+      forward: 0,
+      backward: 0,
+      left: 0,
+      right: 0,
+    };
+    const accel = directionalAcceleration(thrust, 0, 100);
+    expect(accel.up.acceleration).toBe(0);
+    expect(accel.up.timeToTopSpeed).toBe(Infinity);
+    expect(accel.up.distanceToTopSpeed).toBe(Infinity);
+  });
+
+  it('non-positive top speed yields Infinite time/distance but real accel', () => {
+    const thrust: DirectionalThrust = {
+      up: 480_000,
+      down: 0,
+      forward: 0,
+      backward: 0,
+      left: 0,
+      right: 0,
+    };
+    const accel = directionalAcceleration(thrust, 20_000, 0);
+    expect(accel.up.acceleration).toBeCloseTo(24, 6);
+    expect(accel.up.timeToTopSpeed).toBe(Infinity);
+    expect(accel.up.distanceToTopSpeed).toBe(Infinity);
+  });
+
+  it('doubling the speed cap doubles time but quadruples distance', () => {
+    const thrust: DirectionalThrust = {
+      up: 480_000,
+      down: 0,
+      forward: 0,
+      backward: 0,
+      left: 0,
+      right: 0,
+    };
+    const at100 = directionalAcceleration(thrust, 20_000, 100).up;
+    const at200 = directionalAcceleration(thrust, 20_000, 200).up;
+    expect(at200.timeToTopSpeed).toBeCloseTo(at100.timeToTopSpeed * 2, 6);
+    expect(at200.distanceToTopSpeed).toBeCloseTo(at100.distanceToTopSpeed * 4, 6);
   });
 });
 
