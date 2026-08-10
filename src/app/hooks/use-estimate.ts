@@ -3,9 +3,12 @@
  *
  * The estimator store holds only inputs (grid, fixed-block ids, planet, cargo,
  * config as block ids). This hook resolves those ids to full block definitions
- * from `VANILLA_BLOCKS_BY_ID`, assembles the {@link EstimatorInput}, and runs
- * the pure engine — memoized so every panel reads one consistent snapshot and
- * any input change recomputes everything at once.
+ * from the merged `BLOCKS_BY_ID` (curated + generated-from-definitions) so every
+ * block a blueprint seed carried over — including generated `source:'definition'`
+ * blocks like armor, conveyors, or Sci-Fi thrusters — resolves and contributes
+ * its real mass. It assembles the {@link EstimatorInput} and runs the pure engine,
+ * memoized so every panel reads one consistent snapshot and any input change
+ * recomputes everything at once.
  *
  * Returns `null` when the config is not yet resolvable (e.g. an unknown block
  * id), so the UI can fall back to an empty/guidance state instead of crashing.
@@ -30,8 +33,8 @@ import {
   type ShipDesign,
 } from '@core';
 import {
+  BLOCKS_BY_ID,
   VANILLA_BLOCKS,
-  VANILLA_BLOCKS_BY_ID,
   PLANET_PRESETS_BY_ID,
   type BatteryBlock,
   type BlockDefinition,
@@ -128,7 +131,7 @@ function asProducer(def: BlockDefinition | undefined): PowerProducerBlock | null
 function resolveFixed(fixedBlocks: EstimatorState['fixedBlocks']): ResolvedFixedBlock[] {
   const resolved: ResolvedFixedBlock[] = [];
   for (const ref of fixedBlocks) {
-    const definition = VANILLA_BLOCKS_BY_ID[ref.id];
+    const definition = BLOCKS_BY_ID[ref.id];
     if (!definition) {
       log.warn('essential block id did not resolve; skipping', {
         id: ref.id,
@@ -164,22 +167,23 @@ export function useEstimate(): EstimateResult | null {
 
     // Resolve the config's block choices, falling back to grid defaults so an
     // unknown/stale id never produces a null estimate the user can't recover from.
+    // The merged dataset resolves both curated defaults and generated block ids a
+    // blueprint seed may have chosen as the dominant thruster/power block.
     const thruster =
-      asThruster(VANILLA_BLOCKS_BY_ID[thrusterId]) ??
-      asThruster(VANILLA_BLOCKS_BY_ID[defaults.thrusterId]);
+      asThruster(BLOCKS_BY_ID[thrusterId]) ?? asThruster(BLOCKS_BY_ID[defaults.thrusterId]);
     const gyro =
-      asGyro(VANILLA_BLOCKS_BY_ID[defaults.gyroId]) ??
-      asGyro(VANILLA_BLOCKS_BY_ID['large-gyroscope']);
+      asGyro(BLOCKS_BY_ID[defaults.gyroId]) ?? asGyro(BLOCKS_BY_ID['large-gyroscope']);
     let power: PowerChoice | null = null;
     let powerBlock: BatteryBlock | PowerProducerBlock | null = null;
     if (powerKind === 'battery') {
-      const battery = asBattery(VANILLA_BLOCKS_BY_ID[powerBlockId]) ?? asBattery(VANILLA_BLOCKS_BY_ID[defaults.batteryId]);
+      const battery =
+        asBattery(BLOCKS_BY_ID[powerBlockId]) ?? asBattery(BLOCKS_BY_ID[defaults.batteryId]);
       if (battery) {
         power = { kind: 'battery', block: battery };
         powerBlock = battery;
       }
     } else {
-      const producer = asProducer(VANILLA_BLOCKS_BY_ID[powerBlockId]);
+      const producer = asProducer(BLOCKS_BY_ID[powerBlockId]);
       if (producer) {
         power = { kind: 'producer', block: producer };
         powerBlock = producer;
@@ -188,7 +192,7 @@ export function useEstimate(): EstimateResult | null {
     // If a producer id failed to resolve, fall back to the grid's battery so the
     // panel still renders a coherent estimate rather than nothing.
     if (!power || !powerBlock) {
-      const battery = asBattery(VANILLA_BLOCKS_BY_ID[defaults.batteryId]);
+      const battery = asBattery(BLOCKS_BY_ID[defaults.batteryId]);
       if (battery) {
         power = { kind: 'battery', block: battery };
         powerBlock = battery;
@@ -228,7 +232,7 @@ export function useEstimate(): EstimateResult | null {
     for (const dir of DIRECTIONS) {
       const overrideId = thrusterOverrides[dir];
       if (overrideId === undefined) continue;
-      const override = asThruster(VANILLA_BLOCKS_BY_ID[overrideId]);
+      const override = asThruster(BLOCKS_BY_ID[overrideId]);
       if (override) thrusters[dir] = override;
     }
 

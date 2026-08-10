@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { VANILLA_BLOCKS_BY_ID } from '../../data/blocks';
+import { BLOCKS_BY_ID } from '../../data/all-blocks';
 import { PLANET_PRESETS_BY_ID } from '../../data/planets';
 import type {
   BlockDefinition,
@@ -23,6 +24,12 @@ const ionLarge = VANILLA_BLOCKS_BY_ID['large-large-ion-thruster'] as ThrusterBlo
 const largeBattery = VANILLA_BLOCKS_BY_ID['large-battery'] as BatteryBlock;
 const largeReactor = VANILLA_BLOCKS_BY_ID['large-large-reactor'] as PowerProducerBlock;
 const largeGyro = VANILLA_BLOCKS_BY_ID['large-gyroscope'] as GyroscopeBlock;
+
+// A block that exists ONLY in the generated (definition) set, not the curated
+// vanilla set — the class of block that the blueprint parser recognizes and the
+// Analyze view factors in, but that the estimator seed used to wrongly drop.
+const genArmor = BLOCKS_BY_ID['gen:SmallHeavyBlockArmorBlock'] as BlockDefinition;
+const genSciFiThruster = BLOCKS_BY_ID['gen:SmallBlockSmallThrustSciFi'] as ThrusterBlock;
 
 /** A modded/unrecognized block, as the parser emits for unknown subtypes. */
 const moddedBlock: BlockDefinition = {
@@ -170,6 +177,29 @@ describe('designToEstimateSeed', () => {
       name: moddedBlock.displayName,
       quantity: 6,
     });
+  });
+
+  it('carries generated (definition) non-sized blocks over as essentials, not skipped', () => {
+    // Regression: generated `source:'definition'` blocks (armor, conveyors, …) are
+    // recognized by the parser and factored into Analyze mode. They must also carry
+    // into an Estimate build as fixed essentials — every recognized block counts
+    // toward mass even though the estimator can't re-size it.
+    const seed = designToEstimateSeed(
+      design([{ definition: genArmor, quantity: 523 }], { gridSize: 'small' }),
+    );
+    expect(seed.fixedBlocks).toEqual([{ id: genArmor.id, quantity: 523 }]);
+    expect(seed.skipped).toHaveLength(0);
+  });
+
+  it('seeds a generated thruster as the dominant config choice', () => {
+    // A ship whose thrusters are only in the generated set (e.g. Sci-Fi ion) must
+    // still preset the estimator's thruster config, not fall back to a grid default.
+    const seed = designToEstimateSeed(
+      design([{ definition: genSciFiThruster, quantity: 28, thrustDirection: 'up' }], {
+        gridSize: 'small',
+      }),
+    );
+    expect(seed.thrusterId).toBe(genSciFiThruster.id);
   });
 
   it('round-trips estimateToDesign → designToEstimateSeed for config identity', () => {

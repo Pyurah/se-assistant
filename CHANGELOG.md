@@ -4,7 +4,28 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
-## [0.21.0] - 2026-08-10
+## [0.21.1] - 2026-08-10
+
+### Fixed
+
+- **Blueprint seeds no longer drop generated (non-curated) blocks in Estimate
+  mode.** Importing a blueprint into Estimate mode (or "Use as estimate base")
+  reported most of a real ship's blocks as "not carried over (modded /
+  unrecognized)" — e.g. a Heavy Space Fighter lost its 523 Heavy Armor blocks,
+  Sci-Fi ion thrusters, fighter cockpit, conveyors, and more. Those blocks are
+  **recognized** — they resolve from the generated `source:'definition'` dataset
+  and Analyze mode already factors them in — but the estimator's seed-matching
+  (`designToEstimateSeed`) and block resolution (`useEstimate`) checked the
+  **curated-only** `VANILLA_BLOCKS_BY_ID`, so every generated block was rejected
+  and left out of the build's mass. Both now resolve against the merged
+  `BLOCKS_BY_ID` (curated + generated, the same dataset the blueprint parser uses),
+  so **every recognized block carries over as a fixed essential and contributes its
+  real mass**, even when the estimator can't re-size it — and a ship whose dominant
+  thruster or power block exists only in the generated set now presets the config
+  from it instead of falling back to a grid default. Only genuinely unrecognized
+  (modded / placeholder) subtypes are still reported as not carried over.
+
+
 
 ### Added
 

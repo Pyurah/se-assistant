@@ -120,7 +120,7 @@ export function SeedFromBlueprint(): React.JSX.Element {
               <IconWarning size={13} />
               <span className="font-medium">
                 {skipped.length} block type{skipped.length === 1 ? '' : 's'} not carried over
-                (modded / unrecognized)
+                (unrecognized / modded)
               </span>
             </div>
             <div className="flex flex-wrap gap-1">

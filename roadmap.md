@@ -1,6 +1,6 @@
 # SE Assistant — Product Roadmap
 
-> **Last Updated**: 2026-08-10 (v0.21.0)
+> **Last Updated**: 2026-08-10 (v0.21.1)
 
 A Space Engineers ship & base planner: import a blueprint (`.sbc`) and get
 instant thrust-to-weight, mass, cargo, and power analysis — empty vs fully
@@ -13,8 +13,23 @@ loaded, on any vanilla planet.
 **Everything through Phase 2 plus M6.6, M6.7, and all of Phase 3's first block —
 M7 (build cost + throughput + conveyor audit) and M8 (life support + combat) — is
 DONE, committed, and pushed to GitHub** (`https://github.com/Pyurah/se-assistant`,
-branch `master`, at v0.21.0). Working tree is clean and all four gates pass
-(`typecheck` / `lint` / `test` (463) / `build`). Nothing is half-finished.
+branch `master`, at v0.21.1). Working tree is clean and all four gates pass
+(`typecheck` / `lint` / `test` (465) / `build`). Nothing is half-finished.
+
+**v0.21.1 (2026-08-10) — Blueprint seeds no longer drop generated blocks in
+Estimate mode.** Importing a real blueprint into Estimate mode reported most of a
+ship's blocks as "not carried over (modded / unrecognized)" — a Heavy Space
+Fighter lost its 523 Heavy Armor blocks, Sci-Fi ion thrusters, fighter cockpit,
+and conveyors. Those blocks *are* recognized (they resolve from the generated
+`source:'definition'` dataset; Analyze mode factors them in), but the estimator's
+seed-matching (`designToEstimateSeed`) and block resolution (`useEstimate`)
+checked the **curated-only** `VANILLA_BLOCKS_BY_ID`, so every generated block was
+dropped from the build's mass. Both now resolve against the merged `BLOCKS_BY_ID`
+(the same dataset the blueprint parser uses), so **every recognized block carries
+over as a fixed essential and contributes its real mass** even when the estimator
+can't re-size it — directly serving the rule that a seeded blueprint's blocks are
+all essential. Only genuinely modded/placeholder subtypes are still reported as
+not carried over. +3 seed tests (465 total).
 
 **v0.21.0 (2026-08-10) — Space swaps directional TWR for directional
 acceleration.** TWR is thrust ÷ weight, and weight is `mass · gravity` — so in
@@ -288,11 +303,11 @@ fast-follow is **done** (v0.17.0).
 
 ## Current State
 
-- **Version**: 0.21.0
+- **Version**: 0.21.1
 - **Repo**: pushed to `https://github.com/Pyurah/se-assistant` (`master`);
   commits use the GitHub no-reply email (real email scrubbed from history).
 - **Build**: passing (`pnpm build`)
-- **Tests**: passing — 449 tests across logger, audit, data-integrity, the
+- **Tests**: passing — 465 tests across logger, audit, data-integrity, the
   merged-dataset invariants (`all-blocks` + `all-block-costs` override/gap-fill
   proofs) and the block + cost generators' fixture-driven parser/emitter/map
   suites, engine

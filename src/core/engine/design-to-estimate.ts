@@ -16,17 +16,21 @@
  * The estimator then recomputes HOW MANY are needed. Geometry (positions) is not
  * represented — the seeded build is count-and-loadout, not a layout.
  *
- * Modded / unrecognized blocks (imported with `source: 'blueprint'`, or a
- * placeholder id absent from the dataset) cannot round-trip through the id-based
- * estimator store, so they are reported in `skipped` rather than silently
- * dropped — the UI surfaces them as "not carried over."
+ * Every block the blueprint parser *recognized* — whether hand-curated
+ * (`source: 'vanilla'`) or generated from the game's own definition files
+ * (`source: 'definition'`) — carries over as an essential and is factored into
+ * the build's mass, even when the estimator can't re-size it. Only genuinely
+ * unrecognized blocks (a `source: 'blueprint'` placeholder the parser synthesized
+ * for an unknown/modded subtype, or a `user` block) can't round-trip through the
+ * id-based estimator store, so those alone are reported in `skipped` — the UI
+ * surfaces them as "not carried over."
  */
 
 import type { ShipDesign } from '../types';
 import type { CargoLoadout } from '../types';
 import type { BlockDefinition, GridSize } from '../../data/schema';
 import { SIZED_CATEGORIES } from '../../data/block-categories';
-import { VANILLA_BLOCKS_BY_ID } from '../../data/blocks';
+import { BLOCKS_BY_ID } from '../../data/all-blocks';
 
 /** Which kind of power block the estimator should size the count of. */
 export type SeedPowerKind = 'battery' | 'producer';
@@ -60,10 +64,15 @@ export interface EstimateSeed {
   readonly skipped: readonly SkippedSeedBlock[];
 }
 
-/** True when a block resolves to a trusted dataset entry (vanilla/definition). */
+/**
+ * True when a block resolves to a recognized dataset entry the id-based store
+ * can carry over — curated (`vanilla`) or generated-from-definitions
+ * (`definition`). Placeholder (`blueprint`) and `user` blocks are not in the
+ * shared dataset by id, so they can't round-trip and are reported as skipped.
+ */
 function isMatched(def: BlockDefinition): boolean {
   if (def.source === 'blueprint' || def.source === 'user') return false;
-  return VANILLA_BLOCKS_BY_ID[def.id] !== undefined;
+  return BLOCKS_BY_ID[def.id] !== undefined;
 }
 
 /** The power kind a matched power block implies. */

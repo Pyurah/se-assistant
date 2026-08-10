@@ -122,7 +122,7 @@ until the build has the relevant hardware.
 
 ## Status
 
-Version **0.21.0**. Phases 1 (core engine + blueprint import), 1.5 (requirement
+Version **0.21.1**. Phases 1 (core engine + blueprint import), 1.5 (requirement
 estimator), 2 (fuel/flight-time + motion/stability), and 2.5 (Estimate-mode
 enhancements incl. blueprint-seeded builds) are complete, and **Phase 3's first
 block is done**: production/logistics (build cost, manufacturing throughput,
