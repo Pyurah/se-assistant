@@ -1,6 +1,6 @@
 # SE Assistant — Product Roadmap
 
-> **Last Updated**: 2026-08-10 (v0.22.0)
+> **Last Updated**: 2026-08-10 (v0.23.0)
 
 A Space Engineers ship & base planner: import a blueprint (`.sbc`) and get
 instant thrust-to-weight, mass, cargo, and power analysis — empty vs fully
@@ -13,8 +13,28 @@ loaded, on any vanilla planet.
 **Everything through Phase 2 plus M6.6, M6.7, and all of Phase 3's first block —
 M7 (build cost + throughput + conveyor audit) and M8 (life support + combat) — is
 DONE, committed, and pushed to GitHub** (`https://github.com/Pyurah/se-assistant`,
-branch `master`, at v0.22.0). Working tree is clean and all four gates pass
-(`typecheck` / `lint` / `test` (474) / `build`). Nothing is half-finished.
+branch `master`, at v0.23.0). Working tree is clean and all four gates pass
+(`typecheck` / `lint` / `test` (489) / `build`). Nothing is half-finished.
+
+**v0.23.0 (2026-08-10) — Maneuverability is a measurable target, not a preset.**
+Estimate-mode gyro sizing dropped the vague **Sluggish / Normal / Nimble** control
+for a single settable number: **"Turn 90° within" (seconds)**. The estimator now
+solves for the fewest gyros that turn the ship 90° from rest within that time and
+reports the **achieved** turn time next to the count (`Estimate.achievedTurnTime`),
+so it's the same felt-responsiveness number Analyze mode's Motion panel already
+shows. The inversion is exact and shares physics with the forward path: to hit
+target time `T`, required `α = π/T²`, torque `τ = α·I` with `I = ⅙·m·s²` and
+`s = ∛(blockCount)·cell`, gyro count = `⌈τ / gyro.maxTorque⌉`. Four pure helpers
+(`characteristicSide`, `solidCubeInertia`, `quarterTurnTime`,
+`angularAccelForQuarterTurnTime`) now back both `turnRateEstimate` (Analyze) and
+the estimator's `sizeGyros`/`achievedTurnTimeFor`, so the promised turn time and
+the synthesized design's turn rate agree by construction — and the old
+`(cellRatio)²` grid hack is gone, not replaced (cell size feeds `s` directly).
+Removed: the `Responsiveness` type + `gyroTorquePerKg` preset lookup from the
+engine, and the store's `responsiveness` slice (now `targetTurnTime`, default
+2.5 s, clamped `[0.25, 60]`, a UI target that isn't seeded and never flips
+"adjusted from source"). +`formatTurnTime` helper. +worked-example helper tests,
+turn-time gyro-sizing tests, store slice tests, format tests (489 total).
 
 **v0.22.0 (2026-08-10) — Estimate mode is now a manual goal-seeking thruster
 workbench.** The old auto-sizer — one Target-TWR knob plus a lateral fraction

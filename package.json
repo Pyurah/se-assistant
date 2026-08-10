@@ -1,6 +1,6 @@
 {
   "name": "se-assistant",
-  "version": "0.22.0",
+  "version": "0.23.0",
   "private": true,
   "description": "Space Engineers ship & base planning tool — TWR, mass, power, and cargo math from blueprint imports.",
   "type": "module",

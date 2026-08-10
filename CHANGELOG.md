@@ -4,6 +4,41 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.23.0] - 2026-08-10
+
+### Changed
+
+- **Maneuverability is now a measurable target instead of a preset.** The
+  Estimate-mode gyro sizing dropped the vague **Sluggish / Normal / Nimble**
+  segmented control for a single settable number: **"Turn 90° within" (seconds)**.
+  The estimator solves for the fewest gyros that turn the ship 90° from rest
+  within that time and reports the **achieved** turn time next to the count — the
+  same felt-responsiveness number Analyze mode's Motion panel already shows, so an
+  estimate and a later blueprint import speak the same language. Fewer seconds →
+  more gyros; heavier builds need more gyros to hold the same target; the grid's
+  cell size feeds the ship's moment of inertia directly (the old `(cellRatio)²`
+  scaling hack is gone, not replaced).
+- Shared turn physics between the forward (Analyze `turnRateEstimate`) and inverse
+  (Estimate gyro sizing) paths now go through one set of pure helpers, so the
+  promised turn time and the synthesized design's turn rate agree by construction.
+
+### Added
+
+- `Estimate.achievedTurnTime` — the time (seconds) the recommended gyros turn the
+  ship 90° from rest at the settled loaded mass (`Infinity` if there are no gyros
+  or no mass), reported against the target.
+- Pure turn-physics helpers in `@core`: `characteristicSide`, `solidCubeInertia`,
+  `quarterTurnTime`, and `angularAccelForQuarterTurnTime` (with worked-example
+  round-trip tests).
+- `formatTurnTime` UI helper — small turn times to tenths of a second.
+
+### Removed
+
+- The `Responsiveness` type and the `gyroTorquePerKg` torque-per-kg preset lookup
+  from the estimator engine surface; the store's `responsiveness` slice and
+  `setResponsiveness` setter (replaced by `targetTurnTime` / `setTargetTurnTime`,
+  default 2.5 s, clamped to `[0.25, 60]`).
+
 ## [0.22.0] - 2026-08-10
 
 ### Changed
