@@ -4,6 +4,52 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.19.0] - 2026-08-10
+
+### Added
+
+- **Conveyor port & reachability audit (M7 finisher).** A new Conveyor panel
+  flags which blocks need **large-port** conveyor lines to move their inventory
+  (large-grid refinery, assembler, O2/H2 generator, connector, large cargo,
+  drills, large thrusters, and the like) and checks whether the grid actually
+  carries any large-port conveyor pieces. Space Engineers publishes **no
+  conveyor transfer rate** — in-network transfer is effectively instantaneous
+  and gated only by port size — so this is an honest **presence** check, not a
+  fabricated throughput number and not a routed-connectivity graph solve; the
+  panel says so explicitly. Backed by a curated, cited `conveyor-ports` dataset
+  and the pure `conveyorAudit(design)` engine, with worked-example and panel
+  render tests.
+- **Life Support analysis (M8).** A new Life Support panel answers "can my crew
+  breathe, and how much ice does life support burn?" — total O₂ generation vs.
+  crew demand (0.063 L/s per character, `Characters.sbc`), the max crew a design
+  can support, breathing time on stored O₂ if generation stops, and the ice-burn
+  rate that sustains current generation. A crew-size stepper drives the demand
+  math; ships with no life-support hardware get a tidy empty state. Generator
+  gas rates are derived from `IceConsumptionPerSecond × IceToGasRatio`
+  (`Production.sbc`), cross-confirming the curated hydrogen outputs already in
+  the dataset. Pure `lifeSupport(design, opts)` engine with hand-verified tests.
+- **Combat analysis — DPS & ammo burn (M8).** A new Combat panel shows
+  per-weapon and total-ship **burst DPS** (trigger held) and **sustained DPS**
+  (reload gaps included), plus how long the loaded magazines last at full fire.
+  A magazines-per-weapon stepper drives the ammo-burn math. Damage is **not**
+  summed into one misleading number: kinetic rounds deal HP damage, missiles
+  area damage, and shells/slugs draw from a health pool, so each weapon row is
+  labelled by damage kind. There is **no target-armour or time-to-kill model**
+  (stated in-panel). Weapon-like blocks with no curated firing stats are
+  surfaced as "DPS known for N of M" rather than silently dropped. Backed by
+  curated, cited `ammo` and `weapons` datasets (from `Ammos.sbc`, `Weapons.sbc`,
+  `AmmoMagazines.sbc`) and the pure `combatAnalysis(design, opts)` engine.
+
+### Changed
+
+- Combat firing stats are modelled as a pure **overlay** keyed by weapon
+  SubtypeId (`src/data/weapons.ts`), not a new `WeaponBlock` schema variant.
+  Weapon blocks already carry definition-sourced mass in the generated
+  catalogue; a hand-authored `WeaponBlock` would overwrite that trustworthy mass
+  with an unverified one. The engine joins a design's weapon blocks to the
+  overlay by SubtypeId. A `generate:weapons` script over `Weapons.sbc` is a
+  documented fast-follow. See `docs/data-audit.md`.
+
 ## [0.18.0] - 2026-08-10
 
 ### Added

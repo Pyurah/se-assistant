@@ -98,7 +98,7 @@ Path aliases: `@core/*`, `@data/*`, `@ui/*`, `@app/*` (mirrored in `tsconfig.app
 
 ## Current Phase Status
 
-Scaffolding complete and verified (v0.1.0). Build, tests, lint, and typecheck pass. Phase 1 (M1 dataset + full-coverage block generator), M2 blueprint parser, and Phase 3 / M7 build cost (with a `pnpm generate:costs` generator giving full vanilla cost coverage, v0.17.0, plus a component breakdown in the Build-cost panel, v0.18.0) are shipped. See `roadmap.md`.
+Scaffolding complete and verified (v0.1.0). Build, tests, lint, and typecheck pass. Phase 1 (M1 dataset + full-coverage block generator), M2 blueprint parser, and all of Phase 3's first block are shipped: M7 build cost (with a `pnpm generate:costs` generator giving full vanilla cost coverage, v0.17.0, plus a component breakdown in the Build-cost panel, v0.18.0), the M7 conveyor **port & reachability audit** (v0.19.0 — a presence check, not a fabricated transfer rate), and M8 **life support + combat DPS/ammo** (v0.19.0). See `roadmap.md`.
 
 ## Response Protocol
 

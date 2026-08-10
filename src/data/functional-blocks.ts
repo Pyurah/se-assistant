@@ -481,7 +481,8 @@ export const FUNCTIONAL_BLOCKS: readonly BlockDefinition[] = [
     mass: 298.6,
     maxPowerDraw: 100_000, // idle 1 kW, active 100 kW
     variableDraw: true,
-    hydrogenOutput: 100, // L/s H2 from ice (wiki)
+    hydrogenOutput: 100, // L/s H2: IceConsumptionPerSecond 5 × H2 IceToGasRatio 20 (Production.sbc)
+    oxygenOutput: 50, // L/s O2: 5 × O2 IceToGasRatio 10 (Production.sbc)
     source: 'vanilla',
   },
   {
@@ -494,7 +495,8 @@ export const FUNCTIONAL_BLOCKS: readonly BlockDefinition[] = [
     mass: 2587,
     maxPowerDraw: 500_000, // current wiki max
     variableDraw: true,
-    hydrogenOutput: 500, // L/s H2 from ice (wiki)
+    hydrogenOutput: 500, // L/s H2: IceConsumptionPerSecond 25 × H2 IceToGasRatio 20 (Production.sbc)
+    oxygenOutput: 250, // L/s O2: 25 × O2 IceToGasRatio 10 (Production.sbc)
     source: 'vanilla',
   },
   {
@@ -554,6 +556,8 @@ export const FUNCTIONAL_BLOCKS: readonly BlockDefinition[] = [
     dlc: 'base',
     mass: 641.6,
     maxPowerDraw: 1000,
+    gasCapacity: 50_000, // L O2 (Capacity, CubeBlocks_Logistics.sbc)
+    storedGas: 'oxygen',
     source: 'vanilla',
   },
   {

@@ -18,3 +18,7 @@ export * from './all-block-costs';
 export * from './fuel-constants';
 export * from './cargo-items';
 export * from './manufacturing';
+export * from './conveyor-ports';
+export * from './life-support';
+export * from './ammo';
+export * from './weapons';

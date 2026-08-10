@@ -241,10 +241,22 @@ export interface UtilityBlock extends BlockBase {
    */
   readonly gasCapacity?: number;
   /**
+   * Which gas a tank stores. Disambiguates hydrogen vs oxygen tanks so the fuel
+   * engine counts only hydrogen toward flight time and life support counts only
+   * oxygen toward breathing time. Only meaningful when `gasCapacity` is set.
+   */
+  readonly storedGas?: 'hydrogen' | 'oxygen';
+  /**
    * Hydrogen output rate in liters/second — only for O2/H2 generators, which
    * convert ice to gas. Enables sustained-supply estimates.
    */
   readonly hydrogenOutput?: number;
+  /**
+   * Oxygen output rate in liters/second — only for O2/H2 generators. The game
+   * derives it from ice consumption × the oxygen ice→gas ratio; enables the
+   * life-support O₂ balance (crew breathing vs generation).
+   */
+  readonly oxygenOutput?: number;
 }
 
 /** Blocks that only add mass / draw idle power (structural, misc). */

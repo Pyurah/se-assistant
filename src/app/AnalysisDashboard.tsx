@@ -20,6 +20,9 @@ import { FuelPanel } from '../ui/panels/FuelPanel';
 import { MotionPanel } from '../ui/panels/MotionPanel';
 import { BlockListPanel } from '../ui/panels/BlockListPanel';
 import { BuildCostPanel } from '../ui/panels/BuildCostPanel';
+import { ConveyorPanel } from '../ui/panels/ConveyorPanel';
+import { LifeSupportPanel } from '../ui/panels/LifeSupportPanel';
+import { CombatPanel } from '../ui/panels/CombatPanel';
 
 export function AnalysisDashboard(): React.JSX.Element {
   const design = useDesignStore((s) => s.design);
@@ -73,6 +76,7 @@ export function AnalysisDashboard(): React.JSX.Element {
           </div>
           <FuelPanel />
           <MotionPanel />
+          <CombatPanel />
         </div>
 
         {/* Right column: controls + manifest */}
@@ -80,6 +84,8 @@ export function AnalysisDashboard(): React.JSX.Element {
           <PlanetSelector />
           <CargoControl />
           <BuildCostPanel />
+          <ConveyorPanel />
+          <LifeSupportPanel />
           <BlockListPanel />
         </div>
       </main>

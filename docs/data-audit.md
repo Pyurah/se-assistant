@@ -662,3 +662,112 @@ variant). These stay curated-sourced.
   girder-using blocks (small solar panel, wind turbine) failed to map and stayed
   "cost unknown"; corrected against `Components.sbc`.
 
+## Life support, combat & conveyor (v0.19.0)
+
+Three additive analyses close M7 (conveyor) and deliver M8 (life support +
+combat). All values below are curated from Space Engineers **v1.210.012 b0**
+definition files, cited inline in the dataset modules.
+
+### Life support (`src/data/life-support.ts`)
+
+| Constant | Value | Source |
+| --- | --- | --- |
+| `CHARACTER_O2_CONSUMPTION_L_PER_S` | 0.063 L/s | `Characters.sbc` → `OxygenConsumption` = 0.063 (with `OxygenConsumptionMultiplier` = 1) |
+| `ICE_TO_OXYGEN_RATIO` | 10 L O₂ / L ice | `Production.sbc` O2/H2 generator `IceToGasRatio` (oxygen) |
+| `ICE_TO_HYDROGEN_RATIO` | 20 L H₂ / L ice | `Production.sbc` O2/H2 generator `IceToGasRatio` (hydrogen) |
+
+Generator gas output is derived, not hand-typed: `IceConsumptionPerSecond`
+(25 large / 5 small) × `IceToGasRatio` → large O2/H2 generator = **250 L O₂/s**
+(or 500 L H₂/s), small = **50 / 100**. This independently **cross-confirms** the
+curated `hydrogenOutput` values already carried on the generators in
+`functional-blocks.ts`. Worked example baked into tests: 1 large generator at
+250 L/s O₂ supports 250 / 0.063 ≈ **3,968 crew**; 4 crew demand 4 × 0.063 =
+**0.252 L/s**.
+
+**Simplification (flagged):** life support models the steady-state O₂ flow
+balance (generation vs. crew demand) and stored-O₂ breathing time. It does not
+model pressurized-room volume, airtightness, or vent pump-down time — those need
+grid-interior geometry the tool does not solve. Stated as scope, not a defect.
+
+### Combat — ammo (`src/data/ammo.ts`, from `Ammos.sbc` + `AmmoMagazines.sbc`)
+
+Damage is **not one comparable number** — the game stores it in three different
+fields by ammo family, so `damageKind` records which field each value came from
+and the engine/UI never sum across kinds:
+
+| Round | `damageKind` | `damage` | Game field |
+| --- | --- | --- | --- |
+| `LargeCaliber` (gatling 25×184mm) | health | 33 | `ProjectileHealthDamage` |
+| `AutocannonShell` | health | 85 | `ProjectileHealthDamage` |
+| `Missile` (200mm) | explosion | 500 (radius 4 m) | `MissileExplosionDamage` / `MissileExplosionRadius` |
+| `MediumCalibreShell` (assault) | pool | 4,000 | `MissileHealthPool` |
+| `LargeCalibreShell` (artillery) | pool | 17,000 | `MissileHealthPool` |
+| `LargeRailgunSlug` | pool | 50,000 | `MissileHealthPool` |
+| `SmallRailgunSlug` | pool | 8,000 | `MissileHealthPool` |
+
+Magazine capacities from `AmmoMagazines.sbc` `Capacity`: `NATO_25x184mm` = 140,
+`AutocannonClip` = 16, all missile/shell/slug magazines = 1.
+
+**Not modelled (flagged, never fabricated):** projectile speed (`DesiredSpeed`),
+max range (`MaxTrajectory`), explosion falloff, and target area coverage. DPS and
+ammo-duration math do not depend on them; a verified pass over those fields is a
+documented fast-follow.
+
+### Combat — weapon firing stats (`src/data/weapons.ts`, from `Weapons.sbc`)
+
+`RateOfFire` (shots/min), `ShotsInBurst`, `ReloadTime` (ms), and `AmmoMagazines`
+for the common vanilla weapons across base + Warfare 1/2 (gatling, autocannon,
+assault cannon, artillery, railguns, rockets/missiles). Worked example in tests:
+gatling 700 RoF, `ShotsInBurst` 140 → 700/60 = 11.67 shots/s × 33 dmg = **385
+burst DPS**; with a 6 s reload after the 140-round burst (12 s fire / 18 s cycle)
+→ sustained = 385 × (12/18). Autocannon 150 RoF, burst 16 → **212.5 burst DPS**,
+sustained 212.5 × (6.4/10.4).
+
+**Design decision — combat is an OVERLAY, not a `WeaponBlock` schema variant
+(deviation from the approved plan).** The plan proposed adding a `weapon`
+`BlockCategory` and a hand-authored `WeaponBlock` shape. We deliberately did
+**not**: weapon blocks already exist in the generated catalogue carrying
+**definition-sourced mass**, and a hand-authored `WeaponBlock` would overwrite
+that trustworthy mass with an unverified one — a direct violation of "numbers
+must be trustworthy." Instead, `weapons.ts` is a pure firing-stats overlay keyed
+by weapon SubtypeId; the combat engine joins a design's weapon blocks to it by
+SubtypeId, leaving generated mass untouched.
+
+**Empty-`SubtypeName` base variants (flagged).** The base-game Gatling Gun,
+(large) Gatling Turret, Rocket Launcher, and (large) Missile Turret ship with an
+**empty `<SubtypeName>`** in the game files, so they are not keyed under a stable
+SubtypeId and cannot be matched by one. We curate the named/reskin variants that
+DO carry an id (`SmallGatlingGunWarfare2`, `LargeGatlingTurretReskin`,
+`SmallMissileLauncherWarfare2`, `LargeMissileTurretReskin`, etc.), which are
+mechanically identical. Weapon-like blocks with no curated firing stats are
+surfaced by the engine as `unrecognizedWeapons` ("DPS known for N of M") rather
+than silently zeroed.
+
+**Fast-follow:** a `generate:weapons` script over `Weapons.sbc` (mirroring
+`generate:blocks` / `generate:costs`) would replace hand-curation with full
+coverage. Curation keeps the correctness surface hand-verifiable for this
+release.
+
+### Conveyor port audit (`src/data/conveyor-ports.ts`)
+
+Space Engineers publishes **no conveyor transfer rate** — in-network movement is
+effectively instantaneous, gated only by **port size** (small vs. large). A
+literal items/sec figure would be fabricated, so M7's conveyor deliverable is
+reframed as a **port & reachability audit**.
+
+**Port size is NOT a clean definition-file attribute** — there is no
+`IsConveyorSupport`/`ConveyorConnectionAllowed` boolean; port size lives in each
+block's mountpoints/model. So `LARGE_PORT_BLOCKS` (blocks needing a large port to
+be fed) and `LARGE_PORT_CONVEYORS` (pieces that carry a large line) are
+**hand-curated** from the community wiki's small-vs-large conveyor rules and
+every entry is flagged curated/uncertain. The set is deliberately conservative —
+well-established large-port blocks (large refinery/assembler, O2/H2 generator,
+connector/collector, large cargo, large drill) rather than guesses at edge cases.
+
+**Simplification (flagged, same class as the stopping-distance and
+bottleneck-pipeline caveats):** the audit is a **presence** check — does the grid
+carry any large-port conveyor pieces to feed its large-port blocks? — **not a
+routed-connectivity graph solve.** The blueprint gives block geometry but not
+wire topology, so the tool cannot prove a specific block is actually reachable
+through the network. The panel states this caveat explicitly.
+

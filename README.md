@@ -43,6 +43,22 @@ Drag in an exported `.sbc` (or load the bundled example) and get a live readout:
 - **Motion & stability** — dampener stopping distance, center of mass,
   thrust-center alignment (off-center thrust that causes unwanted spin), and a
   gyroscope turn-rate estimate.
+- **Conveyor audit** — flags which blocks need **large-port** conveyor lines
+  (large refinery/assembler, O2/H2 generator, connector, large cargo, big drills)
+  and whether the grid carries any large-port conveyor pieces to feed them. SE
+  publishes no conveyor transfer rate — movement is instantaneous, gated only by
+  port size — so this is an honest **presence** check, not a fabricated items/sec
+  and not a routed-connectivity claim.
+- **Life support** — O₂ generation vs. crew demand for a chosen crew size, the
+  max crew a design can support, breathing time on stored O₂ if generation stops,
+  and how much ice life support burns. Ships with no gas gear get a clean empty
+  state.
+- **Combat** — per-weapon and total-ship **DPS**: burst (trigger held) and
+  sustained (reload gaps included), plus how long the loaded magazines last at
+  full fire. Damage is labelled by kind (kinetic HP, missile explosion,
+  shell/slug health-pool) rather than summed into one misleading number, and
+  weapons with no curated firing stats are surfaced honestly ("DPS known for N of
+  M"). No target-armour or time-to-kill model.
 - **Block list** — grouped by category with vanilla / modded / custom source
   badges, plus import diagnostics (recognition rate, unrecognized subtypes,
   multi-grid handling).
@@ -95,13 +111,13 @@ relationship clear.
 
 ## Status
 
-Version **0.18.0**. Phases 1 (core engine + blueprint import), 1.5 (requirement
+Version **0.19.0**. Phases 1 (core engine + blueprint import), 1.5 (requirement
 estimator), 2 (fuel/flight-time + motion/stability), and 2.5 (Estimate-mode
-enhancements incl. blueprint-seeded builds) are complete, and Phase 3
-(production/logistics) is under way with **build-cost analysis** and
-**manufacturing throughput / optimal fleet ratios**. See
-[`roadmap.md`](./roadmap.md) for what's next (conveyor throughput, life
-support/combat, multi-design compare, PWA offline) and
+enhancements incl. blueprint-seeded builds) are complete, and **Phase 3's first
+block is done**: production/logistics (build cost, manufacturing throughput,
+conveyor port audit) plus life support and combat DPS/ammo. See
+[`roadmap.md`](./roadmap.md) for what's next (multi-design compare, PWA offline,
+and a `generate:weapons` fast-follow) and
 [`CHANGELOG.md`](./CHANGELOG.md) for release history.
 
 ## Prerequisites

@@ -28,7 +28,13 @@ export function hydrogenCapacity(design: ShipDesign): number {
   let total = 0;
   for (const b of design.blocks) {
     const def = b.definition;
-    if (def.category === 'gas' && typeof def.gasCapacity === 'number') {
+    // Count hydrogen tanks only — an oxygen tank shares category 'gas' and a
+    // gasCapacity but is tagged storedGas: 'oxygen' (hydrogen tanks are untagged).
+    if (
+      def.category === 'gas' &&
+      typeof def.gasCapacity === 'number' &&
+      def.storedGas !== 'oxygen'
+    ) {
       total += def.gasCapacity * b.quantity;
     }
   }

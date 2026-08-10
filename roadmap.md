@@ -1,6 +1,6 @@
 # SE Assistant — Product Roadmap
 
-> **Last Updated**: 2026-08-10 (v0.18.0)
+> **Last Updated**: 2026-08-10 (v0.19.0)
 
 A Space Engineers ship & base planner: import a blueprint (`.sbc`) and get
 instant thrust-to-weight, mass, cargo, and power analysis — empty vs fully
@@ -10,12 +10,35 @@ loaded, on any vanilla planet.
 
 ## 👉 Next session starts here
 
-**Everything through Phase 2 plus M6.6, M6.7, the first Phase 3 slice (M7 build
-cost + throughput), the v0.16.0 full-coverage block generator, and the v0.17.0
-build-cost generator is DONE, committed, and pushed to GitHub**
-(`https://github.com/Pyurah/se-assistant`, branch `master`, at v0.18.0). Working
-tree is clean and all four gates pass (`typecheck` / `lint` / `test` (376) /
-`build`). Nothing is half-finished.
+**Everything through Phase 2 plus M6.6, M6.7, and all of Phase 3's first block —
+M7 (build cost + throughput + conveyor audit) and M8 (life support + combat) — is
+DONE, committed, and pushed to GitHub** (`https://github.com/Pyurah/se-assistant`,
+branch `master`, at v0.19.0). Working tree is clean and all four gates pass
+(`typecheck` / `lint` / `test` (438) / `build`). Nothing is half-finished.
+
+**v0.19.0 (2026-08-10) — conveyor audit, life support & combat (M7 finisher +
+M8).** Three additive analyses ship as one release, each on trustworthy, cited
+data:
+- **Conveyor port & reachability audit** (closes M7). SE publishes no conveyor
+  transfer rate — movement is instantaneous, gated only by port size — so instead
+  of a fabricated items/sec, the Conveyor panel flags which blocks need
+  **large-port** lines and whether the grid carries any. Honest **presence**
+  check, not a routed-connectivity solve (stated in-panel). Curated, cited
+  `conveyor-ports` dataset + pure `conveyorAudit`.
+- **Life Support** (M8). O₂ generation vs. crew demand (0.063 L/s per character),
+  max crew supported, breathing time on stored O₂, and ice-burn rate. Crew-size
+  stepper; tidy empty state for ships with no gas gear. Generator rates derived
+  from `IceConsumptionPerSecond × IceToGasRatio`, cross-confirming curated
+  hydrogen outputs. Pure `lifeSupport` engine.
+- **Combat — DPS & ammo burn** (M8). Per-weapon and total burst DPS (trigger
+  held) and sustained DPS (reloads included), plus how long loaded magazines last
+  at full fire. Damage is labelled by kind (kinetic HP / explosion / health-pool)
+  and never summed across kinds; no target-armour or time-to-kill model.
+  Curated `ammo` + `weapons` datasets from `Ammos.sbc` / `Weapons.sbc` /
+  `AmmoMagazines.sbc`; pure `combatAnalysis` engine. Combat is a firing-stats
+  **overlay** keyed by SubtypeId (NOT a `WeaponBlock` schema variant) so
+  generated definition-sourced weapon mass is never overwritten. `generate:weapons`
+  is a documented fast-follow. See `docs/data-audit.md`.
 
 **v0.18.0 (2026-08-10) — component breakdown in the Build-cost panel.** The
 panel showed raw ore and refine time but not the components themselves — yet
@@ -203,49 +226,49 @@ compute mass from `Components.sbc`, add it with a citation in
 seen so far are in the set; heavy armor, large-grid armor, and other shape
 variants are added on demand the same way.
 
-**The next unit of work continues Phase 3 — Production & Logistics (M7 + M8).**
-Phase 2.5 is fully shipped (M6.5 v0.11.0, M6.6 v0.12.0, M6.7 v0.13.0), and Phase
-3 is under way: **M7 build cost shipped in v0.14.0** (the ore-to-build slice the
-user chose first), delivering the new manufacturing dataset the rest of Phase 3
-builds on. Remaining M7 deliverables reuse that dataset: **refinery/assembler
-throughput + optimal ratios** (a standalone "how many refiners to keep N
-assemblers fed" calculator — recipes, times, and multipliers are already in
-`manufacturing.ts`) and **conveyor throughput**. **M8 — Life Support & Combat**
-still needs NEW game data not yet in the dataset (O2/H2 generation rates vs crew,
-weapon DPS/ammo) — a fresh research pass (cite in `docs/data-audit.md`, flag
-anything unconfirmed) → dataset → pure engine + worked-example tests → UI → bump.
+**The next unit of work opens Phase 4 (or polish).** Phase 2.5 is fully shipped
+(M6.5–M6.7), and **Phase 3's first block is complete**: M7 (build cost v0.14.0,
+throughput v0.15.0, full cost coverage v0.16–0.17.0, component breakdown v0.18.0,
+and the conveyor port audit v0.19.0) and M8 (life support + combat, v0.19.0) are
+all delivered on cited data. Every new dataset value is citation-logged in
+`docs/data-audit.md`, with the honest simplifications flagged (conveyor
+presence-not-connectivity; life support flow-balance only; combat no
+time-to-kill). Documented fast-follow: a `generate:weapons` script over
+`Weapons.sbc` to replace hand-curated combat stats with full coverage.
 
 If instead the user wants polish over new features: candidate small wins are a
 GitHub Actions CI workflow (run the four gates on push, plus `pnpm
 generate:blocks:check` / `pnpm generate:costs:check` on runners with the game — or
 skip them where the game is absent), README screenshots, or resolving the
 flagged-uncertain data values in `docs/data-audit.md` (some DLC SubtypeIds,
-drill/sensor wattages, the Superconductor cobalt term) against a live game install.
-The `BLOCK_COMPONENT_COSTS` regeneration fast-follow is **done** (v0.17.0).
+drill/sensor wattages, the Superconductor cobalt term, and the curated conveyor
+port set) against a live game install. The `BLOCK_COMPONENT_COSTS` regeneration
+fast-follow is **done** (v0.17.0).
 
 ---
 
 ## Current State
 
-- **Version**: 0.18.0
+- **Version**: 0.19.0
 - **Repo**: pushed to `https://github.com/Pyurah/se-assistant` (`master`);
   commits use the GitHub no-reply email (real email scrubbed from history).
 - **Build**: passing (`pnpm build`)
-- **Tests**: passing — 376 tests across logger, audit, data-integrity, the
+- **Tests**: passing — 438 tests across logger, audit, data-integrity, the
   merged-dataset invariants (`all-blocks` + `all-block-costs` override/gap-fill
   proofs) and the block + cost generators' fixture-driven parser/emitter/map
   suites, engine
   (incl. `estimateRequirements`, the `estimateToDesign` + `designToEstimateSeed`
   bridges, the `rankThrusterTypes` ranker, the `buildCost` bill-of-materials
-  engine, the `manufacturingThroughput` fleet/ratio engine, the fuel/flight-time
-  engine, and the motion/stability engine), blueprint parser, number formatter,
-  stores, and UI-rendering suites
-- **Phase**: Phases 1, 1.5, and 2 all COMPLETE; Phase 3 begun. M1 dataset, M2
-  blueprint parser, M3 calc engine, M4 analysis UI, M4.5 requirement estimator,
-  M5 fuel/flight time, M6 motion/stability — all delivered. Phase 3 / M7 opened
-  with the build-cost slice (v0.14.0): a manufacturing dataset (refine + component
-  recipes, per-block component costs) and a pure `buildCost` engine that walks
-  blocks → components → ingots → raw ore. React 19 + Vite + TypeScript SPA,
+  engine, the `manufacturingThroughput` fleet/ratio engine, the `conveyorAudit`
+  port audit, the `lifeSupport` O₂/ice engine, the `combatAnalysis` DPS/ammo
+  engine, the fuel/flight-time engine, and the motion/stability engine),
+  blueprint parser, number formatter, stores, and UI-rendering suites
+- **Phase**: Phases 1, 1.5, and 2 all COMPLETE; Phase 3's first block (M7 + M8)
+  COMPLETE. M1 dataset, M2 blueprint parser, M3 calc engine, M4 analysis UI,
+  M4.5 requirement estimator, M5 fuel/flight time, M6 motion/stability — all
+  delivered. Phase 3 delivered build cost + throughput + conveyor audit (M7) and
+  life support + combat (M8), each a pure engine over cited data with
+  worked-example tests. React 19 + Vite + TypeScript SPA,
   `src/core` + `src/data` purity boundary (ESLint enforced), structured logging,
   append-only audit model, Vitest with enforced engine coverage thresholds,
   Tailwind v4, Zod, Zustand.
@@ -605,13 +628,14 @@ needs.
 
 ### M7 — Manufacturing
 
-**Status**: 🚧 In progress — build cost + throughput shipped (v0.14.0, v0.15.0)
+**Status**: ✅ Complete — build cost + throughput + conveyor audit shipped
+(v0.14.0, v0.15.0, v0.17.0, v0.18.0, v0.19.0)
 
 **Deliverables:**
 
 - [x] Refinery / assembler throughput and optimal ratios — **v0.15.0**
 - [x] Blueprint total resource cost (ore-to-build) — **v0.14.0**
-- [ ] Conveyor throughput analysis
+- [x] Conveyor **port & reachability audit** (reframed — no fabricated rate) — **v0.19.0**
 
 **Delivered (v0.14.0):** build-cost analysis for an imported ship. New pure
 manufacturing dataset (`src/data/manufacturing.ts`) — ore→ingot refine recipes
@@ -666,14 +690,55 @@ pure engine helpers to surface them honestly (`componentBill`,
 `totalComponentCount`) with worked-example tests, plus the panel section and its
 render tests. No new game data.
 
+**Delivered (v0.19.0):** the conveyor **port & reachability audit** closes M7.
+Since SE publishes no conveyor transfer rate (in-network movement is
+instantaneous, gated only by port size), a literal items/sec figure would be
+fabricated — so the deliverable is reframed (locked decision, with the user) as a
+presence audit. New curated, cited `src/data/conveyor-ports.ts`
+(`LARGE_PORT_BLOCKS` + `LARGE_PORT_CONVEYORS`, port size is not a clean def field
+so it's hand-curated from wiki rules and flagged uncertain) and pure
+`conveyorAudit(design)` engine (Pattern-A `use-conveyor` hook, `ConveyorPanel`):
+counts large-port-requiring blocks vs. large-port conveyor pieces present and
+lists the specific blocks to route, with an explicit **presence-not-connectivity**
+caveat in-panel and in `docs/data-audit.md`. Worked-example + panel render tests.
+
 ### M8 — Life Support & Combat
 
-**Status**: Not started
+**Status**: ✅ Complete — life support + combat shipped (v0.19.0)
 
 **Deliverables:**
 
-- [ ] O2 / H2 generation vs crew size
-- [ ] Weapon DPS / ammo consumption math
+- [x] O2 / H2 generation vs crew size — **v0.19.0**
+- [x] Weapon DPS / ammo consumption math — **v0.19.0**
+
+**Delivered (v0.19.0, life support):** the Life Support panel answers "can my
+crew breathe, and how much ice does life support burn?" New pure
+`src/data/life-support.ts` constants (character O₂ 0.063 L/s from `Characters.sbc`;
+ice→gas ratios 10/20 from `Production.sbc`) and pure `lifeSupport(design, opts)`
+engine: total O₂ generation vs. crew demand, max crew supported, breathing time
+on stored O₂ if generation stops, and ice-burn rate. Generator gas output is
+derived from `IceConsumptionPerSecond × IceToGasRatio`, cross-confirming curated
+hydrogen outputs. Pattern-B `use-life-support` hook (panel owns crew size via a
+`Stepper`); tidy empty state for ships with no gas gear. Worked-example engine
+tests (1 large gen supports ~3,968 crew) + panel render tests.
+
+**Delivered (v0.19.0, combat):** the Combat panel shows per-weapon and total-ship
+**burst DPS** (trigger held) and **sustained DPS** (reload gaps included), plus
+how long loaded magazines last at full fire, driven by a magazines-per-weapon
+stepper. Damage branches by ammo family — kinetic (`ProjectileHealthDamage`),
+missile (`MissileExplosionDamage`), shell/slug (`MissileHealthPool`) — and each
+weapon row is labelled by kind so figures are never summed into one misleading
+number; there is no target-armour/time-to-kill model (stated in-panel). New
+curated, cited `src/data/ammo.ts` + `src/data/weapons.ts` (from `Ammos.sbc`,
+`AmmoMagazines.sbc`, `Weapons.sbc`) and pure `combatAnalysis(design, opts)`
+engine. **Design decision (deviation from the plan):** combat is a firing-stats
+**overlay** keyed by weapon SubtypeId, NOT a `WeaponBlock` schema variant — weapon
+blocks already carry generated definition-sourced mass, and a hand-authored
+`WeaponBlock` would overwrite it with an unverified value. Weapon-like blocks with
+no curated stats are surfaced as "DPS known for N of M," never zeroed. A
+`generate:weapons` script over `Weapons.sbc` is a documented fast-follow.
+Worked-example engine tests (gatling 385 burst DPS, autocannon 212.5) + panel
+render tests.
 
 ---
 

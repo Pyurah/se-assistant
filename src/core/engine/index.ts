@@ -17,3 +17,6 @@ export * from './fuel';
 export * from './motion';
 export * from './build-cost';
 export * from './throughput';
+export * from './conveyor';
+export * from './life-support';
+export * from './combat';
