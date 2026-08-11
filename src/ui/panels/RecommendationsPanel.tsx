@@ -123,7 +123,7 @@ export function RecommendationsPanel(): React.JSX.Element {
               total, your assignment
             </span>
           </div>
-          <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {DIRECTION_ROWS.map(({ dir, label, emphasis }) => {
               const breakdown = breakdownCaption(resolvedLayout[dir]);
               return (

@@ -1,19 +1,20 @@
 /**
  * AnalysisDashboard — the loaded-design layout.
  *
- * A thin top bar (design name, source, re-import) over a responsive grid of
- * panels. The TWR panel leads (it's the product's core), with mass/power and
- * environment/cargo/blocks arranged around it. Layout collapses to a single
- * column on narrow viewports.
+ * A thin top bar (design name, source, re-import) over an asymmetric two-track
+ * layout: a sticky control rail (planet, cargo, extra mass) and a wide content
+ * canvas. The TWR panel leads the canvas (it's the product's core), with the
+ * remaining readouts arranged into two explicit sub-columns below it. Layout
+ * collapses to a single column on narrow viewports.
  */
 import { useDesignStore } from './store/design-store';
 import { useEstimatorStore } from './store/estimator-store';
 import { useAppModeStore } from './store/app-mode-store';
 import { Button } from '../ui/components/Button';
 import { IconRefresh, IconRocket, IconSparkles } from '../ui/components/icons';
-import { PlanetSelector } from '../ui/panels/PlanetSelector';
 import { CargoControl } from '../ui/panels/CargoControl';
 import { ExtraMassControl } from '../ui/panels/ExtraMassControl';
+import { AnalysisScenarioBar } from '../ui/panels/AnalysisScenarioBar';
 import { TwrPanel } from '../ui/panels/TwrPanel';
 import { MassPanel } from '../ui/panels/MassPanel';
 import { PowerPanel } from '../ui/panels/PowerPanel';
@@ -67,28 +68,41 @@ export function AnalysisDashboard(): React.JSX.Element {
         </div>
       </header>
 
-      <main className="mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 gap-4 p-6 lg:grid-cols-3">
-        {/* Left column: TWR (the headline) spans two rows of importance */}
-        <div className="flex flex-col gap-4 lg:col-span-2">
-          <TwrPanel />
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <MassPanel />
-            <PowerPanel />
-          </div>
-          <FuelPanel />
-          <MotionPanel />
-          <CombatPanel />
-        </div>
+      <main className="mx-auto flex w-full max-w-[1400px] flex-1 flex-col gap-6 p-6 lg:gap-8 lg:p-8">
+        {/* Environment (+ the imported grid size) — the context every readout
+            depends on — pinned on top, above the fold and reachable at any depth. */}
+        <AnalysisScenarioBar />
 
-        {/* Right column: controls + manifest */}
-        <div className="flex flex-col gap-4">
-          <PlanetSelector />
-          <CargoControl />
-          <ExtraMassControl />
-          <BuildCostPanel />
-          <ConveyorPanel />
-          <LifeSupportPanel />
-          <BlockListPanel />
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[340px_minmax(0,1fr)] lg:gap-8">
+          {/* Track 1: control rail — the inputs that define the design's context.
+              Sticks below the scenario bar on wide viewports so the canvas scrolls
+              past it. */}
+          <div className="flex flex-col gap-6 lg:sticky lg:top-[132px] lg:self-start">
+            <CargoControl />
+            <ExtraMassControl />
+          </div>
+
+          {/* Track 2: content canvas — TWR headline, then a two-up readout region
+              split into two explicit sub-columns so panels keep a stable order
+              rather than reflowing through auto-placement. */}
+          <div className="flex min-w-0 flex-col gap-6">
+            <TwrPanel />
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+              <div className="flex flex-col gap-6">
+                <MassPanel />
+                <PowerPanel />
+                <FuelPanel />
+                <MotionPanel />
+              </div>
+              <div className="flex flex-col gap-6">
+                <CombatPanel />
+                <LifeSupportPanel />
+                <ConveyorPanel />
+                <BuildCostPanel />
+                <BlockListPanel />
+              </div>
+            </div>
+          </div>
         </div>
       </main>
     </div>

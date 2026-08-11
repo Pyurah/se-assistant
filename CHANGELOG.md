@@ -4,6 +4,43 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.26.0] - 2026-08-10
+
+### Changed
+
+- **Both dashboards re-laid-out for breathing room.** The old three-equal-column
+  grid (a 1152px `max-w-6xl` split into ~341px columns) crowded every dense panel
+  and truncated labels. Both tabs now use an asymmetric **control rail + content
+  canvas** layout on wider containers:
+  - **Analyze** — `max-w-[1400px]`, a fixed 340px rail beside a fluid canvas. The
+    rail (Cargo / Extra mass) is **sticky**, so changing cargo no longer means
+    scrolling back up past a long results column. The canvas leads with the TWR
+    headline at full width, then splits the readouts (Mass, Power, Fuel, Motion /
+    Combat, Life support, Conveyor, Build cost, Block list) into two sub-columns at
+    `xl`. Mass and Power each get a full sub-column instead of being cramped 2-up.
+  - **Estimate** — `max-w-[1600px]`, a 360px rail beside the canvas. The
+    overloaded config panel is **split**: a rail-side **Build parameters** panel
+    (Power, Maneuverability, Cargo, Extra mass) and a canvas-headline **Thruster
+    assignment** panel whose six direction cards now flow in a responsive
+    `1 → 2 → 3`-up grid (~370px per card vs the old ~285px). Each direction card is
+    re-tiered — identity row (label + verdict badge), full-width gauge, labeled goal
+    input, thruster stack, add-type picker — so nothing collides and thruster names
+    stop truncating.
+- **Environment & grid size promoted to a prominent scenario bar.** These are the
+  first two things you reach for on load — which body am I evaluating against, and
+  (in Estimate) small vs. large grid — but they were buried halfway down the left
+  rail, off-screen at page load. Both tabs now pin them in a **sticky scenario bar**
+  directly under the app header, visible on load and reachable at any scroll depth.
+  In **Estimate** grid size is an editable segmented control and environment a
+  select (both drive the same store slices as before); in **Analyze** grid size is
+  a read-only badge (the imported blueprint decides it) beside the editable
+  environment select. The old buried Environment section (Build parameters), the
+  buried Grid-size section (Essential gear), and the standalone `PlanetSelector`
+  panel are removed.
+- **More generous spacing** throughout: panel padding `p-4 → p-5`, inter-panel and
+  grid gaps `gap-4 → gap-6`/`gap-8`. No font sizes were shrunk — the fix is width
+  and spacing, not smaller type. No engine, store, hook, or data changes.
+
 ## [0.25.0] - 2026-08-10
 
 ### Added

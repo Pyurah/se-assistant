@@ -1,12 +1,13 @@
 /**
- * EssentialsBuilder — pick a grid size, then add the ship's essential gear.
+ * EssentialsBuilder — add the ship's essential gear for the chosen grid.
  *
- * This is the estimator's input surface: the user first chooses small vs. large
- * grid (which filters everything selectable), then adds their must-have blocks
+ * This is the estimator's input surface: the user adds their must-have blocks
  * — drills, cargo, a cockpit, tools, lights — with a per-block quantity stepper.
- * Propulsion, power, and gyros are NOT added here; the estimator sizes those, so
- * the palette deliberately hides thrusters/batteries/reactors/gyros. A running
- * tally (block count + essentials mass) keeps the cost of choices visible.
+ * Grid size (which filters everything selectable) is chosen in the scenario bar
+ * above; this panel reads it. Propulsion, power, and gyros are NOT added here;
+ * the estimator sizes those, so the palette deliberately hides
+ * thrusters/batteries/reactors/gyros. A running tally (block count + essentials
+ * mass) keeps the cost of choices visible.
  *
  * The palette is a searchable, category-grouped list; every control is a real
  * labeled button/input so it stays keyboard- and screen-reader operable.
@@ -17,7 +18,6 @@ import {
   SIZED_CATEGORIES,
   type BlockCategory,
   type BlockDefinition,
-  type GridSize,
 } from '@data';
 import { useEstimatorStore } from '../../app/store/estimator-store';
 import { useEstimate } from '../../app/hooks/use-estimate';
@@ -25,7 +25,6 @@ import { CATEGORY_LABELS, CATEGORY_COLOR, CATEGORY_ORDER } from '../lib/category
 import { formatMass } from '../lib/format';
 import { Panel } from '../components/Panel';
 import { Button } from '../components/Button';
-import { SegmentedControl } from '../components/SegmentedControl';
 import { IconLayers, IconSearch, IconPlus, IconMinus, IconTrash } from '../components/icons';
 import { cn } from '../lib/cn';
 
@@ -34,15 +33,9 @@ const PALETTE_CATEGORIES: readonly BlockCategory[] = CATEGORY_ORDER.filter(
   (c) => !SIZED_CATEGORIES.has(c),
 );
 
-const GRID_OPTIONS = [
-  { value: 'large' as const, label: 'Large grid' },
-  { value: 'small' as const, label: 'Small grid' },
-];
-
 export function EssentialsBuilder(): React.JSX.Element {
   const gridSize = useEstimatorStore((s) => s.gridSize);
   const fixedBlocks = useEstimatorStore((s) => s.fixedBlocks);
-  const setGridSize = useEstimatorStore((s) => s.setGridSize);
   const addBlock = useEstimatorStore((s) => s.addBlock);
   const removeBlock = useEstimatorStore((s) => s.removeBlock);
   const setQuantity = useEstimatorStore((s) => s.setQuantity);
@@ -85,20 +78,6 @@ export function EssentialsBuilder(): React.JSX.Element {
       icon={<IconLayers size={16} />}
     >
       <div className="flex flex-col gap-5">
-        {/* Grid size — the first decision, gates everything selectable. */}
-        <div className="flex flex-col gap-2">
-          <span className="text-[11px] font-medium tracking-wide text-subtle uppercase">
-            Grid size
-          </span>
-          <SegmentedControl<GridSize>
-            name="estimator-grid-size"
-            ariaLabel="Grid size"
-            value={gridSize}
-            options={GRID_OPTIONS}
-            onChange={setGridSize}
-          />
-        </div>
-
         {/* Chosen essentials with quantity steppers. */}
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">

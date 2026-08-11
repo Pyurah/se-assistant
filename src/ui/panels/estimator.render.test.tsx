@@ -6,7 +6,7 @@ import type { BlockDefinition, ThrusterBlock } from '@data';
 import type { ShipDesign, DesignBlock } from '@core';
 import { RecommendationsPanel } from './RecommendationsPanel';
 import { EssentialsBuilder } from './EssentialsBuilder';
-import { EstimatorConfigPanel } from './EstimatorConfigPanel';
+import { ThrusterAssignmentPanel } from './ThrusterAssignmentPanel';
 import { EstimatorTwrPanel } from './EstimatorTwrPanel';
 import { SeedFromBlueprint } from './SeedFromBlueprint';
 
@@ -108,13 +108,13 @@ describe('EssentialsBuilder rendering', () => {
   });
 });
 
-describe('EstimatorConfigPanel manual assignment', () => {
+describe('ThrusterAssignmentPanel manual assignment', () => {
   beforeEach(() => {
     state().reset();
   });
 
   it('offers a grouped "add thruster type" select for each of the six directions', () => {
-    render(<EstimatorConfigPanel />);
+    render(<ThrusterAssignmentPanel />);
     for (const dir of ['up', 'down', 'forward', 'backward', 'left', 'right']) {
       const select = document.getElementById(`est-add-thruster-${dir}`) as HTMLSelectElement | null;
       expect(select).not.toBeNull();
@@ -127,7 +127,7 @@ describe('EstimatorConfigPanel manual assignment', () => {
   });
 
   it('adding a thruster type to a direction appends it to that stack', () => {
-    render(<EstimatorConfigPanel />);
+    render(<ThrusterAssignmentPanel />);
     const select = document.getElementById('est-add-thruster-up') as HTMLSelectElement;
     fireEvent.change(select, { target: { value: ATMO } });
     expect(state().thrusterStacks.up).toEqual([{ blockId: ATMO, count: 1 }]);
@@ -135,14 +135,14 @@ describe('EstimatorConfigPanel manual assignment', () => {
 
   it('renders an assigned stack row with a count stepper and remove control', () => {
     state().setThrusterCount('left', ION, 3);
-    render(<EstimatorConfigPanel />);
+    render(<ThrusterAssignmentPanel />);
     const count = screen.getByRole('status', { name: /count for left/i });
     expect(count).toHaveTextContent('3');
     expect(screen.getByRole('button', { name: /remove .* from left/i })).toBeInTheDocument();
   });
 
   it('supports mixing multiple thruster types in one direction', () => {
-    render(<EstimatorConfigPanel />);
+    render(<ThrusterAssignmentPanel />);
     const select = document.getElementById('est-add-thruster-up') as HTMLSelectElement;
     fireEvent.change(select, { target: { value: ATMO } });
     fireEvent.change(select, { target: { value: ION } });
@@ -150,7 +150,7 @@ describe('EstimatorConfigPanel manual assignment', () => {
   });
 
   it('exposes a per-direction goal input that writes to the store', () => {
-    render(<EstimatorConfigPanel />);
+    render(<ThrusterAssignmentPanel />);
     const goal = document.getElementById('est-goal-up') as HTMLInputElement;
     // Default UP goal is 2.0.
     expect(goal).toHaveValue(2);
@@ -159,7 +159,7 @@ describe('EstimatorConfigPanel manual assignment', () => {
   });
 
   it('drives the empty/loaded goal check from the shared store slice', () => {
-    render(<EstimatorConfigPanel />);
+    render(<ThrusterAssignmentPanel />);
     const loaded = screen.getByRole('radio', { name: /loaded/i });
     const empty = screen.getByRole('radio', { name: /empty/i });
     // Default is loaded (worst case).

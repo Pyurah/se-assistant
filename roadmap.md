@@ -1,6 +1,6 @@
 # SE Assistant — Product Roadmap
 
-> **Last Updated**: 2026-08-10 (v0.25.0)
+> **Last Updated**: 2026-08-10 (v0.26.0)
 
 A Space Engineers ship & base planner: import a blueprint (`.sbc`) and get
 instant thrust-to-weight, mass, cargo, and power analysis — empty vs fully
@@ -9,6 +9,33 @@ loaded, on any vanilla planet.
 ---
 
 ## 👉 Next session starts here
+
+**v0.26.0 (2026-08-10) — Both dashboards re-laid-out for breathing room.** The
+old three-equal-column `max-w-6xl` grid split 1152px into ~341px columns that
+crowded every dense panel and truncated labels. Both tabs now use an asymmetric
+**control rail + content canvas**, and the two decisions a user reaches for first
+— **environment** (both tabs) and **grid size** (Estimate) — are promoted out of
+the rail into a **sticky scenario bar** pinned under the app header
+(`AnalysisScenarioBar` / `EstimatorScenarioBar`), visible on load and reachable at
+any scroll depth (previously Environment sat halfway down the left rail, off-screen
+at page load). **Analyze**: `max-w-[1400px]`, a fixed 340px rail (Cargo / Extra
+mass, made **sticky** so they don't scroll off past the long results column) beside
+a fluid canvas that leads with the TWR headline full-width, then splits the readouts
+into two sub-columns at `xl` (Mass and Power each get a full sub-column instead of
+being cramped 2-up); its scenario bar shows grid size as a read-only badge (the
+imported blueprint decides it) beside an editable environment select. **Estimate**:
+`max-w-[1600px]`, a 360px rail, and the overloaded `EstimatorConfigPanel` **split**
+into a rail-side `BuildParametersPanel` (Power/Maneuverability/Cargo/Extra-mass) and
+a canvas-headline `ThrusterAssignmentPanel` whose six direction cards flow in a
+responsive `1→2→3`-up grid (~370px/card vs the old ~285px) with re-tiered interiors
+(identity row → gauge → labeled goal input → thruster stack → add-type picker) so
+thruster names stop truncating; its scenario bar carries the editable grid-size
+segmented control + environment select. The standalone `PlanetSelector` panel and
+the buried Environment (Build parameters) / Grid-size (Essential gear) sections are
+removed. Panel padding `p-4→p-5`, gaps `gap-4→gap-6`/`gap-8`; no font shrinking.
+Pure `src/app` + `src/ui` re-arrange — no engine/store/hook/data changes, all 522
+tests still green (the estimator render test retargeted from the deleted
+`EstimatorConfigPanel` to `ThrusterAssignmentPanel`).
 
 **v0.25.0 (2026-08-10) — Freeform extra mass on both tabs.** Users can now add
 weight the block list can't capture — a docked ship, a bolted-on module, a hauled
@@ -392,7 +419,7 @@ fast-follow is **done** (v0.17.0).
 
 ## Current State
 
-- **Version**: 0.25.0
+- **Version**: 0.26.0
 - **Repo**: pushed to `https://github.com/Pyurah/se-assistant` (`master`);
   commits use the GitHub no-reply email (real email scrubbed from history).
 - **Build**: passing (`pnpm build`)

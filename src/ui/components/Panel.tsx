@@ -30,7 +30,7 @@ export function Panel({
   return (
     <section className={cn('panel flex flex-col overflow-hidden', className)}>
       {(title || actions) && (
-        <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-3.5">
           <div className="flex min-w-0 items-center gap-2">
             {icon && <span className="flex shrink-0 text-muted">{icon}</span>}
             <div className="min-w-0">
@@ -43,7 +43,7 @@ export function Panel({
           {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
         </header>
       )}
-      <div className={cn('flex-1 p-4', bodyClassName)}>{children}</div>
+      <div className={cn('flex-1 p-5', bodyClassName)}>{children}</div>
     </section>
   );
 }
