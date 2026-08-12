@@ -124,6 +124,17 @@ export type ThrusterType = 'atmospheric' | 'ion' | 'hydrogen';
 /** The six local movement axes; thrust is directional. */
 export type Direction = 'up' | 'down' | 'forward' | 'backward' | 'left' | 'right';
 
+/**
+ * What an item inventory will accept. Space Engineers inventories are type-gated:
+ * a drill's inventory only holds ore, a reactor's only uranium, an O2/H2
+ * generator's only ice, a welder's only components, a weapon's only its ammo.
+ * General-cargo inventories (containers, connectors, collectors, cockpits, and
+ * grinders) hold `'any'` item. An absent constraint on a block is treated as
+ * `'any'`. `'ammo'` inventories hold no `CargoItem` (ammo isn't a haulable cargo
+ * item), so they never contribute to item-count math.
+ */
+export type InventoryConstraint = 'any' | 'ore' | 'uranium' | 'ice' | 'component' | 'ammo';
+
 /** Fields shared by every block definition. */
 export interface BlockBase {
   /** Stable machine id, e.g. `large-large-atmospheric-thruster`. */
@@ -145,6 +156,19 @@ export interface BlockBase {
   readonly source: StatSource;
   /** Grid cells occupied — informational, useful for build-cost math later. */
   readonly cellCount?: number;
+  /**
+   * Item-inventory capacity of this block, liters, at the game's Realistic (×1)
+   * inventory-size setting. Any block that holds items may carry this: cargo
+   * containers, drills, connectors, tools, O2/H2 generators, reactors, etc. Absent
+   * ⇒ the block holds nothing. Hand-curated (the game computes these from block
+   * size, so definitions don't store a literal) — see `docs/data-audit.md`.
+   */
+  readonly inventoryVolume?: number;
+  /**
+   * What this block's inventory will accept ({@link InventoryConstraint}). Absent
+   * ⇒ `'any'`. Only meaningful when `inventoryVolume` is set.
+   */
+  readonly inventoryConstraint?: InventoryConstraint;
 }
 
 export interface ThrusterBlock extends BlockBase {

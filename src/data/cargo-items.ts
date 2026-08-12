@@ -20,6 +20,8 @@
  * PURE DATA — no React, no DOM. Safe to import from the engine.
  */
 
+import type { InventoryConstraint } from './schema';
+
 /** Which item group a cargo item belongs to (drives UI grouping). */
 export type CargoItemCategory = 'ingot' | 'ore' | 'component';
 
@@ -41,6 +43,31 @@ export interface CargoItem {
 /** Effective cargo density of an item, kg per liter (`mass / volume`). */
 export function itemDensity(item: CargoItem): number {
   return item.mass / item.volume;
+}
+
+/**
+ * Whether an inventory with the given {@link InventoryConstraint} will accept a
+ * particular {@link CargoItem} — the type-gate that makes "how many X fit?"
+ * honest. `any` holds anything; `ore` holds any ore-category item (Ice is an ore
+ * in-game, so drills correctly hold ice); `uranium` holds only Uranium Ingot;
+ * `ice` holds only Ice; `component` holds any component-category item (welders);
+ * `ammo` holds no `CargoItem` (ammo isn't haulable cargo).
+ */
+export function inventoryAccepts(constraint: InventoryConstraint, item: CargoItem): boolean {
+  switch (constraint) {
+    case 'any':
+      return true;
+    case 'ore':
+      return item.category === 'ore';
+    case 'uranium':
+      return item.id === 'ingot-uranium';
+    case 'ice':
+      return item.id === 'ore-ice';
+    case 'component':
+      return item.category === 'component';
+    case 'ammo':
+      return false;
+  }
 }
 
 /**

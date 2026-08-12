@@ -4,7 +4,42 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
-## [0.26.0] - 2026-08-10
+## [0.27.0] - 2026-08-11
+
+### Added
+
+- **"How many items can it carry?" readout.** Cargo was only ever a *mass*
+  (`capacity × fill × density`); for a hauler you care about *count*. Both tabs now
+  show **"can carry ≈ N × &lt;item&gt;"** for a chosen component/ore/ingot, computed
+  from the ship's real inventory volume ÷ the item's per-unit volume. Analyze reads
+  the item from its existing cargo-contents picker; Estimate gains a compact
+  "Carry item" picker (display-only — it never changes the build).
+- **Type-aware item counts.** Each inventory declares what it accepts
+  (`InventoryConstraint`: `any` / `ore` / `uranium` / `ice` / `component` / `ammo`),
+  so the count is honest: a drill's hold counts toward Iron Ore but not Steel Plate;
+  a reactor's counts toward Uranium Ingot only; general containers/connectors/cockpits
+  count toward everything. New pure engine helpers `inventoryBreakdown` and
+  `itemCapacity`, plus `inventoryAccepts` in the data layer.
+- **World inventory-size multiplier (Realistic ×1 / ×3 / ×10).** A per-design setting
+  mirroring the Build-cost panel's "Assembler efficiency (world)" knob; it scales every
+  block's cargo hold and every item count. Threaded through both stores and the
+  synthesized Estimate design, and preserved across blueprint seeding (changing it
+  counts as an adjustment-from-source).
+- **Capacity breakdown by pool.** The Analyze Mass panel and Cargo loadout panel now
+  split total cargo capacity across its inventory pools (General cargo / Ore / Ice / …)
+  whenever more than one pool holds items.
+
+### Changed
+
+- **Cargo capacity now sums every item inventory, not just containers + cockpits.**
+  Drills, connectors, collectors, welders/grinders, O2/H2 generators (ice) and reactors
+  (uranium) all hold items in-game, so a fully-loaded miner now fills its drills too. A
+  small-grid drill alone holds ~9,121 ore (3,375 L ÷ 0.37 L). Loaded mass, directional
+  TWR, and space acceleration all inherit the completed total for free. Curated blocks
+  carry hand-sourced inventory volumes (cited in `docs/data-audit.md`); generated
+  `source:'definition'` blocks contribute 0, the same honest gap cargo had before.
+
+
 
 ### Changed
 

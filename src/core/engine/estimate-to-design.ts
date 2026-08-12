@@ -74,5 +74,11 @@ export function estimateToDesign(
     // mass/TWR engines re-derive the exact figures estimateManual computed
     // (always-on `added` in dry mass, loaded-only `payload` in loaded mass).
     ...(input.extraMass ? { extraMass: input.extraMass } : {}),
+    // Carry the world inventory-size multiplier so the shared cargo-capacity /
+    // item-count engines scale the synthesized build the same way estimateManual
+    // scaled its cargo payload.
+    ...(input.inventorySizeMultiplier !== undefined
+      ? { inventorySizeMultiplier: input.inventorySizeMultiplier }
+      : {}),
   };
 }

@@ -15,11 +15,17 @@
  */
 import { useMemo, useState } from 'react';
 import { CARGO_ITEMS, CARGO_ITEMS_BY_ID, itemDensity, type CargoItem } from '@data';
+import { itemCapacity } from '@core';
 import { useDesignStore } from '../../app/store/design-store';
 import { useAnalysis } from '../../app/hooks/use-analysis';
 import { formatMass, formatPercent, formatVolume } from '../lib/format';
 import { Panel } from '../components/Panel';
 import { IconBox } from '../components/icons';
+import {
+  WorldMultiplierControl,
+  CapacityBreakdown,
+  ItemCapacityLine,
+} from './InventoryCapacity';
 
 /** Human labels + order for the item groups in the picker. */
 const GROUP_ORDER: readonly { category: CargoItem['category']; label: string }[] = [
@@ -36,9 +42,12 @@ function matchItemByDensity(density: number): CargoItem | undefined {
 }
 
 export function CargoControl(): React.JSX.Element {
+  const design = useDesignStore((s) => s.design);
   const cargo = useDesignStore((s) => s.cargo);
   const setCargoFill = useDesignStore((s) => s.setCargoFill);
   const setCargoDensity = useDesignStore((s) => s.setCargoDensity);
+  const inventoryMultiplier = useDesignStore((s) => s.inventoryMultiplier);
+  const setInventoryMultiplier = useDesignStore((s) => s.setInventoryMultiplier);
   const analysis = useAnalysis();
 
   // Selection is local UI state; the store only holds the derived density. On
@@ -53,6 +62,12 @@ export function CargoControl(): React.JSX.Element {
   const payload = analysis ? analysis.mass.cargoMass : 0;
   const capacity = analysis ? analysis.mass.cargoCapacity : 0;
   const isCustom = selectedId === CUSTOM;
+
+  // How many of the *selected* item fit — item-aware, honoring each inventory's
+  // type restriction (drills hold ore, reactors uranium, …). Independent of fill;
+  // this is the max the ship can hold. Only meaningful for a real dataset item.
+  const selectedItem = isCustom ? undefined : CARGO_ITEMS_BY_ID[selectedId];
+  const canCarry = design && selectedItem ? itemCapacity(design, selectedItem) : 0;
 
   const selectItem = (id: string): void => {
     setSelectedId(id);
@@ -176,6 +191,16 @@ export function CargoControl(): React.JSX.Element {
               {' '}— derived from this item's mass and volume.
             </p>
           )}
+        </div>
+
+        <div className="flex flex-col gap-3 border-t border-border pt-4">
+          <WorldMultiplierControl
+            name="analyze-inventory-multiplier"
+            multiplier={inventoryMultiplier}
+            onChange={setInventoryMultiplier}
+          />
+          {selectedItem && <ItemCapacityLine count={canCarry} itemName={selectedItem.displayName} />}
+          {analysis && <CapacityBreakdown byConstraint={analysis.mass.inventoryByConstraint} />}
         </div>
 
         <div className="flex items-center justify-between rounded-lg bg-bg px-3 py-2">

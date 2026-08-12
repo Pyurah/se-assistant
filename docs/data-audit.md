@@ -849,3 +849,58 @@ yet (documented fast-follow); until then the 17 curated blocks are the declarabl
 set in Estimate mode — a subset of the full generated weapon catalogue, chosen to
 match the weapons that have hand-verified firing stats.
 
+
+## Block inventory volumes (v0.27.0)
+
+Cargo capacity now counts **every** item-holding block, not just cargo containers
+and cockpits, and each inventory is type-gated (`inventoryConstraint`) so the
+"how many X fit?" readout only counts inventories that actually accept X. The
+game does **not** store literal inventory volumes in its definition files (it
+computes them from block size), so — exactly like the 6 curated cargo blocks
+already documented — these are hand-curated from the wiki (`spaceengineers.wiki.gg`,
+values quoted at the **Realistic ×1** inventory-size setting) with a citation here.
+
+The world's Realistic/×3/×10 inventory-size multiplier is applied on top at
+runtime (`ShipDesign.inventorySizeMultiplier`), so the curated numbers are always
+the ×1 baseline.
+
+| Block | SubtypeId | Grid | Volume (L, ×1) | Accepts |
+| --- | --- | --- | --- | --- |
+| Drill | `SmallBlockDrill` | small | 3,375 | ore |
+| Drill | `LargeBlockDrill` | large | 23,437.5 | ore |
+| Connector | `ConnectorMedium` | small | 1,152 | any |
+| Connector | `Connector` | large | 8,000 | any |
+| Collector | `CollectorSmall` | small | 1,675 | any |
+| Collector | `Collector` | large | 6,250 | any |
+| Ship Welder | `SmallShipWelder` / `…Reskin` | small | 3,375 | component |
+| Ship Welder | `LargeShipWelder` | large | 15,625 | component |
+| Ship Grinder | `SmallShipGrinder` | small | 2,500 | any |
+| Ship Grinder | `LargeShipGrinder` | large | 13,500 | any |
+| Small Reactor | `SmallBlockSmallGenerator` | small | 125 | uranium |
+| Small Reactor | `LargeBlockSmallGenerator` | large | 1,000 | uranium |
+| Large Reactor | `SmallBlockLargeGenerator` | small | 1,000 | uranium |
+| Large Reactor | `LargeBlockLargeGenerator` | large | 8,000 | uranium |
+
+**Cross-check (the user's calibration point):** a small-grid drill holds
+3,375 L ÷ 0.37 L/ore = **9,121 ore** — matching the reported "a little more than
+9k ore" in a small-grid drill. `mass.test.ts` pins this exact number.
+
+**Type-gate notes.** `ore` accepts any ore-category item, and **Ice is an ore**
+in-game (identical inventory mechanics), so drills correctly count toward ice
+haulage. Welder inventories accept **components only** (wiki: "will only accept
+component items") → `component`; grinder inventories accept anything they grind →
+`any`. Reactors accept **uranium ingots only** → `uranium`.
+
+**Known gaps (not fabricated).** The O2/H2 Generator holds ice, but its own
+inventory volume is not published on the wiki, so it is intentionally **left
+uncurated** (contributes 0) rather than guessed — the `ice` constraint exists for
+when a sourced value is found. Turrets/guns hold ammo (`ammo` constraint), which
+is not a `CargoItem`, so they never contribute to item-count math and are left
+uncurated. Coverage is curated-only: generated `source:'definition'` blocks carry
+no inventory volume — the same honest limitation cargo capacity had before this
+change (an imported modded/unrecognized block contributes 0, and the block list
+already surfaces unrecognized blocks).
+
+**Source:** `spaceengineers.wiki.gg` block pages — _Drill_, _Connector_,
+_Collector_, _Welder (Block)_, _Grinder (Block)_, _Small Reactor_, _Large
+Reactor_ — inventory-capacity figures at Realistic settings (SE v1.210.012 b0).

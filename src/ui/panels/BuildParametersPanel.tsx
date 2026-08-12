@@ -9,12 +9,16 @@
  * the six-direction stacks). All controls are labeled and keyboard-operable and
  * read the same {@link useEstimatorStore} slices they always have.
  */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   VANILLA_BLOCKS,
+  CARGO_ITEMS,
+  CARGO_ITEMS_BY_ID,
   type BatteryBlock,
+  type CargoItem,
   type PowerProducerBlock,
 } from '@data';
+import { itemCapacity } from '@core';
 import {
   useEstimatorStore,
   type PowerKind,
@@ -31,6 +35,7 @@ import { SegmentedControl } from '../components/SegmentedControl';
 import { IconLayers, IconBolt, IconCompass, IconBox, IconScale } from '../components/icons';
 import { cn } from '../lib/cn';
 import { ExtraMassFields } from './ExtraMassFields';
+import { WorldMultiplierControl, ItemCapacityLine } from './InventoryCapacity';
 
 const DENSITY_PRESETS: readonly { label: string; density: number }[] = [
   { label: 'Ice', density: 0.92 },
@@ -39,6 +44,18 @@ const DENSITY_PRESETS: readonly { label: string; density: number }[] = [
   { label: 'Ore', density: 2.7 },
   { label: 'Uranium', density: 7.6 },
 ];
+
+/** Human labels + order for the carry-item picker groups. */
+const ITEM_GROUP_ORDER: readonly { category: CargoItem['category']; label: string }[] = [
+  { category: 'component', label: 'Components' },
+  { category: 'ingot', label: 'Ingots' },
+  { category: 'ore', label: 'Ores' },
+];
+
+/** Default carry-item: Steel Plate (the archetypal hauler cargo), else the first. */
+const DEFAULT_CARRY_ITEM_ID = CARGO_ITEMS_BY_ID['comp-steel-plate']
+  ? 'comp-steel-plate'
+  : (CARGO_ITEMS[0]?.id ?? '');
 
 const fieldLabel = 'text-[11px] font-medium tracking-wide text-subtle uppercase';
 const selectClass =
@@ -52,6 +69,7 @@ export function BuildParametersPanel(): React.JSX.Element {
   const targetTurnTime = useEstimatorStore((s) => s.targetTurnTime);
   const cargo = useEstimatorStore((s) => s.cargo);
   const extraMass = useEstimatorStore((s) => s.extraMass);
+  const inventoryMultiplier = useEstimatorStore((s) => s.inventoryMultiplier);
 
   const setPower = useEstimatorStore((s) => s.setPower);
   const setRuntimeTargetHours = useEstimatorStore((s) => s.setRuntimeTargetHours);
@@ -60,9 +78,20 @@ export function BuildParametersPanel(): React.JSX.Element {
   const setCargoDensity = useEstimatorStore((s) => s.setCargoDensity);
   const setAddedMass = useEstimatorStore((s) => s.setAddedMass);
   const setExtraPayload = useEstimatorStore((s) => s.setExtraPayload);
+  const setInventoryMultiplier = useEstimatorStore((s) => s.setInventoryMultiplier);
+
+  // Which item the "can carry ≈ N" readout counts — a display-only choice (no
+  // store state; it doesn't change the build, only how capacity is expressed).
+  const [carryItemId, setCarryItemId] = useState<string>(DEFAULT_CARRY_ITEM_ID);
 
   // The live estimate reports the achieved turn time next to the target.
   const result = useEstimate();
+
+  // How many of the chosen item the synthesized build can hold — item-aware,
+  // honoring per-inventory type restrictions. Runs on the estimate's design so it
+  // sees the same fixed-block inventories + world multiplier the mass math does.
+  const carryItem = CARGO_ITEMS_BY_ID[carryItemId];
+  const canCarry = result && carryItem ? itemCapacity(result.design, carryItem) : 0;
 
   // Power producers for this grid (batteries handled separately).
   const producers = useMemo(
@@ -257,6 +286,35 @@ export function BuildParametersPanel(): React.JSX.Element {
               />
               <span className="font-mono text-xs text-subtle">kg/L</span>
             </label>
+          </div>
+
+          <WorldMultiplierControl
+            name="estimator-inventory-multiplier"
+            multiplier={inventoryMultiplier}
+            onChange={setInventoryMultiplier}
+          />
+
+          <div className="flex flex-col gap-2">
+            <label htmlFor="est-carry-item" className="text-xs text-muted">
+              Carry item
+            </label>
+            <select
+              id="est-carry-item"
+              value={carryItemId}
+              onChange={(e) => setCarryItemId(e.target.value)}
+              className={selectClass}
+            >
+              {ITEM_GROUP_ORDER.map(({ category, label }) => (
+                <optgroup key={category} label={label}>
+                  {CARGO_ITEMS.filter((i) => i.category === category).map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.displayName}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+            {carryItem && <ItemCapacityLine count={canCarry} itemName={carryItem.displayName} />}
           </div>
         </section>
 

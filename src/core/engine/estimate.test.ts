@@ -326,5 +326,54 @@ describe('estimateManual', () => {
       expect(negative.loadedMass).toBeCloseTo(baseline.loadedMass, 6);
     });
   });
+
+  // ── World inventory-size multiplier ──────────────────────────────────────────
+  // Fixed-block cargo capacity now sums EVERY holding block (drills, connectors,
+  // reactors, …) via the shared `sumInventory`, and scales with the world
+  // multiplier — so the estimator's cargo payload matches Analyze's `cargoCapacity`.
+  describe('inventory-size multiplier', () => {
+    const realDrill = VANILLA_BLOCKS_BY_ID['large-drill']!; // 23,437.5 L, ore
+    const realCargo = VANILLA_BLOCKS_BY_ID['large-large-cargo-container']!; // 421,000 L
+
+    /** Essentials that actually hold items: 1 real drill + 1 large cargo. */
+    const holders: FixedBlockSpec[] = [
+      { definition: realDrill, quantity: 1 },
+      { definition: realCargo, quantity: 1 },
+    ];
+
+    it('fixed drills (not just cargo) contribute to the cargo payload', () => {
+      const layout = uniformLayout(hydroLarge, 4);
+      const withDrill = estimateManual(
+        manualInput(layout, { fixedBlocks: holders, cargo: { fillFraction: 1, densityKgPerL: 2 } }),
+      );
+      const cargoOnly = estimateManual(
+        manualInput(layout, {
+          fixedBlocks: [{ definition: realCargo, quantity: 1 }],
+          cargo: { fillFraction: 1, densityKgPerL: 2 },
+        }),
+      );
+      // The drill's 23,437.5 L × fill 1 × density 2 = 46,875 kg of extra payload,
+      // plus the drill's own dry mass — so loaded mass grows by strictly more.
+      expect(withDrill.loadedMass - cargoOnly.loadedMass).toBeGreaterThan(46_875);
+    });
+
+    it('scales the cargo payload by the world multiplier (×3 triples the hold)', () => {
+      const layout = uniformLayout(hydroLarge, 4);
+      // targetTurnTime 0 → no gyros, and battery sizing depends on draw (not mass),
+      // so power count is identical across multipliers. That isolates the payload:
+      // dry mass is unchanged and the loaded delta is purely the extra cargo.
+      const base = manualInput(layout, {
+        fixedBlocks: holders,
+        cargo: { fillFraction: 1, densityKgPerL: 2 },
+        config: { ...manualInput(layout).config, targetTurnTime: 0 },
+      });
+      const x1 = estimateManual({ ...base, inventorySizeMultiplier: 1 });
+      const x3 = estimateManual({ ...base, inventorySizeMultiplier: 3 });
+      const cargoPayloadX1 = (23_437.5 + 421_000) * 1 * 2;
+      expect(x1.gyroCount).toBe(0);
+      expect(x3.dryMass).toBeCloseTo(x1.dryMass, 6);
+      expect(x3.loadedMass - x1.loadedMass).toBeCloseTo(cargoPayloadX1 * 2, 6);
+    });
+  });
 });
 

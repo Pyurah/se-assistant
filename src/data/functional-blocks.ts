@@ -59,6 +59,8 @@ export const FUNCTIONAL_BLOCKS: readonly BlockDefinition[] = [
     mass: 1004.2,
     maxPowerDraw: 2000,
     variableDraw: true,
+    inventoryVolume: 3375,
+    inventoryConstraint: 'ore',
     source: 'vanilla',
   },
   {
@@ -71,6 +73,8 @@ export const FUNCTIONAL_BLOCKS: readonly BlockDefinition[] = [
     mass: 6741,
     maxPowerDraw: 2000,
     variableDraw: true,
+    inventoryVolume: 23_437.5,
+    inventoryConstraint: 'ore',
     source: 'vanilla',
   },
   {
@@ -83,6 +87,8 @@ export const FUNCTIONAL_BLOCKS: readonly BlockDefinition[] = [
     mass: 448.4,
     maxPowerDraw: 2000,
     variableDraw: true,
+    inventoryVolume: 3375,
+    inventoryConstraint: 'component',
     source: 'vanilla',
   },
   {
@@ -95,6 +101,8 @@ export const FUNCTIONAL_BLOCKS: readonly BlockDefinition[] = [
     mass: 713.4,
     maxPowerDraw: 2000,
     variableDraw: true,
+    inventoryVolume: 15_625,
+    inventoryConstraint: 'component',
     source: 'vanilla',
   },
   {
@@ -109,6 +117,8 @@ export const FUNCTIONAL_BLOCKS: readonly BlockDefinition[] = [
     mass: 448.4,
     maxPowerDraw: 2000,
     variableDraw: true,
+    inventoryVolume: 3375,
+    inventoryConstraint: 'component',
     source: 'vanilla',
   },
   {
@@ -121,6 +131,8 @@ export const FUNCTIONAL_BLOCKS: readonly BlockDefinition[] = [
     mass: 488.4,
     maxPowerDraw: 2000,
     variableDraw: true,
+    inventoryVolume: 2500,
+    inventoryConstraint: 'any',
     source: 'vanilla',
   },
   {
@@ -133,6 +145,8 @@ export const FUNCTIONAL_BLOCKS: readonly BlockDefinition[] = [
     mass: 761.4,
     maxPowerDraw: 2000,
     variableDraw: true,
+    inventoryVolume: 13_500,
+    inventoryConstraint: 'any',
     source: 'vanilla',
   },
 
@@ -146,6 +160,8 @@ export const FUNCTIONAL_BLOCKS: readonly BlockDefinition[] = [
     dlc: 'base',
     mass: 3564,
     maxPowerDraw: 0,
+    inventoryVolume: 8000,
+    inventoryConstraint: 'any',
     source: 'vanilla',
   },
   {
@@ -157,6 +173,8 @@ export const FUNCTIONAL_BLOCKS: readonly BlockDefinition[] = [
     dlc: 'base',
     mass: 685.2,
     maxPowerDraw: 0,
+    inventoryVolume: 1152,
+    inventoryConstraint: 'any',
     source: 'vanilla',
   },
   {
@@ -168,6 +186,8 @@ export const FUNCTIONAL_BLOCKS: readonly BlockDefinition[] = [
     dlc: 'base',
     mass: 1574,
     maxPowerDraw: 2000,
+    inventoryVolume: 6250,
+    inventoryConstraint: 'any',
     source: 'vanilla',
   },
   {
@@ -179,6 +199,8 @@ export const FUNCTIONAL_BLOCKS: readonly BlockDefinition[] = [
     dlc: 'base',
     mass: 1237.6,
     maxPowerDraw: 2000,
+    inventoryVolume: 1675,
+    inventoryConstraint: 'any',
     source: 'vanilla',
   },
   // Conveyor plumbing — passive (0 W); contributes mass only. Small-grid

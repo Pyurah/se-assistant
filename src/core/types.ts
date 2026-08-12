@@ -91,4 +91,10 @@ export interface ShipDesign {
    * Absent ⇒ no extra mass, identical to the pre-feature behavior.
    */
   readonly extraMass?: ExtraMass;
+  /**
+   * World inventory-size multiplier (Space Engineers' Realistic ×1 / ×3 / ×10
+   * setting). Scales every block's item-inventory capacity. Absent ⇒ 1 (Realistic),
+   * identical to the pre-feature behavior. Clamped ≥ 0 by the engine.
+   */
+  readonly inventorySizeMultiplier?: number;
 }

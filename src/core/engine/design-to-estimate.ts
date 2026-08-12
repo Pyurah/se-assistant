@@ -67,6 +67,12 @@ export interface EstimateSeed {
    * blueprint seed stays identical to the pre-feature behavior.
    */
   readonly extraMass?: ExtraMass;
+  /**
+   * World inventory-size multiplier carried through from the source design
+   * (Realistic ×1 / ×3 / ×10). Absent when the source used the default, so a plain
+   * blueprint seed stays identical to the pre-feature behavior.
+   */
+  readonly inventorySizeMultiplier?: number;
   /** Non-sized essentials, matched to the dataset, with their real counts. */
   readonly fixedBlocks: readonly { readonly id: string; readonly quantity: number }[];
   /**
@@ -204,6 +210,9 @@ export function designToEstimateSeed(design: ShipDesign): EstimateSeed {
     planetId: design.planetId,
     cargo: design.cargo,
     ...(design.extraMass ? { extraMass: design.extraMass } : {}),
+    ...(design.inventorySizeMultiplier !== undefined
+      ? { inventorySizeMultiplier: design.inventorySizeMultiplier }
+      : {}),
     fixedBlocks,
     thrusterStacks: stacks,
     powerBlockId: dominantPower?.id ?? null,

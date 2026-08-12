@@ -216,6 +216,7 @@ export function useEstimate(): EstimateResult | null {
   const planetId = useEstimatorStore((s) => s.planetId);
   const cargo = useEstimatorStore((s) => s.cargo);
   const extraMass = useEstimatorStore((s) => s.extraMass);
+  const inventoryMultiplier = useEstimatorStore((s) => s.inventoryMultiplier);
   const thrusterStacks = useEstimatorStore((s) => s.thrusterStacks);
   const directionGoals = useEstimatorStore((s) => s.directionGoals);
   const goalLoadState = useEstimatorStore((s) => s.goalLoadState);
@@ -310,6 +311,10 @@ export function useEstimate(): EstimateResult | null {
       // joins base/dry mass, loaded-only `payload` joins the cargo payload, so
       // support sizing (power + gyros), TWR, and dry/loaded mass all reflect it.
       ...(extraMass.added > 0 || extraMass.payload > 0 ? { extraMass } : {}),
+      // World inventory-size multiplier scales the fixed-block cargo capacity so
+      // the payload the estimator sizes support against matches Analyze. Only
+      // threaded when non-default, keeping a plain build identical to before.
+      ...(inventoryMultiplier !== 1 ? { inventorySizeMultiplier: inventoryMultiplier } : {}),
     };
     const estimate = estimateManual(input);
 
@@ -376,6 +381,7 @@ export function useEstimate(): EstimateResult | null {
     planetId,
     cargo,
     extraMass,
+    inventoryMultiplier,
     thrusterStacks,
     directionGoals,
     goalLoadState,

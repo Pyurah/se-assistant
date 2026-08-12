@@ -1,6 +1,6 @@
 # SE Assistant — Product Roadmap
 
-> **Last Updated**: 2026-08-10 (v0.26.0)
+> **Last Updated**: 2026-08-11 (v0.27.0)
 
 A Space Engineers ship & base planner: import a blueprint (`.sbc`) and get
 instant thrust-to-weight, mass, cargo, and power analysis — empty vs fully
@@ -9,6 +9,31 @@ loaded, on any vanilla planet.
 ---
 
 ## 👉 Next session starts here
+
+**v0.27.0 (2026-08-11) — Cargo capacity: item-count readout + all-block, type-aware
+inventory.** Cargo was only ever a *mass* (`capacity × fill × density`); for a hauler
+you care about *count*. Both tabs now answer **"how many items can it carry?"**:
+a **"can carry ≈ N × &lt;item&gt;"** readout for a chosen component/ore/ingot, computed
+from the ship's real inventory volume ÷ the item's per-unit volume (Analyze reads its
+existing cargo-contents picker; Estimate gains a compact display-only "Carry item"
+picker). The count is **type-aware** — each inventory declares what it accepts via a new
+`InventoryConstraint` (`any` / `ore` / `uranium` / `ice` / `component` / `ammo`), so a
+drill's hold counts toward Iron Ore but not Steel Plate, a reactor's toward Uranium
+Ingot only, and general containers/connectors/cockpits toward everything (pure engine
+helpers `inventoryBreakdown` / `itemCapacity`, plus `inventoryAccepts` in `@data`).
+**Cargo capacity now sums every item inventory, not just containers + cockpits** —
+drills, connectors, collectors, welders/grinders, O2/H2 generators (ice) and reactors
+(uranium) all hold items, so a fully-loaded miner fills its drills too (a small-grid
+drill alone holds ~9,121 ore); loaded mass, directional TWR, and space acceleration all
+inherit the completed total for free via the shared `sumInventory`. A per-design **world
+inventory-size multiplier** (Realistic ×1 / ×3 / ×10) mirrors the Build-cost panel's
+"Assembler efficiency (world)" knob, scaling every hold and count; it's threaded through
+both stores + the synthesized Estimate design and preserved across blueprint seeding
+(changing it counts as adjusted-from-source). The Analyze Mass + Cargo panels split total
+capacity by pool (General cargo / Ore / Ice / …) when more than one holds items. Curated
+blocks carry hand-sourced inventory volumes (cited in `docs/data-audit.md`); generated
+`source:'definition'` blocks contribute 0 (the same honest gap cargo had before). All 544
+tests green.
 
 **v0.26.0 (2026-08-10) — Both dashboards re-laid-out for breathing room.** The
 old three-equal-column `max-w-6xl` grid split 1152px into ~341px columns that
@@ -419,11 +444,11 @@ fast-follow is **done** (v0.17.0).
 
 ## Current State
 
-- **Version**: 0.26.0
+- **Version**: 0.27.0
 - **Repo**: pushed to `https://github.com/Pyurah/se-assistant` (`master`);
   commits use the GitHub no-reply email (real email scrubbed from history).
 - **Build**: passing (`pnpm build`)
-- **Tests**: passing — 474 tests across logger, audit, data-integrity, the
+- **Tests**: passing — 544 tests across logger, audit, data-integrity, the
   merged-dataset invariants (`all-blocks` + `all-block-costs` override/gap-fill
   proofs) and the block + cost generators' fixture-driven parser/emitter/map
   suites, engine

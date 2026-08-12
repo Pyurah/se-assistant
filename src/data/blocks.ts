@@ -346,6 +346,8 @@ export const VANILLA_CORE_BLOCKS: readonly BlockDefinition[] = [
     dlc: 'base',
     mass: 278,
     maxPowerOutput: 500_000,
+    inventoryVolume: 125,
+    inventoryConstraint: 'uranium',
     source: 'vanilla',
   },
   {
@@ -357,6 +359,8 @@ export const VANILLA_CORE_BLOCKS: readonly BlockDefinition[] = [
     dlc: 'base',
     mass: 3901,
     maxPowerOutput: 14_750_000,
+    inventoryVolume: 1000,
+    inventoryConstraint: 'uranium',
     source: 'vanilla',
   },
   {
@@ -368,6 +372,8 @@ export const VANILLA_CORE_BLOCKS: readonly BlockDefinition[] = [
     dlc: 'base',
     mass: 4793,
     maxPowerOutput: 15_000_000,
+    inventoryVolume: 1000,
+    inventoryConstraint: 'uranium',
     source: 'vanilla',
   },
   {
@@ -379,6 +385,8 @@ export const VANILLA_CORE_BLOCKS: readonly BlockDefinition[] = [
     dlc: 'base',
     mass: 73_795,
     maxPowerOutput: 300_000_000,
+    inventoryVolume: 8000,
+    inventoryConstraint: 'uranium',
     source: 'vanilla',
   },
 

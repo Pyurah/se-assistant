@@ -35,6 +35,7 @@ import type {
 import { GRID_CELL_SIZE_M } from '../../data/fuel-constants';
 import { effectiveThrust } from './thruster';
 import { weight, DIRECTIONS } from './twr';
+import { sumInventory } from './mass';
 import {
   characteristicSide,
   solidCubeInertia,
@@ -113,6 +114,11 @@ export interface ManualEstimatorInput {
   readonly extraMass?: ExtraMass;
   /** Grid scale of the build (drives geometry-less design synthesis downstream). */
   readonly gridSize: GridSize;
+  /**
+   * World inventory-size multiplier (Realistic ×1 / ×3 / ×10). Scales fixed-block
+   * inventory capacity, so the cargo payload it implies matches Analyze. Absent ⇒ 1.
+   */
+  readonly inventorySizeMultiplier?: number;
   readonly config: ManualEstimatorConfig;
 }
 
@@ -170,16 +176,14 @@ function fixedDraw(fixed: readonly FixedBlockSpec[]): number {
   return total;
 }
 
-/** Total inventory capacity across the fixed blocks, liters. */
-function fixedCargoCapacity(fixed: readonly FixedBlockSpec[]): number {
-  let total = 0;
-  for (const b of fixed) {
-    const def = b.definition;
-    if (def.category === 'cargo' || def.category === 'cockpit') {
-      total += def.inventoryVolume * b.quantity;
-    }
-  }
-  return total;
+/**
+ * Total item-inventory capacity across the fixed blocks × the world multiplier,
+ * liters. Delegates to the shared {@link sumInventory} so it counts every holding
+ * block (drills, connectors, reactors, …) — not just cargo/cockpit — and stays in
+ * lockstep with Analyze's {@link cargoCapacity}.
+ */
+function fixedCargoCapacity(fixed: readonly FixedBlockSpec[], multiplier: number): number {
+  return sumInventory(fixed, multiplier);
 }
 
 /**
@@ -332,8 +336,9 @@ export function estimateManual(input: ManualEstimatorInput): Estimate {
 
   const baseMass = fixedMass(fixedBlocks) + addedMass;
   const baseDraw = fixedDraw(fixedBlocks);
+  const inventoryMultiplier = Math.max(0, input.inventorySizeMultiplier ?? 1);
   const cargoPayload =
-    fixedCargoCapacity(fixedBlocks) *
+    fixedCargoCapacity(fixedBlocks, inventoryMultiplier) *
       Math.min(1, Math.max(0, cargo.fillFraction)) *
       cargo.densityKgPerL +
     extraPayload;

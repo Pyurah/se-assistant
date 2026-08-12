@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { VANILLA_BLOCKS, VANILLA_BLOCKS_BY_ID } from '../../data/blocks';
+import { CARGO_ITEMS_BY_ID } from '../../data/cargo-items';
 import { PLANET_PRESETS_BY_ID } from '../../data/planets';
 import type { ShipDesign, DesignBlock } from '../types';
 import type { ThrusterBlock, Direction } from '../../data/schema';
@@ -13,6 +14,8 @@ import {
   addedMass,
   extraPayload,
   massSummary,
+  inventoryBreakdown,
+  itemCapacity,
 } from './mass';
 import {
   directionalThrust,
@@ -96,22 +99,131 @@ describe('mass & cargo (worked example)', () => {
     expect(by.cargo).toBeCloseTo(2_593.6, 1);
   });
 
-  it('cargo capacity is the container volume', () => {
-    expect(cargoCapacity(ship)).toBe(421_000);
+  it('cargo capacity sums every holding block (container + reactor)', () => {
+    // Large cargo container 421,000 L + large reactor 8,000 L = 429,000 L.
+    // (The 4 hydrogen thrusters hold no item inventory.)
+    expect(cargoCapacity(ship)).toBe(429_000);
   });
 
   it('cargo mass = capacity × fill × density', () => {
-    // 421,000 × 1.0 × 2.0 = 842,000
-    expect(cargoMass(ship)).toBeCloseTo(842_000, 0);
+    // 429,000 × 1.0 × 2.0 = 858,000
+    expect(cargoMass(ship)).toBeCloseTo(858_000, 0);
   });
 
   it('loaded mass = dry + cargo', () => {
-    expect(loadedMass(ship)).toBeCloseTo(946_148.6, 1);
+    // 104,148.6 + 858,000 = 962,148.6
+    expect(loadedMass(ship)).toBeCloseTo(962_148.6, 1);
   });
 
   it('clamps fill fraction to [0,1]', () => {
     const over = { ...ship, cargo: { fillFraction: 2.0, densityKgPerL: 2.0 } };
-    expect(cargoMass(over)).toBeCloseTo(842_000, 0); // clamped to 1.0
+    expect(cargoMass(over)).toBeCloseTo(858_000, 0); // clamped to 1.0
+  });
+});
+
+describe('type-aware inventory: capacity, breakdown & item-count (worked examples)', () => {
+  const ironOre = CARGO_ITEMS_BY_ID['ore-iron']!; // 0.37 L/unit, ore
+  const steelPlate = CARGO_ITEMS_BY_ID['comp-steel-plate']!; // 3 L/unit, component
+  const uraniumIngot = CARGO_ITEMS_BY_ID['ingot-uranium']!; // 0.052 L/unit, ingot
+
+  /** A design of one block id at a given quantity, no cargo fill. */
+  function design(id: string, quantity: number, inventorySizeMultiplier?: number): ShipDesign {
+    return {
+      id: 'inv',
+      name: 'Inv',
+      gridSize: 'large',
+      blocks: [block(id, quantity)],
+      planetId: 'space',
+      cargo: { fillFraction: 0, densityKgPerL: 1 },
+      ...(inventorySizeMultiplier !== undefined ? { inventorySizeMultiplier } : {}),
+    };
+  }
+
+  it('itemCapacity: one small drill holds ~9,121 Iron Ore (the user’s number)', () => {
+    // 3,375 L ÷ 0.37 L/ore = 9,121.6 → floor 9,121.
+    expect(itemCapacity(design('small-drill', 1), ironOre)).toBe(9_121);
+  });
+
+  it('itemCapacity: a drill (ore-only) holds ZERO Steel Plate; a container holds many', () => {
+    // Drill's inventory is ore-constrained → rejects components entirely.
+    expect(itemCapacity(design('small-drill', 1), steelPlate)).toBe(0);
+    // Large cargo container is 'any' → 421,000 L ÷ 3 L = 140,333.
+    expect(itemCapacity(design('large-large-cargo-container', 1), steelPlate)).toBe(140_333);
+  });
+
+  it('itemCapacity: Uranium Ingot counts the reactor, not the ore-only drill', () => {
+    // Reactor 8,000 L (uranium) + drill 3,375 L (ore). Uranium Ingot fits only the
+    // reactor: 8,000 ÷ 0.052 = 153,846.1 → floor 153,846.
+    const mixed: ShipDesign = {
+      id: 'inv',
+      name: 'Inv',
+      gridSize: 'large',
+      blocks: [block('large-large-reactor', 1), block('small-drill', 1)],
+      planetId: 'space',
+      cargo: { fillFraction: 0, densityKgPerL: 1 },
+    };
+    expect(itemCapacity(mixed, uraniumIngot)).toBe(153_846);
+    // And Iron Ore counts the drill but not the uranium-only reactor.
+    expect(itemCapacity(mixed, ironOre)).toBe(9_121);
+  });
+
+  it('itemCapacity: zero for a zero/negative-volume item', () => {
+    const weird = { ...ironOre, volume: 0 };
+    expect(itemCapacity(design('large-large-cargo-container', 1), weird)).toBe(0);
+  });
+
+  it('inventoryBreakdown: splits capacity by what each pool accepts', () => {
+    // 1 container (421,000 any) + 2 small drills (3,375 ore ea) + 1 reactor (8,000 uranium).
+    const mixed: ShipDesign = {
+      id: 'inv',
+      name: 'Inv',
+      gridSize: 'large',
+      blocks: [
+        block('large-large-cargo-container', 1),
+        block('small-drill', 2),
+        block('large-large-reactor', 1),
+      ],
+      planetId: 'space',
+      cargo: { fillFraction: 0, densityKgPerL: 1 },
+    };
+    const b = inventoryBreakdown(mixed);
+    expect(b.any).toBe(421_000);
+    expect(b.ore).toBe(6_750); // 2 × 3,375
+    expect(b.uranium).toBe(8_000);
+    expect(b.ice).toBe(0);
+    expect(b.component).toBe(0);
+    expect(b.ammo).toBe(0);
+  });
+
+  it('cargoCapacity: sums every holding pool and scales with the world multiplier', () => {
+    // Total = 421,000 + 6,750 + 8,000 = 435,750 L.
+    const mixed: ShipDesign = {
+      id: 'inv',
+      name: 'Inv',
+      gridSize: 'large',
+      blocks: [
+        block('large-large-cargo-container', 1),
+        block('small-drill', 2),
+        block('large-large-reactor', 1),
+      ],
+      planetId: 'space',
+      cargo: { fillFraction: 0, densityKgPerL: 1 },
+    };
+    expect(cargoCapacity(mixed)).toBe(435_750);
+    // ×3 world setting triples the total (and every item count with it).
+    expect(cargoCapacity({ ...mixed, inventorySizeMultiplier: 3 })).toBe(1_307_250);
+    // Item counts scale with the multiplier too: ×3 gives 3× the ore capacity.
+    const oneX = itemCapacity(design('small-drill', 1), ironOre);
+    const threeX = itemCapacity(design('small-drill', 1, 3), ironOre);
+    expect(threeX).toBe(Math.floor((3_375 * 3) / ironOre.volume));
+    expect(threeX).toBeGreaterThan(oneX * 2.9);
+  });
+
+  it('inventoryMultiplier is surfaced on the mass summary', () => {
+    const summary = massSummary(design('large-large-cargo-container', 1, 10));
+    expect(summary.inventoryMultiplier).toBe(10);
+    expect(summary.cargoCapacity).toBe(4_210_000); // 421,000 × 10
+    expect(summary.inventoryByConstraint.any).toBe(4_210_000);
   });
 });
 
@@ -130,9 +242,10 @@ describe('freeform extra mass (worked example)', () => {
     planetId: 'earthlike',
     cargo: { fillFraction: 1.0, densityKgPerL: 2.0 },
   };
-  // Dry (blocks only) = 104,148.6; cargo payload = 842,000.
+  // Dry (blocks only) = 104,148.6; cargo payload = container 421,000 + reactor
+  // 8,000 = 429,000 L × 2.0 = 858,000 (every holding block counts toward capacity).
   const blocksDry = 104_148.6;
-  const cargoPayload = 842_000;
+  const cargoPayload = 858_000;
 
   it('absent extraMass is identical to the pre-feature ship', () => {
     expect(addedMass(base)).toBe(0);
@@ -225,8 +338,8 @@ describe('directional TWR & lift analysis', () => {
     expect(a.liftsEmpty).toBe(true);
     expect(a.liftsLoaded).toBe(true);
     expect(a.emptyUpTwr).toBeGreaterThan(a.loadedUpTwr);
-    // loaded: 28,800,000 / (946,148.6 × 9.81) = 3.10
-    expect(a.loadedUpTwr).toBeCloseTo(3.10, 1);
+    // loaded: 28,800,000 / (962,148.6 × 9.81) = 3.05
+    expect(a.loadedUpTwr).toBeCloseTo(3.05, 1);
   });
 
   it('shows the killer insight: lifts empty but NOT loaded', () => {
@@ -236,11 +349,11 @@ describe('directional TWR & lift analysis', () => {
       cargo: { fillFraction: 1.0, densityKgPerL: 8.0 }, // heavy ore
     };
     const a = liftAnalysis(overloaded, earthlike);
-    // dry 104,148.6; cargo 421,000×8=3,368,000; loaded 3,472,148.6
-    // loaded up-TWR = 28,800,000/(3,472,148.6×9.81)=0.845 < 1
+    // dry 104,148.6; cargo 429,000×8=3,432,000; loaded 3,536,148.6
+    // loaded up-TWR = 28,800,000/(3,536,148.6×9.81)=0.830 < 1
     expect(a.liftsEmpty).toBe(true);
     expect(a.liftsLoaded).toBe(false);
-    expect(a.loadedUpTwr).toBeCloseTo(0.845, 2);
+    expect(a.loadedUpTwr).toBeCloseTo(0.830, 2);
   });
 
   it('same ship is a rocket on the Moon (low gravity)', () => {

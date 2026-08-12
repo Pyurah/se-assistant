@@ -81,6 +81,8 @@ export interface EstimatorState {
   cargo: CargoLoadout;
   /** Freeform extra mass (docked ship / bolted-on module + hauled payload). */
   extraMass: ExtraMass;
+  /** World inventory-size multiplier (Realistic ×1 / ×3 / ×10). Scales capacity. */
+  inventoryMultiplier: number;
 
   // --- Manual thruster assignment ---
   /** Per-direction assigned thruster types + counts (the build the user drives). */
@@ -119,6 +121,8 @@ export interface EstimatorState {
   setAddedMass: (kg: number) => void;
   /** Set the loaded-only extra payload (counts only loaded), kg. */
   setExtraPayload: (kg: number) => void;
+  /** Set the world inventory-size multiplier (×1 / ×3 / ×10); clamped ≥ 0. */
+  setInventoryMultiplier: (multiplier: number) => void;
   /** Add one of `blockId` to `dir`'s stack (bumps count if already present). */
   addThruster: (dir: Direction, blockId: string) => void;
   /** Remove `blockId` from `dir`'s stack entirely. */
@@ -175,6 +179,7 @@ export const GRID_DEFAULTS: Record<GridSize, GridDefaults> = {
 
 const DEFAULT_CARGO: CargoLoadout = { fillFraction: 0, densityKgPerL: 2.0 };
 const DEFAULT_EXTRA_MASS: ExtraMass = { added: 0, payload: 0 };
+const DEFAULT_INVENTORY_MULTIPLIER = 1;
 const DEFAULT_GRID: GridSize = 'large';
 
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
@@ -218,6 +223,7 @@ export const useEstimatorStore = create<EstimatorState>((set, get) => ({
   planetId: 'earthlike',
   cargo: DEFAULT_CARGO,
   extraMass: DEFAULT_EXTRA_MASS,
+  inventoryMultiplier: DEFAULT_INVENTORY_MULTIPLIER,
 
   thrusterStacks: emptyStacks(),
   directionGoals: defaultGoals(),
@@ -302,6 +308,8 @@ export const useEstimatorStore = create<EstimatorState>((set, get) => ({
 
   setExtraPayload: (kg) => set({ extraMass: { ...get().extraMass, payload: atLeast(kg, 0) } }),
 
+  setInventoryMultiplier: (multiplier) => set({ inventoryMultiplier: atLeast(multiplier, 0) }),
+
   addThruster: (dir, blockId) => {
     const { thrusterStacks } = get();
     const stack = thrusterStacks[dir];
@@ -369,6 +377,7 @@ export const useEstimatorStore = create<EstimatorState>((set, get) => ({
       planetId: seed.planetId,
       cargo: seed.cargo,
       extraMass: seed.extraMass ?? DEFAULT_EXTRA_MASS,
+      inventoryMultiplier: seed.inventorySizeMultiplier ?? DEFAULT_INVENTORY_MULTIPLIER,
       thrusterStacks: stacksFromSeed(seed.thrusterStacks),
       powerKind: seed.powerKind,
       powerBlockId: seed.powerBlockId ?? defaults.batteryId,
@@ -424,6 +433,7 @@ export const useEstimatorStore = create<EstimatorState>((set, get) => ({
       planetId: 'earthlike',
       cargo: DEFAULT_CARGO,
       extraMass: DEFAULT_EXTRA_MASS,
+      inventoryMultiplier: DEFAULT_INVENTORY_MULTIPLIER,
       thrusterStacks: emptyStacks(),
       directionGoals: defaultGoals(),
       goalLoadState: 'loaded',
@@ -476,6 +486,10 @@ export function isAdjustedFromSource(state: EstimatorState): boolean {
   const seedExtra = seed.extraMass ?? DEFAULT_EXTRA_MASS;
   if (state.extraMass.added !== seedExtra.added) return true;
   if (state.extraMass.payload !== seedExtra.payload) return true;
+  // World inventory multiplier is likewise a seeded ship property; changing it
+  // (×1 → ×3, etc.) counts as an adjustment. A source at the default seeds ×1.
+  const seedMultiplier = seed.inventorySizeMultiplier ?? DEFAULT_INVENTORY_MULTIPLIER;
+  if (state.inventoryMultiplier !== seedMultiplier) return true;
 
   // Per-direction thruster stacks must match as id→count multisets.
   for (const dir of ALL_DIRECTIONS) {
